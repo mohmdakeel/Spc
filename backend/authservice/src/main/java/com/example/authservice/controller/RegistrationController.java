@@ -4,6 +4,8 @@ import com.example.authservice.model.Registration;
 import com.example.authservice.service.RegistrationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -31,10 +33,12 @@ public class RegistrationController {
 
     @PostMapping
     public ResponseEntity<Registration> createRegistration(
-            @RequestBody Registration registration) throws IOException {
+            @RequestBody Registration registration,
+            @RequestHeader(value = "X-User-Name", required = false) String addedBy) throws IOException {
+
+        // Optionally set addedBy manually if not handled by auditor (usually not needed)
         return ResponseEntity.ok(registrationService.createRegistration(registration, null));
     }
-
 
     @PutMapping("/{id}")
     public ResponseEntity<Registration> updateRegistration(
@@ -52,8 +56,21 @@ public class RegistrationController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteRegistration(@PathVariable Long id) {
-        registrationService.deleteRegistration(id);
+    public ResponseEntity<Void> deleteRegistration(
+            @PathVariable Long id,
+            @RequestHeader(value = "X-User-Name", required = false) String deletedBy) {
+
+        // Fallback to Spring Security context
+        if (deletedBy == null || deletedBy.isBlank()) {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
+                deletedBy = auth.getName();
+            } else {
+                deletedBy = "system";
+            }
+        }
+
+        registrationService.deleteRegistration(id, deletedBy);
         return ResponseEntity.noContent().build();
     }
 }

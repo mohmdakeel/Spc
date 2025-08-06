@@ -11,6 +11,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+
 @Service
 public class RegistrationService {
 
@@ -21,11 +22,11 @@ public class RegistrationService {
     private Cloudinary cloudinary;
 
     public List<Registration> getAllRegistrations() {
-        return registrationRepository.findAll();
+        return registrationRepository.findByDeletedFalse();
     }
 
     public Registration getRegistrationById(Long id) {
-        return registrationRepository.findById(id)
+        return registrationRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new RuntimeException("Registration not found with id: " + id));
     }
 
@@ -38,9 +39,10 @@ public class RegistrationService {
     }
 
     public Registration updateRegistration(Long id, Registration updatedData, MultipartFile imageFile) throws IOException {
-        Registration existing = getRegistrationById(id);
+        Registration existing = registrationRepository.findByIdAndDeletedFalse(id)
+                .orElseThrow(() -> new RuntimeException("Registration not found with id: " + id));
 
-        // Copy fields
+        // Copy updated fields
         existing.setEpfNo(updatedData.getEpfNo());
         existing.setAttendanceNo(updatedData.getAttendanceNo());
         existing.setNameWithInitials(updatedData.getNameWithInitials());
@@ -72,7 +74,11 @@ public class RegistrationService {
         return registrationRepository.save(existing);
     }
 
-    public void deleteRegistration(Long id) {
-        registrationRepository.deleteById(id);
+    public void deleteRegistration(Long id, String deletedBy) {
+        Registration existing = registrationRepository.findByIdAndDeletedFalse(id)
+                .orElseThrow(() -> new RuntimeException("Registration not found with id: " + id));
+
+        existing.markAsDeleted(deletedBy);
+        registrationRepository.save(existing);
     }
 }

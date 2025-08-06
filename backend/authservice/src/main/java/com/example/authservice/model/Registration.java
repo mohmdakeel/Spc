@@ -2,8 +2,14 @@ package com.example.authservice.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Entity
 @Getter
@@ -11,6 +17,7 @@ import java.time.LocalDate;
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "registration")
+@EntityListeners(AuditingEntityListener.class)
 public class Registration {
 
     @Id
@@ -41,4 +48,33 @@ public class Registration {
     private String emergencyContact;
     private String workingStatus;
 
+    private boolean deleted = false;
+
+    @CreatedDate
+    private LocalDateTime addedTime;
+
+    @CreatedBy
+    private String addedBy;
+
+    @LastModifiedDate
+    private LocalDateTime modifiedTime;
+
+    @LastModifiedBy
+    private String modifiedBy;
+
+    private LocalDateTime deletedTime;
+    private String deletedBy;
+
+    @Version
+    private Long version;
+
+    public void markAsDeleted(String deletedBy) {
+        this.deleted = true;
+        this.deletedTime = LocalDateTime.now();
+        this.deletedBy = deletedBy; // ✅ Fixed
+    }
+
+    public boolean isDeleted() {
+        return deleted;
+    }
 }
