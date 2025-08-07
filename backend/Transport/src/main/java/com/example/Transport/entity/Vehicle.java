@@ -45,7 +45,7 @@ public class Vehicle {
     private String status;
 
     @Column(name = "is_deleted", nullable = false)
-    private Integer isDeleted;
+    private Integer isDeleted = 0;
 
     @CreatedBy
     private String createdBy;

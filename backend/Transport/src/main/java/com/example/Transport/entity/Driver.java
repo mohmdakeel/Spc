@@ -1,5 +1,7 @@
 package com.example.Transport.entity;
 
+import com.example.Transport.enums.DriverStatus;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.*;
 import lombok.*;
 import org.springframework.data.annotation.CreatedBy;
@@ -8,7 +10,6 @@ import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import jakarta.validation.constraints.NotBlank;
-
 import java.util.Date;
 
 @Entity
@@ -34,9 +35,20 @@ public class Driver {
     @NotBlank(message = "License number is mandatory")
     private String licenseNumber;
 
-    // ✅ Use Integer instead of Boolean/boolean
+    @JsonFormat(pattern = "yyyy-MM-dd") // <--- THIS FIXES YOUR ERROR!
+    @Temporal(TemporalType.DATE)
+    @Column(name = "license_expiry_date")
+    private Date licenseExpiryDate;
+
+    @Column(name = "driving_experience")
+    private Integer drivingExperience;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status")
+    private DriverStatus status; // <-- enum!
+
     @Column(name = "is_deleted", nullable = false)
-    private Integer isDeleted;
+    private Integer isDeleted = 0; // 0 = active, 1 = deleted
 
     @CreatedBy
     private String createdBy;
@@ -53,7 +65,7 @@ public class Driver {
     private String deletedBy;
     private Date deletedAt;
 
-    // ✅ This lets JSON use "deleted": true/false
+    // Helper for JSON boolean compatibility
     public Boolean getDeleted() {
         return isDeleted != null && isDeleted == 1;
     }
@@ -62,4 +74,3 @@ public class Driver {
         this.isDeleted = (deleted != null && deleted) ? 1 : 0;
     }
 }
-

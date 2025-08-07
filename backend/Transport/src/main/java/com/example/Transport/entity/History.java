@@ -2,13 +2,8 @@ package com.example.Transport.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-
 import java.util.Date;
 
-/**
- * Entity representing the history of actions performed on entities (Driver/Vehicle).
- * This class is mapped to the 'history' table in the database.
- */
 @Entity
 @Table(name = "history")
 @Data
@@ -28,7 +23,7 @@ public class History {
     private String entityId;
 
     @Column(nullable = false)
-    private String action;
+    private String action; // "Created", "Updated", "Deleted"
 
     @Column(nullable = false)
     private String performedBy;
@@ -37,7 +32,7 @@ public class History {
     private Date timestamp;
 
     @Column(columnDefinition = "TEXT")
-    private String deletedData;
+    private String previousData; // JSON of previous data (used for updates and deletes)
 
     @PrePersist
     protected void onCreate() {

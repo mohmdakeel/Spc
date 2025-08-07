@@ -10,8 +10,10 @@ import org.springframework.stereotype.Service;
 
 import jakarta.transaction.Transactional;
 import java.util.Date;
+import java.util.List;
 
 @Service
+@Transactional
 public class VehicleService {
 
     @Autowired
@@ -23,21 +25,26 @@ public class VehicleService {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @Transactional
     public Vehicle addVehicle(Vehicle vehicle) {
-        vehicle.setDeleted(false); // Ensures the vehicle is not marked as deleted when created
+        vehicle.setDeleted(false);
         Vehicle savedVehicle = vehicleRepository.save(vehicle);
-        
-        // Saving history for vehicle creation
+
         saveHistory("Vehicle", String.valueOf(savedVehicle.getId()), "Created", null);
-        
+
         return savedVehicle;
     }
 
-    @Transactional
     public Vehicle updateVehicle(Long vehicleId, Vehicle vehicleDetails) {
         Vehicle existingVehicle = vehicleRepository.findByIdAndIsDeleted(vehicleId, 0)
                 .orElseThrow(() -> new IllegalArgumentException("Vehicle not found or is deleted"));
+
+        // Capture previous data before update
+        String previousData;
+        try {
+            previousData = objectMapper.writeValueAsString(existingVehicle);
+        } catch (Exception e) {
+            previousData = "Error serializing vehicle data";
+        }
 
         existingVehicle.setVehicleNumber(vehicleDetails.getVehicleNumber());
         existingVehicle.setVehicleType(vehicleDetails.getVehicleType());
@@ -51,32 +58,33 @@ public class VehicleService {
         existingVehicle.setPresentCondition(vehicleDetails.getPresentCondition());
         existingVehicle.setStatus(vehicleDetails.getStatus());
 
-        // Saving history for vehicle update
-        saveHistory("Vehicle", String.valueOf(existingVehicle.getId()), "Updated", null);
+        Vehicle updatedVehicle = vehicleRepository.save(existingVehicle);
 
-        return vehicleRepository.save(existingVehicle);
+        // Saving history for vehicle update
+        saveHistory("Vehicle", String.valueOf(existingVehicle.getId()), "Updated", previousData);
+
+        return updatedVehicle;
     }
 
-    @Transactional
     public void deleteVehicle(Long vehicleId) {
         Vehicle existingVehicle = vehicleRepository.findByIdAndIsDeleted(vehicleId, 0)
                 .orElseThrow(() -> new IllegalArgumentException("Vehicle not found or is deleted"));
 
-        String deletedData;
+        String previousData;
         try {
-            deletedData = objectMapper.writeValueAsString(existingVehicle);
+            previousData = objectMapper.writeValueAsString(existingVehicle);
         } catch (Exception e) {
-            deletedData = "Error serializing vehicle data";
+            previousData = "Error serializing vehicle data";
         }
 
-        existingVehicle.setDeleted(true); // Sets isDeleted = 1 (soft delete)
+        existingVehicle.setDeleted(true);
         existingVehicle.setDeletedBy("system");
         existingVehicle.setDeletedAt(new Date());
 
-        // Saving history for vehicle delete action
-        saveHistory("Vehicle", String.valueOf(existingVehicle.getId()), "Deleted", deletedData);
-
         vehicleRepository.save(existingVehicle);
+
+        // Saving history for vehicle delete action
+        saveHistory("Vehicle", String.valueOf(existingVehicle.getId()), "Deleted", previousData);
     }
 
     public Vehicle getVehicleById(Long vehicleId) {
@@ -84,15 +92,23 @@ public class VehicleService {
                 .orElseThrow(() -> new IllegalArgumentException("Vehicle not found or is deleted"));
     }
 
-    private void saveHistory(String entityType, String entityId, String action, String deletedData) {
+    public List<Vehicle> getAllVehicles() {
+        return vehicleRepository.findByIsDeleted(0);
+    }
+
+    public List<Vehicle> getDeletedVehicles() {
+        return vehicleRepository.findByIsDeleted(1);
+    }
+
+    private void saveHistory(String entityType, String entityId, String action, String previousData) {
         History history = History.builder()
                 .entityType(entityType)
                 .entityId(entityId)
                 .action(action)
                 .performedBy("system")
                 .timestamp(new Date())
-                .deletedData(deletedData)
+                .previousData(previousData)
                 .build();
-        historyRepository.save(history); // Save history
+        historyRepository.save(history);
     }
 }
