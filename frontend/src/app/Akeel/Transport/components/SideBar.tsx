@@ -152,7 +152,7 @@ const Sidebar = () => {
       </button>
 
       <button
-        onClick={() => handleNavigation('/dashboard', 'dashboard')}
+        onClick={() => handleNavigation('/Akeel/Transport/Dashboard', 'dashboard')}
         className={`flex items-center gap-2 px-4 py-3 rounded-lg mb-4 transition-all
         ${activeItem === 'dashboard' ? 'bg-orange-600 text-white' : 'bg-orange-200 text-black hover:bg-orange-500 hover:text-white'}
         cursor-pointer`}
