@@ -1,6 +1,7 @@
 package com.example.Transport.service;
 
 import com.example.Transport.entity.Vehicle;
+import com.example.Transport.entity.Vehicle.Status;
 import com.example.Transport.entity.History;
 import com.example.Transport.repository.VehicleRepository;
 import com.example.Transport.repository.HistoryRepository;
@@ -27,6 +28,12 @@ public class VehicleService {
 
     public Vehicle addVehicle(Vehicle vehicle) {
         vehicle.setDeleted(false);
+
+        // Set status if null (default ACTIVE)
+        if (vehicle.getStatus() == null) {
+            vehicle.setStatus(Status.ACTIVE);
+        }
+
         Vehicle savedVehicle = vehicleRepository.save(vehicle);
 
         saveHistory("Vehicle", String.valueOf(savedVehicle.getId()), "Created", null);
@@ -56,14 +63,30 @@ public class VehicleService {
         existingVehicle.setTotalKmDriven(vehicleDetails.getTotalKmDriven());
         existingVehicle.setFuelEfficiency(vehicleDetails.getFuelEfficiency());
         existingVehicle.setPresentCondition(vehicleDetails.getPresentCondition());
-        existingVehicle.setStatus(vehicleDetails.getStatus());
+        // Status update with null check
+        existingVehicle.setStatus(vehicleDetails.getStatus() != null ? vehicleDetails.getStatus() : existingVehicle.getStatus());
 
         Vehicle updatedVehicle = vehicleRepository.save(existingVehicle);
 
-        // Saving history for vehicle update
         saveHistory("Vehicle", String.valueOf(existingVehicle.getId()), "Updated", previousData);
 
         return updatedVehicle;
+    }
+
+    // Change vehicle status (use this for status-only changes from UI)
+    public Vehicle changeVehicleStatus(Long vehicleId, Status status) {
+        Vehicle vehicle = vehicleRepository.findByIdAndIsDeleted(vehicleId, 0)
+                .orElseThrow(() -> new IllegalArgumentException("Vehicle not found or is deleted"));
+        String previousData;
+        try {
+            previousData = objectMapper.writeValueAsString(vehicle);
+        } catch (Exception e) {
+            previousData = "Error serializing vehicle data";
+        }
+        vehicle.setStatus(status);
+        Vehicle saved = vehicleRepository.save(vehicle);
+        saveHistory("Vehicle", String.valueOf(vehicle.getId()), "StatusChanged", previousData);
+        return saved;
     }
 
     public void deleteVehicle(Long vehicleId) {
@@ -80,10 +103,10 @@ public class VehicleService {
         existingVehicle.setDeleted(true);
         existingVehicle.setDeletedBy("system");
         existingVehicle.setDeletedAt(new Date());
+        existingVehicle.setStatus(Status.REMOVED);
 
         vehicleRepository.save(existingVehicle);
 
-        // Saving history for vehicle delete action
         saveHistory("Vehicle", String.valueOf(existingVehicle.getId()), "Deleted", previousData);
     }
 

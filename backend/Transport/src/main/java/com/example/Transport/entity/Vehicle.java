@@ -8,7 +8,6 @@ import org.springframework.data.annotation.LastModifiedBy;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import jakarta.validation.constraints.NotBlank;
-
 import java.util.Date;
 
 @Entity
@@ -19,6 +18,13 @@ import java.util.Date;
 @AllArgsConstructor
 @Builder
 public class Vehicle {
+
+    public enum Status {
+        ACTIVE,
+        INACTIVE,
+        MAINTENANCE,
+        REMOVED
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -42,7 +48,10 @@ public class Vehicle {
     private Integer totalKmDriven;
     private Double fuelEfficiency;
     private String presentCondition;
-    private String status;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Status status = Status.ACTIVE;
 
     @Column(name = "is_deleted", nullable = false)
     private Integer isDeleted = 0;

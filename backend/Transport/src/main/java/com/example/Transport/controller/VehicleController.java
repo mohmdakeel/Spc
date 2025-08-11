@@ -1,6 +1,7 @@
 package com.example.Transport.controller;
 
 import com.example.Transport.entity.Vehicle;
+import com.example.Transport.entity.Vehicle.Status;
 import com.example.Transport.service.VehicleService;
 import com.example.Transport.service.HistoryService;
 import jakarta.validation.Valid;
@@ -32,6 +33,11 @@ public class VehicleController {
         return ResponseEntity.ok(vehicleService.updateVehicle(vehicleId, vehicleDetails));
     }
 
+    @PutMapping("/{vehicleId}/status")
+    public ResponseEntity<Vehicle> changeStatus(@PathVariable Long vehicleId, @RequestParam Status status) {
+        return ResponseEntity.ok(vehicleService.changeVehicleStatus(vehicleId, status));
+    }
+
     @DeleteMapping("/{vehicleId}")
     public ResponseEntity<Void> deleteVehicle(@PathVariable Long vehicleId) {
         vehicleService.deleteVehicle(vehicleId);
@@ -43,10 +49,25 @@ public class VehicleController {
         return ResponseEntity.ok(vehicleService.getVehicleById(vehicleId));
     }
 
+    @GetMapping
+    public ResponseEntity<List<Vehicle>> getAllVehicles() {
+        return ResponseEntity.ok(vehicleService.getAllVehicles());
+    }
+
+    @GetMapping("/deleted")
+    public ResponseEntity<List<Vehicle>> getDeletedVehicles() {
+        return ResponseEntity.ok(vehicleService.getDeletedVehicles());
+    }
+
+    // Endpoint to get allowed statuses for frontend (for dropdown etc.)
+    @GetMapping("/statuses")
+    public ResponseEntity<Status[]> getAllowedStatuses() {
+        return ResponseEntity.ok(Status.values());
+    }
+
     // ✅ Vehicle history endpoint to fetch vehicle history
     @GetMapping("/{vehicleId}/history")
     public ResponseEntity<List<?>> getVehicleHistory(@PathVariable Long vehicleId) {
-        // Fetching the history for this specific vehicle
         List<?> history = historyService.getHistoryByEntity("Vehicle", vehicleId.toString());
         return ResponseEntity.ok(history);
     }
