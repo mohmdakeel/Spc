@@ -1,24 +1,24 @@
 export type VehicleStatus = "ACTIVE" | "INACTIVE" | "MAINTENANCE" | "REMOVED";
 
 export interface Vehicle {
-  id: number;
+  id?: number;                         // optional when creating
   vehicleNumber: string;
-  vehicleType?: string;
-  brand?: string;
-  model?: string;
-  chassisNumber?: string;
-  engineNumber?: string;
-  manufactureDate?: string; // ISO
-  totalKmDriven?: number;
-  fuelEfficiency?: number;
-  presentCondition?: string;
+  vehicleType?: string | null;
+  brand?: string | null;
+  model?: string | null;
+  chassisNumber?: string | null;       // unique
+  engineNumber?: string | null;        // unique
+  manufactureDate?: string | null;     // "yyyy-MM-dd" or ISO or null
+  totalKmDriven?: number | null;
+  fuelEfficiency?: number | null;
+  presentCondition?: string | null;
   status?: VehicleStatus;
-  createdBy?: string;
-  createdAt?: string;
-  updatedBy?: string;
-  updatedAt?: string;
-  deletedBy?: string;
-  deletedAt?: string;
+  createdBy?: string | null;
+  createdAt?: string | null;
+  updatedBy?: string | null;
+  updatedAt?: string | null;
+  deletedBy?: string | null;
+  deletedAt?: string | null;
 }
 
 export interface VehicleHistory {
@@ -27,6 +27,6 @@ export interface VehicleHistory {
   entityId: string;
   action: string;
   performedBy: string;
-  timestamp: string; // ISO
-  previousData: string | null; // JSON string from backend or null
+  timestamp: string;
+  previousData: string | null;
 }
