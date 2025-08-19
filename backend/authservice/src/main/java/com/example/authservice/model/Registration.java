@@ -1,23 +1,37 @@
 package com.example.authservice.model;
 
 import jakarta.persistence.*;
+import jakarta.persistence.Id;
+import jakarta.persistence.Version;
+import jakarta.validation.constraints.NotBlank;
 import lombok.*;
+import org.hibernate.annotations.Where;
+import org.springframework.data.annotation.*;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Entity
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Table(name = "registration")
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor
+@Table(
+        name = "registration",
+        indexes = @Index(name = "idx_registration_epf_no", columnList = "epf_no")
+)
+@EntityListeners(AuditingEntityListener.class)
+@Where(clause = "deleted = false")
 public class Registration {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** MUST map to 'epf_no' to satisfy the @JoinColumn in User */
+    @NotBlank
+    @Column(name = "epf_no", nullable = false, unique = true, length = 64)
     private String epfNo;
+
     private String attendanceNo;
     private String nameWithInitials;
     private String surname;
@@ -41,4 +55,22 @@ public class Registration {
     private String emergencyContact;
     private String workingStatus;
 
+    private boolean deleted = false;
+
+    @CreatedDate private LocalDateTime addedTime;
+    @CreatedBy  private String addedBy;
+    @LastModifiedDate private LocalDateTime modifiedTime;
+    @LastModifiedBy   private String       modifiedBy;
+
+    private LocalDateTime deletedTime;
+    private String deletedBy;
+
+    @Version
+    private Long version;
+
+    public void markAsDeleted(String actor) {
+        this.deleted = true;
+        this.deletedTime = LocalDateTime.now();
+        this.deletedBy = actor;
+    }
 }
