@@ -5,36 +5,53 @@ import com.example.authservice.dto.AuthResponse;
 import com.example.authservice.dto.RegisterRequest;
 import com.example.authservice.model.User;
 import com.example.authservice.service.UserService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping("/api/users")
 @CrossOrigin(origins = "*")
 public class UserController {
 
-    private final UserService userService;
-    public UserController(UserService userService) { this.userService = userService; }
+    @Autowired
+    private UserService userService;
 
+    /** Get all users */
+    @GetMapping
+    public List<User> getAllUsers() {
+        return userService.getAll();
+    }
+
+    /** Register new user */
     @PostMapping("/register")
-    public ResponseEntity<String> register(@RequestBody RegisterRequest request) {
-        return ResponseEntity.ok(userService.register(request));
+    public ResponseEntity<String> registerUser(@RequestBody RegisterRequest req) {
+        String response = userService.register(req);
+        return ResponseEntity.ok(response);
     }
 
+    /** Login */
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@RequestBody AuthRequest request) {
-        return ResponseEntity.ok(userService.login(request));
+    public ResponseEntity<AuthResponse> login(@RequestBody AuthRequest req) {
+        AuthResponse response = userService.login(req);
+        return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/users")
-    public ResponseEntity<List<User>> getAllUsers() {
-        return ResponseEntity.ok(userService.getAll());
+    /** Update user */
+    @PutMapping("/{id}")
+    public ResponseEntity<User> updateUser(
+            @PathVariable Long id,
+            @RequestBody RegisterRequest req) {
+        User updated = userService.updateUser(id, req);
+        return ResponseEntity.ok(updated);
     }
 
-    @DeleteMapping("/users/{id}")
+    /** Delete user (soft delete) */
+    @DeleteMapping("/{id}")
     public ResponseEntity<String> deleteUser(@PathVariable Long id) {
-        return ResponseEntity.ok(userService.deleteById(id));
+        String response = userService.deleteUser(id);
+        return ResponseEntity.ok(response);
     }
 }

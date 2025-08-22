@@ -13,7 +13,7 @@ import java.io.IOException;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/registrations")
+@RequestMapping("/api/auth/registrations")
 @CrossOrigin(origins = "*")
 public class RegistrationController {
 

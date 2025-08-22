@@ -1,10 +1,10 @@
 package com.example.authservice.config;
 
-import com.example.authservice.utils.JwtAuthFilter; // remove if you're not using the JWT filter
+import com.example.authservice.utils.JwtAuthFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -33,10 +33,10 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
-                        .requestMatchers("/api/auth/users").permitAll()                  // open while developing
-                        .requestMatchers("/api/registrations/**").permitAll()
-                        .anyRequest().permitAll()
+                        // Open all methods for /api/auth and /api/registrations
+                        .requestMatchers("/api/auth/**").permitAll()   // Allow all methods for /api/auth
+                        .requestMatchers("/api/registrations/**").permitAll()  // Allow all methods for /api/registrations
+                        .anyRequest().permitAll()  // Allow all other requests
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class); // keep if using JWT
 
@@ -46,13 +46,12 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration cfg = new CorsConfiguration();
-        // IMPORTANT: when allowCredentials(true), you cannot use "*"
         cfg.setAllowedOrigins(List.of("http://localhost:3000", "http://127.0.0.1:3000"));
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        cfg.setAllowedHeaders(List.of("*")); // or List.of("Authorization", "Content-Type", ...)
+        cfg.setAllowedHeaders(List.of("*"));
         cfg.setExposedHeaders(List.of("Authorization", "Location"));
         cfg.setAllowCredentials(true);
-        cfg.setMaxAge(3600L); // cache preflight 1h
+        cfg.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", cfg);

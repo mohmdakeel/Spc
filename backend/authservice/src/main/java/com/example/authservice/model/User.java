@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor
@@ -14,14 +16,18 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** Store the EPF on the user row as 'epf_no' too */
     @NotBlank
     @Column(name = "epf_no", nullable = false, length = 64)
     private String epfNo;
 
-    @NotBlank private String username;
-    @NotBlank private String email;
-    @NotBlank private String password;
+    @NotBlank
+    private String username;
+
+    @NotBlank
+    private String email;
+
+    @NotBlank
+    private String password;
 
     private String fullName;
     private String department;
@@ -35,11 +41,21 @@ public class User {
     @NotBlank
     private String role; // ADMIN / STAFF / USER
 
+    /** Audit fields */
+    private LocalDateTime addedDateTime;
+    private String addedBy;
+
+    private LocalDateTime modifiedDateTime;
+    private String modifiedBy;
+
+    private LocalDateTime deletedDateTime;
+    private String deletedBy;
+
     /** Read-only relation using business key epf_no */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(
-            name = "epf_no",                 // FK column on app_user
-            referencedColumnName = "epf_no", // PK/unique column on registration
+            name = "epf_no",
+            referencedColumnName = "epf_no",
             insertable = false,
             updatable = false
     )
