@@ -15,6 +15,12 @@ export default function HomePage() {
       link: '/akee/marketing', // example
       emoji: '📊',
     },
+    {
+      title: 'Dewmini Marketing',
+      description: 'Manage Dewmini campaigns and analytics',
+      link: '/Dewmini/Marketing', // New link
+      emoji: '📈',
+    },
   ]
 
   return (
