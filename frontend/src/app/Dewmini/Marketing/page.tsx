@@ -79,10 +79,23 @@ export default function UsersTranscriptPage() {
     setExpandedRow(expandedRow === userId ? null : userId);
   };
 
-  const handleDelete = (userId: number) => {
-    if (window.confirm('Are you sure you want to delete this user?')) {
+  const handleDelete = async (userId: number) => {
+    if (!window.confirm('Are you sure you want to delete this user?')) return;
+
+    try {
+      const res = await fetch(`http://localhost:8080/api/users/${userId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'text/plain' },
+      });
+      if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(msg || `Delete failed with status ${res.status}`);
+      }
+      // Optimistically remove from UI
       setUsers((prev) => prev.filter((u) => u.id !== userId));
-      // TODO: await fetch(`http://localhost:8080/api/users/${userId}`, { method: 'DELETE' })
+      if (expandedRow === userId) setExpandedRow(null);
+    } catch (e: any) {
+      alert(`Error deleting user: ${e.message || 'Delete failed'}`);
     }
   };
 
@@ -90,8 +103,13 @@ export default function UsersTranscriptPage() {
     router.push('/Dewmini/Marketing/transcript/register');
   };
 
-  const handleModify = (registrationId: number) => {
+  const handleModifyRegistration = (registrationId: number) => {
     router.push(`/Dewmini/Marketing/registrations/${registrationId}/edit`);
+  };
+
+  // NEW: user edit navigation
+  const handleEditUser = (userId: number) => {
+    router.push(`/Dewmini/Marketing/edituser/${userId}/edit`);
   };
 
   return (
@@ -111,21 +129,19 @@ export default function UsersTranscriptPage() {
           {!loading && !error && (
             <>
               {/* Add User Button */}
-              <div className="mb-6 flex justify-end">
-                <div>
+              <div className="mb-6 flex justify-end gap-3">
                 <button
                   onClick={handleAdd}
                   className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition-colors duration-200 shadow-sm"
                 >
                   User Registration
-                </button></div>
-                <div>
+                </button>
                 <button
                   onClick={handleAdd}
                   className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition-colors duration-200 shadow-sm"
                 >
                   User Addition
-                </button></div>
+                </button>
               </div>
 
               {users.length === 0 ? (
@@ -212,13 +228,15 @@ export default function UsersTranscriptPage() {
                               </td>
                               <td className="px-4 py-3">
                                 <div className="flex gap-2 justify-center">
+                                  {/* Existing edit (registration) */}
                                   <button
-                                    onClick={() => handleModify(user.registration.id)}
+                                    onClick={() => handleModifyRegistration(user.registration.id)}
                                     className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded text-sm font-medium transition-colors duration-200"
                                   >
                                     Edit
                                   </button>
 
+                                  {/* Existing delete (row) */}
                                   <button
                                     onClick={() => handleDelete(user.id)}
                                     className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm font-medium transition-colors duration-200"
@@ -235,11 +253,32 @@ export default function UsersTranscriptPage() {
                                 <td colSpan={14} className="px-0 py-0">
                                   <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-400">
                                     <div className="p-6">
-                                      <h4 className="text-lg font-semibold mb-4 text-gray-900 flex items-center">
-                                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm mr-2">
-                                          Registration Details
-                                        </span>
-                                      </h4>
+                                      <div className="flex items-center justify-between mb-4">
+                                        <h4 className="text-lg font-semibold text-gray-900 flex items-center">
+                                          <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm mr-2">
+                                            Registration Details
+                                          </span>
+                                        </h4>
+
+                                        {/* NEW: Edit/Delete buttons inside Show Details */}
+                                        <div className="flex items-center gap-2">
+                                          <button
+                                            onClick={() => handleEditUser(user.id)}
+                                            className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded text-sm font-medium transition-colors duration-200"
+                                            title="Edit User"
+                                          >
+                                            Edit User
+                                          </button>
+                                          <button
+                                            onClick={() => handleDelete(user.id)}
+                                            className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm font-medium transition-colors duration-200"
+                                            title="Delete User"
+                                          >
+                                            Delete User
+                                          </button>
+                                        </div>
+                                      </div>
+
                                       <div className="bg-white rounded-lg p-4 shadow-sm">
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                           <div className="space-y-2">
