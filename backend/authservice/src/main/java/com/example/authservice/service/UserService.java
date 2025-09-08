@@ -10,13 +10,17 @@ import com.example.authservice.repository.UserRepository;
 import com.example.authservice.utils.JwtUtil;
 
 import jakarta.transaction.Transactional;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @Transactional
@@ -77,6 +81,12 @@ public class UserService {
         return "User registered successfully";
     }
 
+    @GetMapping("/{id}")
+    public ResponseEntity<User> getUser(@PathVariable Long id) {
+        return ResponseEntity.of(userRepository.findById(id));
+    }
+
+
     /** Login user */
     public AuthResponse login(AuthRequest req) {
         User user = userRepository.findByUsername(req.getUsername())
@@ -129,4 +139,9 @@ public class UserService {
         userRepository.save(existing);
         return "User deleted successfully";
     }
+
+    public Optional<User> findById(Long id) {
+        return userRepository.findById(id);
+    }
+
 }
