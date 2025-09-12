@@ -1,94 +1,178 @@
-// src/app/Akeel/Transport/services/usageService.ts
-import http from './http';
+import http, { unwrapApi } from "./http";
+import type { UsageRequest, RequestStatus, Page } from "./types";
 
-export type RequestStatus =
-  | 'PENDING_HOD' | 'REJECTED' | 'PENDING_MANAGEMENT'
-  | 'APPROVED' | 'SCHEDULED' | 'DISPATCHED' | 'RETURNED';
+/* =========================
+   Create & Read
+   ========================= */
+export type CreateUsageRequestDto = {
+  applicantName: string;
+  employeeId: string;
+  department: string;
 
-export type UsageRequest = {
-  id: number; requestCode: string;
-  applicantName: string; employeeId: string; department: string;
-  dateOfTravel: string; timeFrom: string; timeTo: string;
-  fromLocation: string; toLocation: string;
-  officialDescription?: string; goods?: string;
-  status: RequestStatus;
-  assignedVehicleNumber?: string; assignedDriverName?: string; assignedDriverPhone?: string;
-  scheduledPickupAt?: string; scheduledReturnAt?: string;
-  gateExitAt?: string; gateEntryAt?: string;
-  // NEW (optional) odometer logs
-  exitOdometerKm?: number | null;
-  entryOdometerKm?: number | null;
+  /** NEW (optional): applicant’s applied date (yyyy-mm-dd). Backend can default to today. */
+  appliedDate?: string;
+
+  dateOfTravel: string; // yyyy-mm-dd
+  timeFrom: string;     // HH:mm
+  timeTo: string;       // HH:mm
+  fromLocation: string;
+  toLocation: string;
+  officialDescription?: string;
+  goods?: string;
+
+  /** NEW (optional): travel with officer + details */
+  travelWithOfficer?: boolean;
+  officerName?: string;
+  officerId?: string;
+  officerPhone?: string;
 };
 
-export async function createUsageRequest(payload: any) {
-  const { data } = await http.post('/usage-requests', payload);
-  return data as UsageRequest;
+export async function createUsageRequest(payload: CreateUsageRequestDto) {
+  const { data } = await http.post("/usage-requests", payload);
+  return unwrapApi<UsageRequest>(data);
 }
+
+/** Applicant’s own, paged */
+export async function listMyRequests(employeeId: string, page = 0, size = 200) {
+  const { data } = await http.get(`/usage-requests/my`, { params: { employeeId, page, size } });
+  return unwrapApi<Page<UsageRequest>>(data);
+}
+
+/** (Optional) All requests – supports both /all and paged / */
 export async function listAllRequests() {
-  const { data } = await http.get('/usage-requests');
-  return data as UsageRequest[];
+  try {
+    const { data } = await http.get("/usage-requests/all");
+    return unwrapApi<UsageRequest[]>(data);
+  } catch {
+    const { data } = await http.get("/usage-requests");
+    const body = unwrapApi<any>(data);
+    if (Array.isArray(body)) return body as UsageRequest[];
+    if (body?.content && Array.isArray(body.content)) return body.content as UsageRequest[];
+    return body as UsageRequest[];
+  }
 }
-export async function getRequest(id: number) {
-  const { data } = await http.get(`/usage-requests/${id}`);
-  return data as UsageRequest;
-}
+
 export async function listByStatus(status: RequestStatus) {
   const { data } = await http.get(`/usage-requests/status/${status}`);
-  return data as UsageRequest[];
-}
-export async function hodApprove(id: number, actor: string, remarks?: string) {
-  const { data } = await http.post(`/usage-requests/${id}/hod/approve`, { actor, remarks });
-  return data as UsageRequest;
-}
-export async function hodReject(id: number, actor: string, remarks?: string) {
-  const { data } = await http.post(`/usage-requests/${id}/hod/reject`, { actor, remarks });
-  return data as UsageRequest;
-}
-export async function mgmtApprove(id: number, actor: string, remarks?: string) {
-  const { data } = await http.post(`/usage-requests/${id}/mgmt/approve`, { actor, remarks });
-  return data as UsageRequest;
-}
-export async function mgmtReject(id: number, actor: string, remarks?: string) {
-  const { data } = await http.post(`/usage-requests/${id}/mgmt/reject`, { actor, remarks });
-  return data as UsageRequest;
+  return unwrapApi<UsageRequest[]>(data);
 }
 
-// Single assign (kept)
-export async function assignVehicle(id: number, payload: any) {
-  const { data } = await http.post(`/usage-requests/${id}/assign`, payload);
-  return data as UsageRequest;
+export async function getRequest(id: number) {
+  const { data } = await http.get(`/usage-requests/${id}`);
+  return unwrapApi<UsageRequest>(data);
 }
 
-// NEW: pool-assign multiple requests into one trip window
-export async function poolAssign(requestIds: number[], payload: any) {
-  const { data } = await http.post(`/usage-requests/pool-assign`, {
-    requestIds, ...payload,
-  });
-  return data as UsageRequest[];
+export async function getPrintDto(id: number) {
+  const { data } = await http.get(`/usage-requests/${id}/print`);
+  return unwrapApi<any>(data);
 }
 
-// Gate logs now support odometer entries (optional)
-export async function gateExit(id: number, actor: string, exitOdometerKm?: number) {
-  const { data } = await http.post(`/usage-requests/${id}/gate/exit`, { actor, exitOdometerKm });
-  return data as UsageRequest;
-}
-export async function gateEntry(id: number, actor: string, entryOdometerKm?: number) {
-  const { data } = await http.post(`/usage-requests/${id}/gate/entry`, { actor, entryOdometerKm });
-  return data as UsageRequest;
-}
+/* =========================
+   Approvals (HOD / MGMT)
+   ========================= */
+export const hodApprove = async (id: number, remarks?: string) =>
+  unwrapApi<UsageRequest>((await http.post(`/usage-requests/${id}/hod/approve`, { remarks })).data);
 
-// Dashboard metrics (unchanged)
-export async function metrics() {
-  const { data } = await http.get('/usage-requests/metrics');
-  return data as { total: number; byStatus: Record<string, number>; nextDayTop10: UsageRequest[] };
-}
+export const hodReject = async (id: number, remarks?: string) =>
+  unwrapApi<UsageRequest>((await http.post(`/usage-requests/${id}/hod/reject`, { remarks })).data);
 
-// NEW: availability (vehicle/driver) for a time window
-export type Availability = {
-  vehicles: Array<{ id: number; vehicleNumber: string; busy: boolean; reason?: string }>;
-  drivers: Array<{ id: number; name: string; busy: boolean; reason?: string }>;
+export const mgmtApprove = async (id: number, remarks?: string) =>
+  unwrapApi<UsageRequest>((await http.post(`/usage-requests/${id}/mgmt/approve`, { remarks })).data);
+
+export const mgmtReject = async (id: number, remarks?: string) =>
+  unwrapApi<UsageRequest>((await http.post(`/usage-requests/${id}/mgmt/reject`, { remarks })).data);
+
+/* =========================
+   Assignment (In-charge)
+   ========================= */
+export type AssignPayload = {
+  vehicleId?: number | null;
+  vehicleNumber?: string | null;
+  driverId?: number | null;
+  driverName?: string | null;
+  driverPhone?: string | null;
+  pickupAt?: string | Date | null;
+  expectedReturnAt?: string | Date | null;
+  instructions?: string | null;
+  additionalRequestIds?: number[]; // optional
 };
-export async function getAvailability(fromISO: string, toISO: string) {
-  const { data } = await http.get('/usage-requests/availability', { params: { from: fromISO, to: toISO } });
-  return data as Availability;
+
+export async function assignVehicle(id: number, payload: AssignPayload) {
+  const body = {
+    ...payload,
+    pickupAt: payload.pickupAt instanceof Date ? payload.pickupAt.toISOString() : payload.pickupAt,
+    expectedReturnAt:
+      payload.expectedReturnAt instanceof Date ? payload.expectedReturnAt.toISOString() : payload.expectedReturnAt,
+  };
+  const { data } = await http.post(`/usage-requests/${id}/assign`, body);
+  return unwrapApi<UsageRequest>(data);
+}
+
+/* =========================
+   Gate (GATE role)
+   ========================= */
+type ExitCompat = {
+  exitOdometer?: number | null;
+  exitManifest?: any[] | null;
+  odometerStartKm?: number | null;
+  fuelBefore?: number | null;
+  remarks?: string | null;
+};
+
+type EntryCompat = {
+  entryOdometer?: number | null;
+  entryManifest?: any[] | null;
+  odometerEndKm?: number | null;
+  fuelAfter?: number | null;
+  remarks?: string | null;
+};
+
+export async function gateExit(id: number, p: ExitCompat) {
+  const body: any = {};
+  if (typeof p.exitOdometer === "number") body.exitOdometer = p.exitOdometer;
+  if (typeof p.odometerStartKm === "number" && body.exitOdometer == null) body.exitOdometer = p.odometerStartKm;
+
+  const notes: any[] = [];
+  if (p.remarks) notes.push({ type: "note", value: String(p.remarks) });
+  if (typeof p.fuelBefore === "number") notes.push({ type: "fuelBeforePct", value: p.fuelBefore });
+  if (Array.isArray(p.exitManifest) && p.exitManifest.length) notes.push(...p.exitManifest);
+  if (notes.length) body.exitManifest = notes;
+
+  const { data } = await http.post(`/usage-requests/${id}/gate/exit`, body);
+  return unwrapApi<UsageRequest>(data);
+}
+
+export async function gateEntry(id: number, p: EntryCompat) {
+  const body: any = {};
+  if (typeof p.entryOdometer === "number") body.entryOdometer = p.entryOdometer;
+  if (typeof p.odometerEndKm === "number" && body.entryOdometer == null) body.entryOdometer = p.odometerEndKm;
+
+  const notes: any[] = [];
+  if (p.remarks) notes.push({ type: "note", value: String(p.remarks) });
+  if (typeof p.fuelAfter === "number") notes.push({ type: "fuelAfterPct", value: p.fuelAfter });
+  if (Array.isArray(p.entryManifest) && p.entryManifest.length) notes.push(...p.entryManifest);
+  if (notes.length) body.entryManifest = notes;
+
+  const { data } = await http.post(`/usage-requests/${id}/gate/entry`, body);
+  return unwrapApi<UsageRequest>(data);
+}
+
+/* =========================
+   Metrics (Dashboard)
+   ========================= */
+export type MetricsDto = {
+  total: number;
+  byStatus: Record<string, number>;
+  nextDayTop10: Array<{
+    id: number;
+    requestCode: string;
+    assignedVehicleNumber?: string | null;
+    assignedDriverName?: string | null;
+    scheduledPickupAt?: string | null;
+  }>;
+};
+
+export async function metrics() {
+  const { data } = await http.get("/usage-requests/metrics");
+  return unwrapApi<MetricsDto>(data);
 }

@@ -1,5 +1,4 @@
 'use client';
-
 import React from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { DriverStatus, VehicleStatus } from '../services/types';
@@ -59,21 +58,11 @@ export default function StatusPill({ value, mode, editable, onChange, className 
           onChange={(e) => onChange(e.target.value as AnyStatus)}
         >
           <option value="">Select Status</option>
-          {options.map((s) => (
-            <option key={s} value={s}>{label(s)}</option>
-          ))}
+          {options.map((s) => (<option key={s} value={s}>{label(s)}</option>))}
         </select>
-        <ChevronDown
-          size={14}
-          className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-current"
-        />
+        <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-current"/>
       </div>
     );
   }
-
-  return (
-    <span className={`px-2.5 py-1 text-xs leading-none rounded-full font-semibold border whitespace-nowrap ${color} ${className}`}>
-      {label(v)}
-    </span>
-  );
+  return <span className={`px-2.5 py-1 text-xs leading-none rounded-full font-semibold border whitespace-nowrap ${color} ${className}`}>{label(v)}</span>;
 }

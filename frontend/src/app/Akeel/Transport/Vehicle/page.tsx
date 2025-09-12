@@ -1,23 +1,11 @@
-// src/app/Akeel/Transport/Vehicle/page.tsx
 'use client';
-
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
-import {
-  Printer, History as HistoryIcon, Edit, Trash2, Plus, ArrowLeft,
-  ChevronLeft, ChevronRight
-} from 'lucide-react';
+import { Printer, History as HistoryIcon, Edit, Trash2, Plus, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 
 import VehicleForm from './VehicleForm';
-import {
-  fetchVehicles,
-  fetchDeletedVehicles,
-  addVehicle,
-  updateVehicle,
-  deleteVehicle,
-  fetchVehicleById,
-} from '../services/VehicleService';
+import { fetchVehicles, fetchDeletedVehicles, addVehicle, updateVehicle, deleteVehicle, fetchVehicleById } from '../services/VehicleService';
 import { printVehicle, printVehicleList } from '../utils/print';
 import SearchBar from '../components/SearchBar';
 import StatusPill from '../components/StatusPill';
@@ -27,7 +15,6 @@ import { Th, Td } from '../components/ThTd';
 import type { Vehicle, VehicleStatus } from '../services/types';
 
 const ITEMS_PER_PAGE = 10;
-
 const ROW_TEXT = 'text-xs';
 const ROW_PX = 'px-2';
 const ROW_PY = 'py-1.5';
@@ -35,12 +22,11 @@ const HEAD_TEXT = 'text-xs font-semibold text-orange-800';
 const HEAD_PY = 'py-2';
 
 const fmtDate = (s?: string | null) => (s ? new Date(s).toLocaleDateString() : '-');
-const fmtDateTime = (s?: string | Date | null) => (s ? new Date(s).toLocaleString() : '-');
-const fmt = (v: unknown) => (v === null || v === undefined || v === '' ? '-' : String(v));
+const fmtDateTime = (s?: string | Date | null) => (s ? new Date(s as any).toLocaleString() : '-');
+const fmt = (v: unknown) => (v == null || v === '' ? '-' : String(v));
 
 export default function VehicleListPage() {
   const router = useRouter();
-
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [deletedVehicles, setDeletedVehicles] = useState<Vehicle[]>([]);
   const [showDeleted, setShowDeleted] = useState(false);
@@ -53,7 +39,6 @@ export default function VehicleListPage() {
   const [editing, setEditing] = useState<Vehicle | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Vehicle | null>(null);
 
-  // load
   const load = async () => {
     setLoading(true);
     try {
@@ -71,7 +56,6 @@ export default function VehicleListPage() {
 
   const list = showDeleted ? deletedVehicles : vehicles;
 
-  // filter
   const filtered = useMemo(() => {
     const data = Array.isArray(list) ? list : [];
     const q = search.trim().toLowerCase();
@@ -80,15 +64,12 @@ export default function VehicleListPage() {
       [
         v.vehicleNumber, v.vehicleType, v.brand, v.model, v.chassisNumber, v.engineNumber,
         v.manufactureDate, v.totalKmDriven, v.fuelEfficiency, v.presentCondition, v.status,
-      ]
-        .map((x) => (x ?? '').toString().toLowerCase())
-        .join(' ')
-        .includes(q)
+      ].map((x) => (x ?? '').toString().toLowerCase()).join(' ').includes(q)
     );
   }, [list, search]);
 
-  // paging
   useEffect(() => { setPage(1); }, [showDeleted, search]);
+
   const totalPages = Math.max(1, Math.ceil((filtered?.length ?? 0) / ITEMS_PER_PAGE));
   const start = (page - 1) * ITEMS_PER_PAGE;
   const rows = (filtered ?? []).slice(start, start + ITEMS_PER_PAGE);
@@ -100,7 +81,6 @@ export default function VehicleListPage() {
     const startWin = Math.max(first, page - 2);
     const endWin = Math.min(last, startWin + 4);
     const nums = Array.from({ length: endWin - startWin + 1 }, (_, i) => startWin + i);
-
     return (
       <div className="flex items-center justify-between px-3 py-2 bg-orange-50 rounded-lg border border-orange-100 mt-3">
         <span className="text-xs text-orange-800">
@@ -137,7 +117,6 @@ export default function VehicleListPage() {
     );
   };
 
-  // CRUD operations
   const onAddSubmit = async (payload: Partial<Vehicle>) => {
     try {
       await addVehicle(payload);
@@ -177,7 +156,7 @@ export default function VehicleListPage() {
   const onChangeStatus = async (v: Vehicle, status: VehicleStatus) => {
     try {
       if (v.id == null) { toast.error('Invalid vehicle id'); return; }
-      await updateVehicle(v.id, { status: status || 'AVAILABLE', vehicleNumber: v.vehicleNumber || '' });
+      await updateVehicle(v.id, { status: status || 'AVAILABLE' });
       toast.success('Status updated');
       await load();
     } catch (e) {
@@ -185,7 +164,7 @@ export default function VehicleListPage() {
     }
   };
 
-  // Always open modal (even for deleted list); hydrate with full entity if available
+  // View modal: hydrate full entity on open
   const openView = async (v: Vehicle) => {
     setSelected(v);
     setShowView(true);
@@ -249,7 +228,6 @@ export default function VehicleListPage() {
               <Plus size={16} />
               <span>Add Vehicle</span>
             </button>
-
             <button
               className="flex items-center gap-2 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 shadow-sm transition-colors text-sm"
               onClick={() => printVehicleList(filtered as Vehicle[], showDeleted)}
@@ -273,11 +251,9 @@ export default function VehicleListPage() {
           <>
             <div className="overflow-x-auto rounded-lg border border-orange-100 mt-4 shadow-sm">
               <table className="w-full">
-                {/* DO NOT put comments or whitespace text between <col> tags */}
                 <colgroup>
                   <col className="w-[4%]"/><col className="w-[12%]"/><col className="w-[8%]"/><col className="w-[10%]"/><col className="w-[10%]"/><col className="w-[12%]"/><col className="w-[12%]"/><col className="w-[8%]"/><col className="w-[5%]"/><col className="w-[5%]"/><col className="w-[10%]"/><col className="w-[8%]"/><col className={showDeleted ? 'w-0 hidden' : 'w-[6%]'} />
                 </colgroup>
-
                 <thead className="bg-orange-50">
                   <tr>
                     <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>No</Th>
@@ -295,7 +271,6 @@ export default function VehicleListPage() {
                     {!showDeleted && <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>Actions</Th>}
                   </tr>
                 </thead>
-
                 <tbody className="divide-y divide-orange-100">
                   {rows.map((v, i) => (
                     <tr
@@ -314,8 +289,6 @@ export default function VehicleListPage() {
                       <Td className={`text-center ${ROW_PX} ${ROW_PY} ${ROW_TEXT}`}>{fmt(v.totalKmDriven)}</Td>
                       <Td className={`text-center ${ROW_PX} ${ROW_PY} ${ROW_TEXT}`}>{fmt(v.fuelEfficiency)}</Td>
                       <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT} truncate`} title={fmt(v.presentCondition)}>{fmt(v.presentCondition)}</Td>
-
-                      {/* Status centered; stop propagation so row click doesn't trigger */}
                       <Td className={`${ROW_PX} ${ROW_PY}`} onClick={(e) => e.stopPropagation()}>
                         <div className="flex justify-center">
                           <StatusPill
@@ -326,8 +299,6 @@ export default function VehicleListPage() {
                           />
                         </div>
                       </Td>
-
-                      {/* Actions hidden on Deleted tab */}
                       {!showDeleted && (
                         <Td className={`text-center ${ROW_PX} ${ROW_PY}`} onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center justify-center gap-1">
@@ -364,7 +335,6 @@ export default function VehicleListPage() {
                       )}
                     </tr>
                   ))}
-
                   {(rows?.length ?? 0) === 0 && (
                     <tr>
                       <Td colSpan={showDeleted ? 12 : 13} className="text-center py-6 text-gray-500 text-xs">
@@ -375,7 +345,6 @@ export default function VehicleListPage() {
                 </tbody>
               </table>
             </div>
-
             <PaginationBar />
           </>
         )}
@@ -394,7 +363,7 @@ export default function VehicleListPage() {
             { label: 'Model', value: selected.model ?? '-' },
             { label: 'Chassis Number', value: selected.chassisNumber ?? '-' },
             { label: 'Engine Number', value: selected.engineNumber ?? '-' },
-            { label: 'Manufacture Date', value: fmtDate(selected.manufactureDate) },
+            { label: 'Manufacture Date', value: fmtDate(selected.manufactureDate ?? undefined) },
             { label: 'Total KM Driven', value: selected.totalKmDriven ?? '-' },
             { label: 'Fuel Efficiency', value: selected.fuelEfficiency ?? '-' },
             { label: 'Condition', value: selected.presentCondition ?? '-' },
@@ -413,14 +382,14 @@ export default function VehicleListPage() {
         <VehicleForm
           vehicle={showForm === 'edit' ? editing ?? undefined : undefined}
           onSubmit={showForm === 'edit' ? onEditSubmit : onAddSubmit}
-          onClose={() => { setShowForm(false); setEditing(null); }}
+          onClose={() => setShowForm(false)}
         />
       )}
 
       {deleteTarget && (
         <DeleteConfirmModal
           title="Delete Vehicle"
-          message={`Are you sure you want to delete ${deleteTarget.vehicleNumber ?? 'Unknown Vehicle'}?`}
+          message={`Are you sure you want to delete ${deleteTarget.vehicleNumber}?`}
           onConfirm={onDelete}
           onClose={() => setDeleteTarget(null)}
         />

@@ -1,105 +1,73 @@
-// src/app/Akeel/Transport/services/vehicleService.ts
-import { API_BASE, parseJson, throwHttp, unwrapApi } from './config';
-import { Vehicle, ApiResponse, ChangeHistory, VehicleStatus } from './types';
-import { fetchTimeline } from './historyService';
+import type { AxiosError } from "axios";
+import http, { unwrapApi } from "./http";
+import type { Vehicle, ApiResponse, PaginationResponse, ChangeHistory, VehicleStatus, EntityId } from "./types";
+import { fetchTimeline } from "./historyService";
 
-const API = `${API_BASE}/api/vehicles`;
+const API = "/vehicles";
+const API_DELETED = "/vehicles/deleted";
 
-/** Coerce numeric-ish inputs to numbers; return undefined for '', null, undefined */
-function toNumOrUndef(v: unknown): number | undefined {
-  if (v === '' || v === null || v === undefined) return undefined;
-  const n = Number(v as any);
-  return Number.isFinite(n) ? n : undefined;
+const toNum = (v: unknown) => (v === "" || v == null ? undefined : (Number(v as any) || undefined));
+const asMsg = (e: unknown, fb: string) => (e as AxiosError<any>)?.response?.data?.message || (e as any)?.message || fb;
+
+function unwrapPage<T>(body: any): T[] {
+  const u = unwrapApi<PaginationResponse<T> | T[] | { content: T[] }>(body);
+  if (Array.isArray(u)) return u;
+  if (u && Array.isArray((u as any).content)) return (u as any).content;
+  return [];
 }
 
-/**
- * Fetch ALL active vehicles (client-side pagination).
- * We request a large page size to get all rows.
- */
+/** Queries */
 export async function fetchVehicles(search?: string): Promise<Vehicle[]> {
-  const params = new URLSearchParams({ page: '0', size: '1000' });
-  if (search && search.trim()) params.set('search', search.trim());
-
-  const r = await fetch(`${API}?${params.toString()}`, { cache: 'no-store' });
-  if (!r.ok) await throwHttp(r, 'Failed to fetch vehicles');
-
-  // Backend wraps Page<Vehicle> in ApiResponse
-  const body = unwrapApi<ApiResponse<any> | any>(await parseJson(r)) as any;
-  const content = body?.content ?? body ?? [];
-  return Array.isArray(content) ? content : [];
+  try {
+    const { data } = await http.get(API, { params: { page: 0, size: 1000, ...(search?.trim() ? { search: search.trim() } : {}) } });
+    return unwrapPage<Vehicle>(data);
+  } catch (e) { throw new Error(asMsg(e, "Failed to fetch vehicles")); }
 }
 
-/** Fetch ALL deleted vehicles (client-side pagination) */
 export async function fetchDeletedVehicles(search?: string): Promise<Vehicle[]> {
-  const params = new URLSearchParams({ page: '0', size: '1000' });
-  if (search && search.trim()) params.set('search', search.trim());
-
-  const r = await fetch(`${API}/deleted?${params.toString()}`, { cache: 'no-store' });
-  if (!r.ok) await throwHttp(r, 'Failed to fetch deleted vehicles');
-
-  const body = unwrapApi<any>(await parseJson(r));
-  const content = body?.content ?? body ?? [];
-  return Array.isArray(content) ? content : [];
+  try {
+    const { data } = await http.get(API_DELETED, { params: { page: 0, size: 1000, ...(search?.trim() ? { search: search.trim() } : {}) } });
+    return unwrapPage<Vehicle>(data);
+  } catch (e) { throw new Error(asMsg(e, "Failed to fetch deleted vehicles")); }
 }
 
-/** GET /api/vehicles/{id} */
-export async function fetchVehicleById(id: number | string): Promise<Vehicle> {
-  const r = await fetch(`${API}/${id}`, { cache: 'no-store' });
-  if (!r.ok) await throwHttp(r, 'Vehicle not found');
-  return unwrapApi<Vehicle>(await parseJson(r));
+export async function fetchVehicleById(id: EntityId): Promise<Vehicle> {
+  try {
+    const { data } = await http.get(`${API}/${id}`);
+    return unwrapApi<Vehicle>(data);
+  } catch (e) { throw new Error(asMsg(e, "Vehicle not found")); }
 }
 
-/** POST /api/vehicles */
-export async function addVehicle(data: Partial<Vehicle>): Promise<Vehicle> {
-  // Backend generates ID — do NOT send 'id' in create payload
-  const payload: any = { ...data };
-  delete payload.id;
-
-  // Clean numeric fields safely
-  payload.totalKmDriven = toNumOrUndef(payload.totalKmDriven);
-  payload.fuelEfficiency = toNumOrUndef(payload.fuelEfficiency);
-
-  const r = await fetch(API, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Actor': 'ui' },
-    body: JSON.stringify(payload),
-  });
-  if (!r.ok) await throwHttp(r, 'Failed to add vehicle');
-  return unwrapApi<Vehicle>(await parseJson(r));
+/** Mutations */
+export async function addVehicle(payload: Partial<Vehicle>): Promise<Vehicle> {
+  try {
+    const body: any = { ...payload }; delete body.id;
+    if ("totalKmDriven" in body)  body.totalKmDriven  = toNum(body.totalKmDriven);
+    if ("fuelEfficiency" in body) body.fuelEfficiency = toNum(body.fuelEfficiency);
+    const { data } = await http.post(API, body);
+    return unwrapApi<Vehicle>(data);
+  } catch (e) { throw new Error(asMsg(e, "Failed to add vehicle")); }
 }
 
-/** PUT /api/vehicles/{id} */
-export async function updateVehicle(id: number | string, patch: Partial<Vehicle>): Promise<Vehicle> {
-  const payload: any = { ...patch };
-
-  // Clean numeric fields safely
-  if ('totalKmDriven' in payload) payload.totalKmDriven = toNumOrUndef(payload.totalKmDriven);
-  if ('fuelEfficiency' in payload) payload.fuelEfficiency = toNumOrUndef(payload.fuelEfficiency);
-
-  const r = await fetch(`${API}/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', 'X-Actor': 'ui' },
-    body: JSON.stringify(payload),
-  });
-  if (!r.ok) await throwHttp(r, 'Failed to update vehicle');
-  return unwrapApi<Vehicle>(await parseJson(r));
+export async function updateVehicle(id: EntityId, patch: Partial<Vehicle>): Promise<Vehicle> {
+  try {
+    const body: any = { ...patch };
+    if ("totalKmDriven" in body)  body.totalKmDriven  = toNum(body.totalKmDriven);
+    if ("fuelEfficiency" in body) body.fuelEfficiency = toNum(body.fuelEfficiency);
+    const { data } = await http.put(`${API}/${id}`, body);
+    return unwrapApi<Vehicle>(data);
+  } catch (e) { throw new Error(asMsg(e, "Failed to update vehicle")); }
 }
 
-/** DELETE /api/vehicles/{id} */
-export async function deleteVehicle(id: number | string): Promise<void> {
-  const r = await fetch(`${API}/${id}`, {
-    method: 'DELETE',
-    headers: { 'X-Actor': 'ui' },
-  });
-  if (!r.ok) await throwHttp(r, 'Failed to delete vehicle');
+export async function deleteVehicle(id: EntityId): Promise<void> {
+  try { await http.delete(`${API}/${id}`); } catch (e) { throw new Error(asMsg(e, "Failed to delete vehicle")); }
 }
 
-/** Vehicle history — reuse History endpoints */
-export async function fetchVehicleHistory(id: number | string): Promise<ChangeHistory[]> {
-  return fetchTimeline('Vehicle', String(id));
-}
-
-/** Helper to set status via update */
-export async function updateVehicleStatus(id: number | string, status: VehicleStatus): Promise<Vehicle> {
+export async function updateVehicleStatus(id: EntityId, status: VehicleStatus): Promise<Vehicle> {
   return updateVehicle(id, { status });
+}
+
+/** History */
+export async function fetchVehicleHistory(id: EntityId): Promise<ChangeHistory[]> {
+  return fetchTimeline("Vehicle", String(id));
 }

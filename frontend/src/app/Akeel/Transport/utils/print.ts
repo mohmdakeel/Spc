@@ -237,3 +237,43 @@ export function printDriverList(list: Driver[], showDeleted = false) {
   </body></html>`;
   writeAndPrint(w.document, html);
 }
+
+// ADD near bottom of file, after other exports
+import type { UsageRequest } from '../services/types';
+
+export function printUsageSlip(r: UsageRequest) {
+  const w = (window as any).open('', '', 'width=800,height=600'); if (!w) return;
+  const style = `
+    :root { --brand:#ea580c; --ink:#111827; --muted:#6b7280; --line:#e5e7eb; }
+    * { box-sizing:border-box } body { font-family: Arial, sans-serif; color:var(--ink); padding:20px }
+    h2 { color:var(--brand); margin:0 0 8px } .sec{margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+    .grid{display:grid;grid-template-columns:200px 1fr; gap:6px 12px}
+    .label{color:var(--muted);font-weight:700} .val{word-break:break-word}
+  `;
+  const fmt = (v:any)=> (v===null||v===undefined||v==='')?'-':String(v);
+  const fmtD = (s?:string|null)=> s? new Date(s).toLocaleString(): '-';
+  const html = `<!doctype html><html><head><title>${r.requestCode}</title><style>${style}</style></head><body>
+    <h2>Transport Slip • ${r.requestCode}</h2>
+    <div class="grid">
+      <div class="label">Applicant</div><div class="val">${fmt(r.applicantName)} (${fmt(r.employeeId)})</div>
+      <div class="label">Department</div><div class="val">${fmt(r.department)}</div>
+      <div class="label">Travel</div><div class="val">${fmt(r.dateOfTravel)} • ${fmt(r.timeFrom)} – ${fmt(r.timeTo)}</div>
+      <div class="label">Route</div><div class="val">${fmt(r.fromLocation)} → ${fmt(r.toLocation)}</div>
+      <div class="label">Trip Description</div><div class="val">${fmt(r.officialDescription)}</div>
+      <div class="label">Goods</div><div class="val">${fmt(r.goods)}</div>
+    </div>
+    <div class="sec grid">
+      <div class="label">Vehicle</div><div class="val">${fmt(r.assignedVehicleNumber)}</div>
+      <div class="label">Driver</div><div class="val">${fmt(r.assignedDriverName)} ${r.assignedDriverPhone?`• ${r.assignedDriverPhone}`:''}</div>
+      <div class="label">Pickup</div><div class="val">${fmtD(r.scheduledPickupAt)}</div>
+      <div class="label">Return</div><div class="val">${fmtD(r.scheduledReturnAt)}</div>
+    </div>
+    <div class="sec grid">
+      <div class="label">Gate Exit</div><div class="val">${fmtD(r.gateExitAt)} • Odometer: ${fmt(r.exitOdometer)}</div>
+      <div class="label">Gate Entry</div><div class="val">${fmtD(r.gateEntryAt)} • Odometer: ${fmt(r.entryOdometer)}</div>
+    </div>
+    <div class="sec" style="font-size:12px;color:var(--muted)">Printed on ${new Date().toLocaleString()}</div>
+  </body></html>`;
+  w.document.write(html); w.document.close();
+  setTimeout(()=>{ try{ w.print(); w.close(); } catch{} }, 120);
+}

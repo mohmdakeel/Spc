@@ -2,26 +2,9 @@ package com.example.Transport.entity;
 
 import com.example.Transport.enums.VehicleStatus;
 import com.fasterxml.jackson.annotation.JsonFormat;
-
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EntityListeners;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;               // JPA Id (correct one)
-import jakarta.persistence.Table;
-import jakarta.persistence.Temporal;
-import jakarta.persistence.TemporalType;
-
+import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
-
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
+import lombok.*;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedBy;
@@ -31,7 +14,19 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import java.util.Date;
 
 @Entity
-@Table(name = "vehicles")
+@Table(
+    name = "vehicles",
+    uniqueConstraints = {
+        @UniqueConstraint(
+            name = "uk_vehicle_number_is_deleted",
+            columnNames = {"vehicle_number", "is_deleted"}
+        )
+    },
+    indexes = {
+        @Index(name = "ix_vehicle_number", columnList = "vehicle_number"),
+        @Index(name = "ix_is_deleted", columnList = "is_deleted")
+    }
+)
 @EntityListeners(AuditingEntityListener.class)
 @Data
 @NoArgsConstructor
@@ -41,14 +36,14 @@ public class Vehicle {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Long id;  // ✅ Primary key
 
-    /** Unique business key */
+    /** Unique business key (soft-delete safe with composite constraint) */
     @NotBlank(message = "Vehicle number is mandatory")
-    @Column(nullable = false, unique = true)
+    @Column(name = "vehicle_number", nullable = false)
     private String vehicleNumber;
 
-    /** Keep type as string to match your current DB/UI (e.g., CAR, VAN, LORRY) */
+    /** Type like CAR, VAN, LORRY */
     private String vehicleType;
 
     private String brand;
@@ -62,17 +57,17 @@ public class Vehicle {
     private Date manufactureDate;
 
     private Long totalKmDriven;     // odometer
-    private Double fuelEfficiency;  // km per liter (or your unit)
+    private Double fuelEfficiency;  // km per liter (or unit)
 
-    /** Free text: e.g., "Good", "Needs service", etc. */
+    /** Free text: e.g., "Good", "Needs service" */
     private String presentCondition;
 
     @Enumerated(EnumType.STRING)
     private VehicleStatus status;
 
-    /** Soft delete */
+    /** Soft delete: 0=active, 1=deleted */
     @Column(name = "is_deleted", nullable = false)
-    private Integer isDeleted = 0;  // 0=active, 1=deleted
+    private Integer isDeleted = 0;
 
     /** Auditing */
     @CreatedBy        @Column(updatable = false) private String createdBy;
@@ -84,11 +79,16 @@ public class Vehicle {
     private String deletedBy;
     private Date deletedAt;
 
-    // JSON-friendly helpers (same pattern as Driver for front-end consistency)
+    // JSON-friendly helper methods
     public Boolean getDeleted() {
         return isDeleted != null && isDeleted == 1;
     }
     public void setDeleted(Boolean deleted) {
         this.isDeleted = (deleted != null && deleted) ? 1 : 0;
+    }
+
+    @PrePersist
+    public void prePersist() {
+        if (isDeleted == null) isDeleted = 0;
     }
 }

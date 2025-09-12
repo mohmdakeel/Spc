@@ -6,7 +6,10 @@ import com.example.Transport.repository.ChangeHistoryRepository;
 import com.example.Transport.repository.DriverRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +23,8 @@ public class DriverService {
     private final DriverRepository driverRepository;
     private final ChangeHistoryRepository historyRepository;
     private final ObjectMapper objectMapper;
+
+    /* -------------------- LIST -------------------- */
 
     public Page<Driver> listActive(int page, int size, String search) {
         Pageable p = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "updatedAt"));
@@ -37,6 +42,8 @@ public class DriverService {
         return driverRepository.findByIsDeleted(1, p);
     }
 
+    /* -------------------- GET -------------------- */
+
     public Driver getDriverById(String employeeId) {
         return driverRepository.findById(employeeId)
                 .filter(d -> d.getIsDeleted() == 0)
@@ -47,19 +54,50 @@ public class DriverService {
         return driverRepository.findById(employeeId);
     }
 
+    /* -------------------- CREATE (revive if soft-deleted) -------------------- */
+
     @Transactional
     public Driver create(Driver d, String actor) {
-        // HARD GUARD so we never get the JPA 'Identifier must be manually assigned' error
         if (d.getEmployeeId() == null || d.getEmployeeId().isBlank()) {
             throw new IllegalArgumentException("Employee ID is mandatory");
         }
-        if (driverRepository.existsByEmployeeIdAndIsDeleted(d.getEmployeeId(), 0)) {
+
+        var existingOpt = driverRepository.findById(d.getEmployeeId());
+        if (existingOpt.isPresent()) {
+            var existing = existingOpt.get();
+
+            // If the existing record is soft-deleted, revive and patch provided fields.
+            if (existing.getIsDeleted() != null && existing.getIsDeleted() == 1) {
+                String prev = toJson(existing);
+
+                if (d.getName() != null) existing.setName(d.getName());
+                if (d.getPhone() != null) existing.setPhone(d.getPhone());
+                if (d.getEmail() != null) existing.setEmail(d.getEmail());
+                if (d.getLicenseNumber() != null) existing.setLicenseNumber(d.getLicenseNumber());
+                if (d.getLicenseExpiryDate() != null) existing.setLicenseExpiryDate(d.getLicenseExpiryDate());
+                if (d.getDrivingExperience() != null) existing.setDrivingExperience(d.getDrivingExperience());
+                if (d.getStatus() != null) existing.setStatus(d.getStatus());
+
+                existing.setIsDeleted(0);
+                existing.setDeletedAt(null);
+                existing.setDeletedBy(null);
+
+                var saved = driverRepository.save(existing);
+                logHistory("Driver", saved.getEmployeeId(), "Restored", actor, prev, toJson(saved));
+                return saved;
+            }
+
+            // Otherwise: active conflict
             throw new IllegalArgumentException("Active driver already exists with employeeId=" + d.getEmployeeId());
         }
+
+        // No existing record: create fresh
         Driver saved = driverRepository.save(d);
         logHistory("Driver", saved.getEmployeeId(), "Created", actor, null, toJson(saved));
         return saved;
     }
+
+    /* -------------------- UPDATE -------------------- */
 
     @Transactional
     public Driver update(String employeeId, Driver patch, String actor) {
@@ -80,6 +118,8 @@ public class DriverService {
         return saved;
     }
 
+    /* -------------------- SOFT DELETE & RESTORE -------------------- */
+
     @Transactional
     public void softDelete(String employeeId, String actor) {
         Driver d = driverRepository.findById(employeeId)
@@ -92,7 +132,7 @@ public class DriverService {
         logHistory("Driver", employeeId, "Deleted", actor, prev, toJson(saved));
     }
 
-    /** NEW: restore a soft-deleted driver */
+    /** Restore a soft-deleted driver */
     @Transactional
     public Driver restore(String employeeId, String actor) {
         Driver d = driverRepository.findById(employeeId)
@@ -106,6 +146,8 @@ public class DriverService {
         logHistory("Driver", saved.getEmployeeId(), "Restored", actor, prev, toJson(saved));
         return saved;
     }
+
+    /* -------------------- HELPERS -------------------- */
 
     private String toJson(Object obj) {
         try {

@@ -1,23 +1,48 @@
-// src/app/Akeel/Transport/services/types.ts
-
-// ===== STATUSES =====
-export type DriverStatus  = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
-export type VehicleStatus = 'AVAILABLE' | 'IN_SERVICE' | 'UNDER_REPAIR' | 'RETIRED';
-
-// allow number or string from backend
+/* ===== Basics ===== */
 export type EntityId = number | string;
+export type ISODateString = string;
+export type ISODateTimeString = string;
 
-// ===== AUDIT FIELDS (shared) =====
-export interface AuditFields {
-  createdBy?: string | null;
-  createdAt?: string | null;  // ISO string
-  updatedBy?: string | null;
-  updatedAt?: string | null;  // ISO string
-  deletedBy?: string | null;
-  deletedAt?: string | null;  // ISO string
+/* ===== Statuses ===== */
+export type DriverStatus = "ACTIVE" | "INACTIVE" | "SUSPENDED";
+export type VehicleStatus = "AVAILABLE" | "IN_SERVICE" | "UNDER_REPAIR" | "RETIRED";
+
+export type RequestStatus =
+  | "PENDING_HOD"
+  | "REJECTED"
+  | "PENDING_MANAGEMENT"
+  | "APPROVED"
+  | "SCHEDULED"
+  | "DISPATCHED"
+  | "RETURNED";
+
+/* ===== API Shapes ===== */
+export interface ApiResponse<T> {
+  ok: boolean;
+  message?: string;
+  data: T;
 }
 
-// ===== ENTITIES =====
+export interface PaginationResponse<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  size: number;
+  number: number;
+}
+export type Page<T> = PaginationResponse<T>;
+
+/* ===== Shared audit fields ===== */
+export interface AuditFields {
+  createdBy?: string | null;
+  createdAt?: ISODateTimeString | null;
+  updatedBy?: string | null;
+  updatedAt?: ISODateTimeString | null;
+  deletedBy?: string | null;
+  deletedAt?: ISODateTimeString | null;
+}
+
+/* ===== Entities ===== */
 export interface Vehicle extends AuditFields {
   id: EntityId;
   vehicleNumber: string;
@@ -26,9 +51,9 @@ export interface Vehicle extends AuditFields {
   model?: string | null;
   chassisNumber?: string | null;
   engineNumber?: string | null;
-  manufactureDate?: string | null;   // yyyy-MM-dd or ISO
+  manufactureDate?: ISODateString | null;
   totalKmDriven?: number | null;
-  fuelEfficiency?: number | null;
+  fuelEfficiency?: number | null; // km/l
   presentCondition?: string | null;
   status?: VehicleStatus | null;
 }
@@ -38,58 +63,129 @@ export interface Driver extends AuditFields {
   name: string;
   phone?: string | null;
   email?: string | null;
-  licenseNumber: string;
-  licenseExpiryDate?: string | null; // yyyy-MM-dd or ISO
-  drivingExperience?: number | null;
-  status: DriverStatus;
+  licenseNumber?: string | null;
+  licenseExpiryDate?: ISODateString | null;
+  drivingExperience?: number | null; // years
+  status?: DriverStatus | null;
 }
 
-// ===== HISTORY =====
-export type HistoryAction = 'Created' | 'Updated' | 'Deleted';
+export interface UsageRequest {
+  id: number;
+  requestCode: string;
 
-export interface ChangeHistory {
-  id: EntityId;
-  entityType: 'Vehicle' | 'Driver';
-  entityId: EntityId;
-  action: HistoryAction;
-  previousData?: unknown | null;
-  newData?: unknown | null;  // used by HistoryModal
-  performedBy?: string | null;
-  timestamp: string; // ISO
+  // Applicant
+  applicantName: string;
+  employeeId: string;
+  department: string;
+
+  /** NEW: date applicant applied (yyyy-mm-dd) */
+  appliedDate?: ISODateString | null;
+
+  // Travel
+  dateOfTravel: ISODateString;
+  timeFrom: string; // HH:mm
+  timeTo: string;   // HH:mm
+  fromLocation: string;
+  toLocation: string;
+  officialDescription?: string | null;
+  goods?: string | null;
+  overnight?: boolean; // backend may include
+
+  /** NEW: travel with officer */
+  travelWithOfficer?: boolean | null;
+  officerName?: string | null;
+  officerId?: string | null;
+  officerPhone?: string | null;
+
+  // Status
+  status: RequestStatus;
+
+  // Assignment
+  assignedVehicleId?: number | null;
+  assignedVehicleNumber?: string | null;
+  assignedDriverId?: number | null;
+  assignedDriverName?: string | null;
+  assignedDriverPhone?: string | null;
+
+  // Schedule
+  scheduledPickupAt?: ISODateTimeString | null;
+  scheduledReturnAt?: ISODateTimeString | null;
+
+  // Gate & trip metrics
+  gateExitAt?: ISODateTimeString | null;
+  gateEntryAt?: ISODateTimeString | null;
+  exitOdometer?: number | null;
+  entryOdometer?: number | null;
+
+  // UI-only aliases
+  odometerStartKm?: number | null;
+  odometerEndKm?: number | null;
+  fuelBefore?: number | null;
+  fuelAfter?: number | null;
+  gateRemarks?: string | null;
+
+  // Audit
+  createdBy?: string | null;
+  createdAt?: ISODateTimeString | null;
+  updatedBy?: string | null;
+  updatedAt?: ISODateTimeString | null;
 }
 
-// Raw DTO from backend
+/* ===== History (optional helpers) ===== */
+export type HistoryAction = "Created" | "Updated" | "Deleted";
+
 export interface HistoryRecordDto {
   id: EntityId;
   entityType: string;
   entityId: EntityId;
   action: string;
   performedBy?: string | null;
-  timestamp: string;  // ISO
+  timestamp: ISODateTimeString;
   previousJson?: unknown | null;
   newJson?: unknown | null;
 }
 
-// (Optional) diff modeling
-export enum ChangeType { ADDED='ADDED', REMOVED='REMOVED', CHANGED='CHANGED', ERROR='ERROR' }
+export interface ChangeHistory {
+  id: EntityId;
+  entityType: "Vehicle" | "Driver";
+  entityId: EntityId;
+  action: HistoryAction;
+  previousData?: unknown | null;
+  newData?: unknown | null;
+  performedBy?: string | null;
+  timestamp: ISODateTimeString;
+}
+
+export enum ChangeType {
+  ADDED = "ADDED",
+  REMOVED = "REMOVED",
+  CHANGED = "CHANGED",
+  ERROR = "ERROR",
+}
 export interface ChangeItem {
   field: string;
   beforeVal: unknown;
   afterVal: unknown;
   changeType: ChangeType;
 }
+
 export interface CompareResult {
-  entityType: 'Vehicle' | 'Driver';
+  entityType: "Vehicle" | "Driver";
   entityId: EntityId;
   action: HistoryAction;
   comparedAgainst: string;
   performedBy?: string | null;
-  timestamp: string;
+  timestamp: ISODateTimeString;
   changes: ChangeItem[];
 }
 
-// ===== API WRAPPERS =====
-export interface ApiResponse<T> { ok: boolean; message?: string; data: T; }
-export interface PaginationResponse<T> {
-  content: T[]; totalElements: number; totalPages: number; size: number; number: number;
-}
+export const normalizeHistoryDto = (dto: HistoryRecordDto): ChangeHistory => ({
+  id: dto.id,
+  entityType: dto.entityType === "Vehicle" || dto.entityType === "Driver" ? dto.entityType : "Vehicle",
+  entityId: dto.entityId,
+  action: dto.action === "Created" || dto.action === "Updated" || dto.action === "Deleted" ? dto.action : "Updated",
+  previousData: dto.previousJson ?? null,
+  newData: dto.newJson ?? null,
+  performedBy: dto.performedBy ?? null,
+  timestamp: dto.timestamp,
+});

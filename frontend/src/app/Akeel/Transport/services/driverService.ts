@@ -1,85 +1,61 @@
-import { API_BASE, parseJson, throwHttp, unwrapApi } from './config';
-import { Driver, ApiResponse, ChangeHistory } from './types';
-import { fetchTimeline } from './historyService';
+import type { AxiosError } from "axios";
+import http, { unwrapApi } from "./http";
+import type { Driver, ApiResponse, PaginationResponse, ChangeHistory } from "./types";
+import { fetchTimeline } from "./historyService";
 
-const API = `${API_BASE}/api/drivers`;
+const API = "/drivers";
+const API_DELETED = "/drivers/deleted";
+const asMsg = (e: unknown, fb: string) => (e as AxiosError<any>)?.response?.data?.message || (e as any)?.message || fb;
 
-/**
- * Fetch ALL active drivers (client-side pagination).
- * We request a large page size to get all rows.
- */
+function unwrapPage<T>(body: any): T[] {
+  const u = unwrapApi<PaginationResponse<T> | T[] | { content: T[] }>(body);
+  if (Array.isArray(u)) return u;
+  if (u && Array.isArray((u as any).content)) return (u as any).content;
+  return [];
+}
+
+/** Queries */
 export async function fetchDrivers(search?: string): Promise<Driver[]> {
-  const params = new URLSearchParams({
-    page: '0',
-    size: '1000',
-  });
-  if (search && search.trim()) params.set('search', search.trim());
-
-  const r = await fetch(`${API}?${params.toString()}`, { cache: 'no-store' });
-  if (!r.ok) await throwHttp(r, 'Failed to fetch drivers');
-
-  // Backend wraps Page<Driver> in ApiResponse
-  // data = { content, totalElements, ... }
-  const body = unwrapApi<ApiResponse<any> | any>(await parseJson(r)) as any;
-  const content = body?.content ?? body ?? [];
-  return Array.isArray(content) ? content : [];
+  try {
+    const { data } = await http.get(API, { params: { page: 0, size: 1000, ...(search?.trim() ? { search: search.trim() } : {}) } });
+    return unwrapPage<Driver>(data);
+  } catch (e) { throw new Error(asMsg(e, "Failed to fetch drivers")); }
 }
 
-/** Fetch ALL deleted drivers (client-side pagination) */
 export async function fetchDeletedDrivers(search?: string): Promise<Driver[]> {
-  const params = new URLSearchParams({
-    page: '0',
-    size: '1000',
-  });
-  if (search && search.trim()) params.set('search', search.trim());
-
-  const r = await fetch(`${API}/deleted?${params.toString()}`, { cache: 'no-store' });
-  if (!r.ok) await throwHttp(r, 'Failed to fetch deleted drivers');
-
-  const body = unwrapApi<any>(await parseJson(r));
-  const content = body?.content ?? body ?? [];
-  return Array.isArray(content) ? content : [];
+  try {
+    const { data } = await http.get(API_DELETED, { params: { page: 0, size: 1000, ...(search?.trim() ? { search: search.trim() } : {}) } });
+    return unwrapPage<Driver>(data);
+  } catch (e) { throw new Error(asMsg(e, "Failed to fetch deleted drivers")); }
 }
 
-/** GET /api/drivers/{employeeId} */
 export async function fetchDriverById(employeeId: string): Promise<Driver> {
-  const r = await fetch(`${API}/${employeeId}`, { cache: 'no-store' });
-  if (!r.ok) await throwHttp(r, 'Driver not found');
-  return unwrapApi<Driver>(await parseJson(r));
+  try {
+    const { data } = await http.get(`${API}/${employeeId}`);
+    return unwrapApi<Driver>(data);
+  } catch (e) { throw new Error(asMsg(e, "Driver not found")); }
 }
 
-/** POST /api/drivers */
-export async function addDriver(data: Partial<Driver>): Promise<Driver> {
-  const r = await fetch(API, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Actor': 'ui' },
-    body: JSON.stringify(data),
-  });
-  if (!r.ok) await throwHttp(r, 'Failed to add driver');
-  return unwrapApi<Driver>(await parseJson(r));
+/** Mutations */
+export async function addDriver(payload: Partial<Driver>): Promise<Driver> {
+  try {
+    const { data } = await http.post(API, payload);
+    return unwrapApi<Driver>(data);
+  } catch (e) { throw new Error(asMsg(e, "Failed to add driver")); }
 }
 
-/** PUT /api/drivers/{employeeId} */
 export async function updateDriver(employeeId: string, patch: Partial<Driver>): Promise<Driver> {
-  const r = await fetch(`${API}/${employeeId}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', 'X-Actor': 'ui' },
-    body: JSON.stringify(patch),
-  });
-  if (!r.ok) await throwHttp(r, 'Failed to update driver');
-  return unwrapApi<Driver>(await parseJson(r));
+  try {
+    const { data } = await http.put(`${API}/${employeeId}`, patch);
+    return unwrapApi<Driver>(data);
+  } catch (e) { throw new Error(asMsg(e, "Failed to update driver")); }
 }
 
-/** DELETE /api/drivers/{employeeId} */
 export async function deleteDriver(employeeId: string): Promise<void> {
-  const r = await fetch(`${API}/${employeeId}`, {
-    method: 'DELETE',
-    headers: { 'X-Actor': 'ui' },
-  });
-  if (!r.ok) await throwHttp(r, 'Failed to delete driver');
+  try { await http.delete(`${API}/${employeeId}`); } catch (e) { throw new Error(asMsg(e, "Failed to delete driver")); }
 }
 
-/** Driver history — reuse History endpoints */
+/** History */
 export async function fetchDriverHistory(employeeId: string): Promise<ChangeHistory[]> {
-  return fetchTimeline('Driver', employeeId);
+  return fetchTimeline("Driver", employeeId);
 }

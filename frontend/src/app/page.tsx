@@ -9,13 +9,19 @@ export default function HomePage() {
       link: '/Akeel/Transport',
       emoji: '🚚',
     },
+    {
+      title: 'Applicant',
+      description: 'Manage applicant requests and dashboard',
+      link: '/Akeel/Applicant',
+      emoji: '👤', // You can choose a different emoji (e.g., 👤 for a person)
+    },
   ];
 
   return (
     <div className="min-h-screen bg-gray-100 p-8">
       <div className="max-w-6xl mx-auto">
         <h1 className="text-3xl font-bold mb-6 text-center text-gray-800">
-          SPC System Dashboard
+          SPC System Dashboard Akeel
         </h1>
         <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
           {cards.map((card) => (

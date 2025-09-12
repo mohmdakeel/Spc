@@ -1,21 +1,10 @@
 'use client';
-
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
-import {
-  Printer, History as HistoryIcon, Edit, Trash2, Plus, ArrowLeft,
-  ChevronLeft, ChevronRight,
-} from 'lucide-react';
+import { Printer, History as HistoryIcon, Edit, Trash2, Plus, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 
-import {
-  fetchDrivers,
-  fetchDeletedDrivers,
-  addDriver,
-  updateDriver,
-  deleteDriver,
-} from '../services/driverService';
-
+import { fetchDrivers, fetchDeletedDrivers, addDriver, updateDriver, deleteDriver } from '../services/driverService';
 import DriverForm from './DriverForm';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
 import EntityModal from '../components/EntityModal';
@@ -26,16 +15,14 @@ import { printDriver, printDriverList } from '../utils/print';
 import type { Driver, DriverStatus } from '../services/types';
 
 const ITEMS_PER_PAGE = 10;
-
 const ROW_TEXT = 'text-xs';
 const ROW_PX = 'px-2';
 const ROW_PY = 'py-2';
 const HEAD_TEXT = 'text-xs font-semibold text-orange-800';
 const HEAD_PY = 'py-2';
-
 const EXP_SOON_DAYS = 30;
 
-const fmt = (v: unknown) => (v === null || v === undefined || v === '' ? '-' : String(v));
+const fmt = (v: unknown) => (v == null || v === '' ? '-' : String(v));
 const fmtDate = (s?: string | Date | null) => (s ? new Date(s as any).toLocaleDateString() : '-');
 const fmtDateTime = (s?: string | Date | null) => (s ? new Date(s as any).toLocaleString() : '-');
 
@@ -52,14 +39,12 @@ function getExpiryState(expiry?: string | null) {
 
 export default function DriverListPage() {
   const router = useRouter();
-
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [deletedDrivers, setDeletedDrivers] = useState<Driver[]>([]);
   const [showDeleted, setShowDeleted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-
   const [selected, setSelected] = useState<Driver | null>(null);
   const [showForm, setShowForm] = useState<false | 'add' | 'edit'>(false);
   const [editing, setEditing] = useState<Driver | null>(null);
@@ -118,6 +103,7 @@ export default function DriverListPage() {
           <button onClick={() => goTo(page - 1)} disabled={page === 1}
             className={`p-2 rounded-md ${page === 1 ? 'text-gray-400 cursor-not-allowed' : 'text-orange-600 hover:bg-orange-100'}`}
             aria-label="Previous page"><ChevronLeft size={16} /></button>
+
           {startWin > first && (
             <>
               <button onClick={() => goTo(first)}
@@ -125,10 +111,12 @@ export default function DriverListPage() {
               {startWin > first + 1 && <span className="px-1">…</span>}
             </>
           )}
+
           {nums.map(n => (
             <button key={n} onClick={() => goTo(n)}
               className={`px-3 py-1 rounded-md ${page === n ? 'bg-orange-600 text-white' : 'text-orange-600 hover:bg-orange-100'}`}>{n}</button>
           ))}
+
           {endWin < last && (
             <>
               {endWin < last - 1 && <span className="px-1">…</span>}
@@ -136,6 +124,7 @@ export default function DriverListPage() {
                 className={`px-3 py-1 rounded-md ${page === last ? 'bg-orange-600 text-white' : 'text-orange-600 hover:bg-orange-100'}`}>{last}</button>
             </>
           )}
+
           <button onClick={() => goTo(page + 1)} disabled={page === totalPages}
             className={`p-2 rounded-md ${page === totalPages ? 'text-gray-400 cursor-not-allowed' : 'text-orange-600 hover:bg-orange-100'}`}
             aria-label="Next page"><ChevronRight size={16} /></button>
@@ -180,14 +169,10 @@ export default function DriverListPage() {
     }
   };
 
+  // ✅ minimal payload now that backend update is less strict
   const onChangeStatus = async (d: Driver, status: DriverStatus) => {
     try {
-      await updateDriver(d.employeeId, {
-        employeeId: d.employeeId || '',
-        name: d.name || '',
-        licenseNumber: d.licenseNumber || '',
-        status: status || 'ACTIVE',
-      });
+      await updateDriver(d.employeeId, { status });
       toast.success('Status updated');
       await load();
     } catch (e) {
@@ -268,7 +253,6 @@ export default function DriverListPage() {
                 <colgroup>
                   {dCols.map((w, i) => <col key={i} className={w} />)}
                 </colgroup>
-
                 <thead className="bg-orange-50 sticky top-0 z-10">
                   <tr>
                     <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>No</Th>
@@ -283,7 +267,6 @@ export default function DriverListPage() {
                     {!showDeleted && <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>Actions</Th>}
                   </tr>
                 </thead>
-
                 <tbody className="divide-y divide-orange-100">
                   {rows.map((d, i) => {
                     const exp = getExpiryState(d.licenseExpiryDate);
@@ -347,7 +330,6 @@ export default function DriverListPage() {
                 </tbody>
               </table>
             </div>
-
             <PaginationBar />
           </>
         )}
@@ -360,7 +342,6 @@ export default function DriverListPage() {
           onClose={() => setShowForm(false)}
         />
       )}
-
       {deleteTarget && (
         <DeleteConfirmModal
           title="Delete Driver"
@@ -369,7 +350,6 @@ export default function DriverListPage() {
           onClose={() => setDeleteTarget(null)}
         />
       )}
-
       {selected && (
         <EntityModal
           title="Driver Details"

@@ -1,11 +1,8 @@
-// src/app/Akeel/Transport/History/page.tsx
 'use client';
-
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'react-toastify';
 import { ArrowLeft, FileDiff, ChevronLeft, ChevronRight } from 'lucide-react';
-
 import { fetchRecentHistory, fetchTimeline } from '../services/historyService';
 import type { ChangeHistory } from '../services/types';
 import HistoryModal from '../components/HistoryModal';
@@ -13,25 +10,20 @@ import HistoryModal from '../components/HistoryModal';
 type Mode = 'all' | 'entity';
 const ITEMS_PER_PAGE = 10;
 
-// 🔧 Size presets (so you can fine‑tune in ONE place)
-const CELL_PAD_Y = 'py-[10px]';       // ~10px ≈ 2.5 (between py-2 and py-3)
+const CELL_PAD_Y = 'py-[10px]';
 const CELL_PAD_X = 'px-3';
-const CELL_TEXT  = 'text-[13px]';     // slightly larger than text-xs
-const HEAD_TEXT  = 'text-[13px]';     // header font
-const HEAD_PAD_Y = 'py-[10px]';       // header height to match rows
+const CELL_TEXT = 'text-[13px]';
+const HEAD_TEXT = 'text-[13px]';
+const HEAD_PAD_Y = 'py-[10px]';
 
 export default function HistoryPage() {
   const searchParams = useSearchParams();
-
   const [mode, setMode] = useState<Mode>('all');
   const [allHistory, setAllHistory] = useState<ChangeHistory[]>([]);
-  const [loadingAll, setLoadingAll] = useState(true);
   const [entityHistory, setEntityHistory] = useState<ChangeHistory[]>([]);
-  const [loadingEntity, setLoadingEntity] = useState(false);
   const [selectedType, setSelectedType] = useState<'Driver' | 'Vehicle' | null>(null);
   const [selectedId, setSelectedId] = useState<string>('');
   const [selectedItem, setSelectedItem] = useState<ChangeHistory | null>(null);
-
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
@@ -45,7 +37,6 @@ export default function HistoryPage() {
   };
 
   const loadAll = async () => {
-    setLoadingAll(true);
     try {
       const data = await fetchRecentHistory(200);
       const historyData = Array.isArray(data) ? data : [];
@@ -57,8 +48,6 @@ export default function HistoryPage() {
       setAllHistory([]);
       setTotalPages(1);
       setCurrentPage(1);
-    } finally {
-      setLoadingAll(false);
     }
   };
 
@@ -73,7 +62,6 @@ export default function HistoryPage() {
     setSelectedType(type);
     setSelectedId(id);
     setMode('entity');
-    setLoadingEntity(true);
     setCurrentPage(1);
     try {
       const tl = await fetchTimeline(type, id);
@@ -85,8 +73,6 @@ export default function HistoryPage() {
       setEntityHistory(fallback);
       setTotalPages(Math.ceil(fallback.length / ITEMS_PER_PAGE));
       toast.error(e instanceof Error ? e.message : 'Failed to load entity history (showing cached data)');
-    } finally {
-      setLoadingEntity(false);
     }
   };
 
@@ -110,7 +96,6 @@ export default function HistoryPage() {
 
   const renderPagination = () => {
     if (totalPages <= 1) return null;
-
     const nums: number[] = [];
     const windowSize = 5;
     const first = 1;
@@ -118,14 +103,12 @@ export default function HistoryPage() {
     const start = Math.max(first, currentPage - Math.floor(windowSize / 2));
     const end = Math.min(last, start + windowSize - 1);
     for (let i = start; i <= end; i++) nums.push(i);
-
     return (
       <div className="flex items-center justify-between mt-4 px-4 py-3 bg-orange-50 rounded-lg border border-orange-100">
         <div className="text-[13px] text-orange-800">
           Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–
           {Math.min(currentPage * ITEMS_PER_PAGE, list.length)} of {list.length} records
         </div>
-
         <div className="flex items-center gap-2">
           <button
             onClick={() => goToPage(currentPage - 1)}
@@ -134,7 +117,6 @@ export default function HistoryPage() {
           >
             <ChevronLeft size={16} />
           </button>
-
           {nums.map(n => (
             <button
               key={n}
@@ -144,7 +126,6 @@ export default function HistoryPage() {
               {n}
             </button>
           ))}
-
           <button
             onClick={() => goToPage(currentPage + 1)}
             disabled={currentPage === totalPages}
@@ -158,7 +139,6 @@ export default function HistoryPage() {
   };
 
   useEffect(() => { loadAll(); }, []);
-
   useEffect(() => {
     const type = searchParams.get('type');
     const id = searchParams.get('id');
@@ -250,7 +230,6 @@ export default function HistoryPage() {
                   )}
               </table>
             </div>
-
             {renderPagination()}
           </div>
         </div>

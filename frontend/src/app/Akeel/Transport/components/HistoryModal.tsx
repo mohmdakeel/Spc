@@ -6,12 +6,8 @@ import { toast } from 'react-toastify';
 
 import PreviousDataModal from './PreviousDataModal';
 import type { ChangeHistory } from '../services/types';
-import { API_BASE } from '../services/config';
-
-type Props = {
-  item: ChangeHistory;
-  onClose: () => void;
-};
+import { fetchDriverById } from '../services/driverService';
+import { fetchVehicleById } from '../services/VehicleService';
 
 // ---- utils ----
 const safeParse = (data: any): Record<string, any> => {
@@ -20,18 +16,13 @@ const safeParse = (data: any): Record<string, any> => {
   try { return JSON.parse(data); } catch { return {}; }
 };
 
-const unwrapApi = (resp: any) => {
-  // supports { data: {...} } or raw entity
-  if (!resp) return {};
-  if (typeof resp === 'object' && 'data' in resp) return (resp as any).data ?? {};
-  return resp;
-};
-
 const prettyVal = (v: any) => {
   if (v == null) return '—';
   if (typeof v === 'string') return v;
   try { return JSON.stringify(v, null, 2); } catch { return String(v); }
 };
+
+type Props = { item: ChangeHistory; onClose: () => void };
 
 export default function HistoryModal({ item, onClose }: Props) {
   const [prevOpen, setPrevOpen] = useState(false);
@@ -67,26 +58,16 @@ export default function HistoryModal({ item, onClose }: Props) {
 
   const handleShowPrev = async () => {
     if (!canCompare) return;
-    const base = `${API_BASE}/api`;
-
-    const endpoint =
-      item.entityType === 'Driver'
-        ? `${base}/drivers/${item.entityId}`
-        : item.entityType === 'Vehicle'
-          ? `${base}/vehicles/${item.entityId}`
-          : '';
-
-    if (!endpoint) { toast.error('Invalid entity type'); return; }
-
     try {
       setLoadingCompare(true);
-      const res = await fetch(endpoint, { cache: 'no-store' });
-      if (!res.ok) throw new Error(`Failed to fetch current ${item.entityType.toLowerCase()} data`);
-      const payload = await res.json();
-      setCurrentData(unwrapApi(payload));
+      const current =
+        item.entityType === 'Driver'
+          ? await fetchDriverById(String(item.entityId))
+          : await fetchVehicleById(String(item.entityId));
+      setCurrentData(current as any);
       setPrevOpen(true);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to fetch current data');
+      toast.error(e instanceof Error ? e.message : 'Failed to fetch current entity data');
     } finally {
       setLoadingCompare(false);
     }
@@ -111,6 +92,7 @@ export default function HistoryModal({ item, onClose }: Props) {
               </h2>
             </div>
             <button
+              type="button"
               onClick={onClose}
               className="p-2 rounded-lg hover:bg-orange-200 text-orange-700 transition-all"
               aria-label="Close"
@@ -182,6 +164,7 @@ export default function HistoryModal({ item, onClose }: Props) {
             {/* Footer actions */}
             {canCompare ? (
               <button
+                type="button"
                 onClick={handleShowPrev}
                 disabled={loadingCompare}
                 className="w-full flex items-center justify-center gap-3 bg-orange-600 hover:bg-orange-700 disabled:opacity-60 disabled:cursor-not-allowed text-white px-5 py-3 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg"

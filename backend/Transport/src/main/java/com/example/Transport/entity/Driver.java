@@ -2,15 +2,7 @@ package com.example.Transport.entity;
 
 import com.example.Transport.enums.DriverStatus;
 import com.fasterxml.jackson.annotation.JsonFormat;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EntityListeners;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.Id;              // <<— IMPORTANT: JPA Id
-import jakarta.persistence.Table;
-import jakarta.persistence.Temporal;
-import jakarta.persistence.TemporalType;
+import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -57,9 +49,12 @@ public class Driver {
     @Enumerated(EnumType.STRING)
     private DriverStatus status;
 
+    /** Soft delete flag */
     @Column(name = "is_deleted", nullable = false)
-    private Integer isDeleted = 0; // 0=active, 1=deleted
+    @Builder.Default
+    private Integer isDeleted = 0; // 0 = active, 1 = deleted
 
+    /** Auditing fields */
     @CreatedBy @Column(updatable = false) private String createdBy;
     @CreatedDate @Column(updatable = false) private Date createdAt;
     @LastModifiedBy private String updatedBy;
@@ -68,6 +63,18 @@ public class Driver {
     private String deletedBy;
     private Date deletedAt;
 
-    public Boolean getDeleted() { return isDeleted != null && isDeleted == 1; }
-    public void setDeleted(Boolean deleted) { this.isDeleted = (deleted != null && deleted) ? 1 : 0; }
+    // JSON-friendly helpers
+    public Boolean getDeleted() {
+        return isDeleted != null && isDeleted == 1;
+    }
+    public void setDeleted(Boolean deleted) {
+        this.isDeleted = (deleted != null && deleted) ? 1 : 0;
+    }
+
+    @PrePersist
+    public void prePersist() {
+        if (isDeleted == null) {
+            isDeleted = 0;
+        }
+    }
 }

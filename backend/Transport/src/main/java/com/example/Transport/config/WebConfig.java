@@ -1,4 +1,3 @@
-// backend/src/main/java/com/example/Transport/config/WebConfig.java
 package com.example.Transport.config;
 
 import org.springframework.context.annotation.Bean;
@@ -17,8 +16,9 @@ public class WebConfig {
       public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
             .allowedOrigins("http://localhost:3000")
-            .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH")
-            .allowedHeaders("*");
+            .allowedMethods("GET","POST","PUT","DELETE","PATCH","OPTIONS","HEAD")
+            .allowedHeaders("*")
+            .allowCredentials(true);
       }
     };
   }

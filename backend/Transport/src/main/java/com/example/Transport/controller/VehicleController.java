@@ -51,7 +51,7 @@ public class VehicleController {
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<Vehicle>> update(@PathVariable Long id,
-                                                       @Valid @RequestBody Vehicle patch,
+                                                       @RequestBody Vehicle patch, // <-- @Valid removed
                                                        @RequestHeader(value = "X-Actor", required = false) String actor) {
         return ResponseEntity.ok(ApiResponse.success(vehicleService.update(id, patch, actor)));
     }

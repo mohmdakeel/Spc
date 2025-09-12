@@ -23,7 +23,7 @@ import {
   Truck,
   Users,
   Building,
-  LogOut
+  LogOut,
 } from 'lucide-react';
 
 type SidebarItemProps = {
@@ -41,18 +41,21 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
   children,
   collapsed = false,
   active = false,
-  onClick
+  onClick,
 }) => {
-  const [open, setOpen] = useState(active); // open group if active
+  const [open, setOpen] = useState(active); // open group if active on load
+
   const handleClick = () => {
-    if (children) setOpen(!open);
+    if (children) setOpen((s) => !s);
     onClick?.();
   };
 
   return (
     <div className="mb-1">
       <button
+        type="button"
         onClick={handleClick}
+        aria-expanded={!collapsed && !!children ? open : undefined}
         className={`flex items-center justify-between w-full px-4 py-3 ${
           active ? 'bg-orange-600 text-white' : 'text-black hover:bg-orange-500 hover:text-white'
         } text-left transition-all rounded-lg group ${collapsed ? 'justify-center px-2' : ''}`}
@@ -60,7 +63,11 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
         <div className={`flex items-center gap-3 ${collapsed ? 'flex-col' : ''}`}>
           <span className="flex-shrink-0">{icon}</span>
           {!collapsed && (
-            <span className={`text-sm font-medium truncate ${active ? 'text-white' : 'text-black group-hover:text-white'}`}>
+            <span
+              className={`text-sm font-medium truncate ${
+                active ? 'text-white' : 'text-black group-hover:text-white'
+              }`}
+            >
               {label}
             </span>
           )}
@@ -73,59 +80,77 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
       </button>
 
       {!collapsed && open && children && (
-        <div className="ml-2 pl-6 mt-1 space-y-1 text-sm border-l-2 border-orange-300">
-          {children}
-        </div>
+        <div className="ml-2 pl-6 mt-1 space-y-1 text-sm border-l-2 border-orange-300">{children}</div>
       )}
     </div>
   );
 };
 
-const Sidebar = () => {
+const Sidebar: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
 
-  // Helper: quick push + return active check
   const go = (path: string) => router.push(path);
-  const isActive = (path: string) =>
-    pathname === path || pathname?.startsWith(path + '/');
+  const isActive = (path: string) => pathname === path || pathname?.startsWith(path + '/');
 
   // Group active detection
   const vehicleMgmtActive = useMemo(
     () =>
-      ['/Akeel/Transport/Vehicle', '/Akeel/Transport/Driver', '/Akeel/Transport/AssignVehicle', '/Akeel/Transport/GPSTracking', '/Akeel/Transport/Fuel']
-        .some(isActive),
+      [
+        '/Akeel/Transport/Vehicle',
+        '/Akeel/Transport/Driver',
+        '/Akeel/Transport/AssignVehicle',
+        '/Akeel/Transport/GPSTracking',
+        '/Akeel/Transport/Fuel',
+      ].some(isActive),
     [pathname]
   );
+
   const vehicleMaintActive = useMemo(
     () =>
-      ['/Akeel/Transport/Maintenance/Requests', '/Akeel/Transport/Maintenance/Schedule', '/Akeel/Transport/Maintenance/Log', '/Akeel/Transport/Maintenance/SupplierBills']
-        .some(isActive),
+      [
+        '/Akeel/Transport/Maintenance/Requests',
+        '/Akeel/Transport/Maintenance/Schedule',
+        '/Akeel/Transport/Maintenance/Log',
+        '/Akeel/Transport/Maintenance/SupplierBills',
+      ].some(isActive),
     [pathname]
   );
+
   const usageReqActive = useMemo(
     () =>
-      ['/Akeel/Transport/Usage/Department', '/Akeel/Transport/Usage/Approved', '/Akeel/Transport/Usage/Scheduling', '/Akeel/Transport/Usage/Dispatch', '/Akeel/Transport/Usage/Receive']
-        .some(isActive),
+      [
+        '/Akeel/Transport/Usage/Department',
+        '/Akeel/Transport/Usage/Approved',
+        '/Akeel/Transport/Usage/Scheduling',
+        '/Akeel/Transport/Usage/Dispatch',
+        '/Akeel/Transport/Usage/Receive',
+      ].some(isActive),
     [pathname]
   );
+
   const gateSecActive = useMemo(
     () =>
-      ['/Akeel/Transport/Gate/Scheduled', '/Akeel/Transport/Gate/Visitors', '/Akeel/Transport/Gate/Company']
-        .some(isActive),
+      [
+        '/Akeel/Transport/Gate/Scheduled',
+        '/Akeel/Transport/Gate/Visitors',
+        '/Akeel/Transport/Gate/Company',
+      ].some(isActive),
     [pathname]
   );
 
   const handleLogout = () => {
-    // TODO: add your logout logic
+    // TODO: wire up your logout
     console.log('Logging out…');
     // router.push('/login');
   };
 
   return (
     <aside
-      className={`bg-orange-100 h-screen ${collapsed ? 'w-20' : 'w-64'} p-4 overflow-y-auto transition-all duration-300 ease-in-out flex flex-col shadow-[4px_0_20px_rgba(0,0,0,0.1)]`}
+      className={`bg-orange-100 h-screen ${
+        collapsed ? 'w-20' : 'w-64'
+      } p-4 overflow-y-auto transition-all duration-300 ease-in-out flex flex-col shadow-[4px_0_20px_rgba(0,0,0,0.1)]`}
     >
       {/* Brand */}
       <div className="mb-6 flex flex-col items-center">
@@ -144,7 +169,9 @@ const Sidebar = () => {
 
       {/* Collapse toggle */}
       <button
-        onClick={() => setCollapsed(!collapsed)}
+        type="button"
+        onClick={() => setCollapsed((c) => !c)}
+        aria-pressed={collapsed}
         className="hidden md:flex items-center justify-center p-2 mb-4 bg-orange-200 rounded-lg hover:bg-orange-300 transition-all text-black hover:text-white"
         title={collapsed ? 'Expand' : 'Collapse'}
       >
@@ -153,9 +180,12 @@ const Sidebar = () => {
 
       {/* Dashboard */}
       <button
+        type="button"
         onClick={() => go('/Akeel/Transport')}
         className={`flex items-center gap-2 px-4 py-3 rounded-lg mb-4 transition-all ${
-          isActive('/Akeel/Transport') ? 'bg-orange-600 text-white' : 'bg-orange-200 text-black hover:bg-orange-500 hover:text-white'
+          isActive('/Akeel/Transport')
+            ? 'bg-orange-600 text-white'
+            : 'bg-orange-200 text-black hover:bg-orange-500 hover:text-white'
         }`}
       >
         <Home size={20} />
@@ -164,25 +194,50 @@ const Sidebar = () => {
 
       {/* Groups */}
       <div className="space-y-1 flex-1">
-        <SidebarItem
-          label="Vehicle Management"
-          icon={<Car size={20} />}
-          collapsed={collapsed}
-          active={vehicleMgmtActive}
-        >
-          <button onClick={() => go('/Akeel/Transport/Vehicle')} className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${isActive('/Akeel/Transport/Vehicle') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'}`}>
+        <SidebarItem label="Vehicle Management" icon={<Car size={20} />} collapsed={collapsed} active={vehicleMgmtActive}>
+          <button
+            type="button"
+            onClick={() => go('/Akeel/Transport/Vehicle')}
+            className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+              isActive('/Akeel/Transport/Vehicle') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'
+            }`}
+          >
             <ClipboardList size={16} /> Vehicle Register
           </button>
-          <button onClick={() => go('/Akeel/Transport/Driver')} className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${isActive('/Akeel/Transport/Driver') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'}`}>
+          <button
+            type="button"
+            onClick={() => go('/Akeel/Transport/Driver')}
+            className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+              isActive('/Akeel/Transport/Driver') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'
+            }`}
+          >
             <User size={16} /> Driver Register
           </button>
-          <button onClick={() => go('/Akeel/Transport/AssignVehicle')} className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${isActive('/Akeel/Transport/AssignVehicle') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'}`}>
+          <button
+            type="button"
+            onClick={() => go('/Akeel/Transport/Usage/AssignVehicle')}
+            className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+              isActive('/Akeel/Transport/AssignVehicle') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'
+            }`}
+          >
             <LinkIcon size={16} /> Assign Vehicle
           </button>
-          <button onClick={() => go('/Akeel/Transport/GPSTracking')} className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${isActive('/Akeel/Transport/GPSTracking') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'}`}>
+          <button
+            type="button"
+            onClick={() => go('/Akeel/Transport/GPSTracking')}
+            className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+              isActive('/Akeel/Transport/GPSTracking') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'
+            }`}
+          >
             <MapPin size={16} /> GPS Tracking
           </button>
-          <button onClick={() => go('/Akeel/Transport/Fuel')} className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${isActive('/Akeel/Transport/Fuel') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'}`}>
+          <button
+            type="button"
+            onClick={() => go('/Akeel/Transport/Fuel')}
+            className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+              isActive('/Akeel/Transport/Fuel') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'
+            }`}
+          >
             <Droplet size={16} /> Fuel Consumption
           </button>
         </SidebarItem>
@@ -193,56 +248,142 @@ const Sidebar = () => {
           collapsed={collapsed}
           active={vehicleMaintActive}
         >
-          <button onClick={() => go('/Akeel/Transport/Maintenance/Requests')} className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${isActive('/Akeel/Transport/Maintenance/Requests') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'}`}>
+          <button
+            type="button"
+            onClick={() => go('/Akeel/Transport/Maintenance/Requests')}
+            className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+              isActive('/Akeel/Transport/Maintenance/Requests')
+                ? 'bg-orange-600 text-white'
+                : 'text-black hover:text-white hover:bg-orange-500'
+            }`}
+          >
             <FileDigit size={16} /> Service Requests
           </button>
-          <button onClick={() => go('/Akeel/Transport/Maintenance/Schedule')} className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${isActive('/Akeel/Transport/Maintenance/Schedule') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'}`}>
+          <button
+            type="button"
+            onClick={() => go('/Akeel/Transport/Maintenance/Schedule')}
+            className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+              isActive('/Akeel/Transport/Maintenance/Schedule')
+                ? 'bg-orange-600 text-white'
+                : 'text-black hover:text-white hover:bg-orange-500'
+            }`}
+          >
             <CalendarCheck size={16} /> Maintenance Schedule
           </button>
-          <button onClick={() => go('/Akeel/Transport/Maintenance/Log')} className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${isActive('/Akeel/Transport/Maintenance/Log') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'}`}>
+          <button
+            type="button"
+            onClick={() => go('/Akeel/Transport/Maintenance/Log')}
+            className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+              isActive('/Akeel/Transport/Maintenance/Log')
+                ? 'bg-orange-600 text-white'
+                : 'text-black hover:text-white hover:bg-orange-500'
+            }`}
+          >
             <FileText size={16} /> Maintenance Log
           </button>
-          <button onClick={() => go('/Akeel/Transport/Maintenance/SupplierBills')} className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${isActive('/Akeel/Transport/Maintenance/SupplierBills') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'}`}>
+          <button
+            type="button"
+            onClick={() => go('/Akeel/Transport/Maintenance/SupplierBills')}
+            className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+              isActive('/Akeel/Transport/Maintenance/SupplierBills')
+                ? 'bg-orange-600 text-white'
+                : 'text-black hover:text-white hover:bg-orange-500'
+            }`}
+          >
             <ClipboardList size={16} /> Supplier Bills
           </button>
         </SidebarItem>
 
-        <SidebarItem
-          label="Usage Requests"
-          icon={<FileText size={20} />}
-          collapsed={collapsed}
-          active={usageReqActive}
-        >
-          <button onClick={() => go('/Akeel/Transport/Usage/Department')} className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${isActive('/Akeel/Transport/Usage/Department') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'}`}>
+        <SidebarItem label="Usage Requests" icon={<FileText size={20} />} collapsed={collapsed} active={usageReqActive}>
+          <button
+            type="button"
+            onClick={() => go('/Akeel/Transport/Usage/Department')}
+            className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+              isActive('/Akeel/Transport/Usage/Department')
+                ? 'bg-orange-600 text-white'
+                : 'text-black hover:text-white hover:bg-orange-500'
+            }`}
+          >
             <Building size={16} /> Department Requests
           </button>
-          <button onClick={() => go('/Akeel/Transport/Usage/Approved')} className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${isActive('/Akeel/Transport/Usage/Approved') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'}`}>
+          <button
+            type="button"
+            onClick={() => go('/Akeel/Transport/Usage/Approved')}
+            className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+              isActive('/Akeel/Transport/Usage/Approved')
+                ? 'bg-orange-600 text-white'
+                : 'text-black hover:text-white hover:bg-orange-500'
+            }`}
+          >
             <CalendarCheck size={16} /> Approved Requests
           </button>
-          <button onClick={() => go('/Akeel/Transport/Usage/Scheduling')} className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${isActive('/Akeel/Transport/Usage/Scheduling') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'}`}>
+          <button
+            type="button"
+            onClick={() => go('/Akeel/Transport/Usage/Scheduling')}
+            className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+              isActive('/Akeel/Transport/Usage/Scheduling')
+                ? 'bg-orange-600 text-white'
+                : 'text-black hover:text-white hover:bg-orange-500'
+            }`}
+          >
             <CalendarClock size={16} /> Vehicle Scheduling
           </button>
-          <button onClick={() => go('/Akeel/Transport/Usage/Dispatch')} className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${isActive('/Akeel/Transport/Usage/Dispatch') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'}`}>
+          <button
+            type="button"
+            onClick={() => go('/Akeel/Transport/Usage/Dispatch')}
+            className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+              isActive('/Akeel/Transport/Usage/Dispatch')
+                ? 'bg-orange-600 text-white'
+                : 'text-black hover:text-white hover:bg-orange-500'
+            }`}
+          >
             <Truck size={16} /> Dispatch Logs
           </button>
-          <button onClick={() => go('/Akeel/Transport/Usage/Receive')} className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${isActive('/Akeel/Transport/Usage/Receive') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'}`}>
+          <button
+            type="button"
+            onClick={() => go('/Akeel/Transport/Usage/Receive')}
+            className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+              isActive('/Akeel/Transport/Usage/Receive')
+                ? 'bg-orange-600 text-white'
+                : 'text-black hover:text-white hover:bg-orange-500'
+            }`}
+          >
             <Truck size={16} /> Receive Logs
           </button>
         </SidebarItem>
 
-        <SidebarItem
-          label="Gate Security"
-          icon={<Shield size={20} />}
-          collapsed={collapsed}
-          active={gateSecActive}
-        >
-          <button onClick={() => go('/Akeel/Transport/Gate/Scheduled')} className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${isActive('/Akeel/Transport/Gate/Scheduled') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'}`}>
+        <SidebarItem label="Gate Security" icon={<Shield size={20} />} collapsed={collapsed} active={gateSecActive}>
+          <button
+            type="button"
+            onClick={() => go('/Akeel/Transport/Gate/Scheduled')}
+            className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+              isActive('/Akeel/Transport/Gate/Scheduled')
+                ? 'bg-orange-600 text-white'
+                : 'text-black hover:text-white hover:bg-orange-500'
+            }`}
+          >
             <Truck size={16} /> Scheduled Vehicles
           </button>
-          <button onClick={() => go('/Akeel/Transport/Gate/Visitors')} className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${isActive('/Akeel/Transport/Gate/Visitors') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'}`}>
+          <button
+            type="button"
+            onClick={() => go('/Akeel/Transport/Gate/Visitors')}
+            className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+              isActive('/Akeel/Transport/Gate/Visitors')
+                ? 'bg-orange-600 text-white'
+                : 'text-black hover:text-white hover:bg-orange-500'
+            }`}
+          >
             <Users size={16} /> Visitor Vehicles
           </button>
-          <button onClick={() => go('/Akeel/Transport/Gate/Company')} className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${isActive('/Akeel/Transport/Gate/Company') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'}`}>
+          <button
+            type="button"
+            onClick={() => go('/Akeel/Transport/Gate/Company')}
+            className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+              isActive('/Akeel/Transport/Gate/Company')
+                ? 'bg-orange-600 text-white'
+                : 'text-black hover:text-white hover:bg-orange-500'
+            }`}
+          >
             <Building size={16} /> Company Vehicles
           </button>
         </SidebarItem>
@@ -251,6 +392,7 @@ const Sidebar = () => {
       {/* Footer buttons */}
       <div className="pt-4 border-t border-orange-300 mt-auto space-y-1">
         <button
+          type="button"
           onClick={() => go('/Akeel/Transport/Reports')}
           className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all
           ${isActive('/Akeel/Transport/Reports') ? 'bg-orange-600 text-white' : 'text-black hover:bg-orange-500 hover:text-white'}
@@ -261,6 +403,7 @@ const Sidebar = () => {
         </button>
 
         <button
+          type="button"
           onClick={() => go('/Akeel/Transport/History')}
           className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all
           ${isActive('/Akeel/Transport/History') ? 'bg-orange-600 text-white' : 'text-black hover:bg-orange-500 hover:text-white'}
@@ -271,6 +414,7 @@ const Sidebar = () => {
         </button>
 
         <button
+          type="button"
           onClick={() => go('/Akeel/Transport/Settings')}
           className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all
           ${isActive('/Akeel/Transport/Settings') ? 'bg-orange-600 text-white' : 'text-black hover:bg-orange-500 hover:text-white'}
@@ -281,8 +425,11 @@ const Sidebar = () => {
         </button>
 
         <button
+          type="button"
           onClick={handleLogout}
-          className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all text-black hover:bg-orange-500 hover:text-white ${collapsed ? 'justify-center px-2' : ''}`}
+          className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all text-black hover:bg-orange-500 hover:text-white ${
+            collapsed ? 'justify-center px-2' : ''
+          }`}
         >
           <LogOut size={18} />
           {!collapsed && <span className="text-sm font-medium">Logout</span>}
