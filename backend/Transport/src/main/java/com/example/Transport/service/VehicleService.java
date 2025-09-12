@@ -1,137 +1,135 @@
 package com.example.Transport.service;
 
+import com.example.Transport.entity.ChangeHistory;
 import com.example.Transport.entity.Vehicle;
-import com.example.Transport.entity.Vehicle.Status;
-import com.example.Transport.entity.History;
+import com.example.Transport.repository.ChangeHistoryRepository;
 import com.example.Transport.repository.VehicleRepository;
-import com.example.Transport.repository.HistoryRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.transaction.Transactional;
 import java.util.Date;
-import java.util.List;
+import java.util.Optional;
 
 @Service
-@Transactional
+@RequiredArgsConstructor
 public class VehicleService {
 
-    @Autowired
-    private VehicleRepository vehicleRepository;
+    private final VehicleRepository vehicleRepository;
+    private final ChangeHistoryRepository historyRepository;
+    private final ObjectMapper objectMapper;
 
-    @Autowired
-    private HistoryRepository historyRepository;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    public Vehicle addVehicle(Vehicle vehicle) {
-        vehicle.setDeleted(false);
-
-        // Set status if null (default ACTIVE)
-        if (vehicle.getStatus() == null) {
-            vehicle.setStatus(Status.ACTIVE);
+    public Page<Vehicle> listActive(int page, int size, String search) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "updatedAt"));
+        if (search != null && !search.isBlank()) {
+            return vehicleRepository.searchByIsDeleted(0, search.trim(), pageable);
         }
-
-        Vehicle savedVehicle = vehicleRepository.save(vehicle);
-
-        saveHistory("Vehicle", String.valueOf(savedVehicle.getId()), "Created", null);
-
-        return savedVehicle;
+        return vehicleRepository.findByIsDeleted(0, pageable);
     }
 
-    public Vehicle updateVehicle(Long vehicleId, Vehicle vehicleDetails) {
-        Vehicle existingVehicle = vehicleRepository.findByIdAndIsDeleted(vehicleId, 0)
-                .orElseThrow(() -> new IllegalArgumentException("Vehicle not found or is deleted"));
-
-        // Capture previous data before update
-        String previousData;
-        try {
-            previousData = objectMapper.writeValueAsString(existingVehicle);
-        } catch (Exception e) {
-            previousData = "Error serializing vehicle data";
+    public Page<Vehicle> listDeleted(int page, int size, String search) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "deletedAt"));
+        if (search != null && !search.isBlank()) {
+            return vehicleRepository.searchByIsDeleted(1, search.trim(), pageable);
         }
-
-        existingVehicle.setVehicleNumber(vehicleDetails.getVehicleNumber());
-        existingVehicle.setVehicleType(vehicleDetails.getVehicleType());
-        existingVehicle.setBrand(vehicleDetails.getBrand());
-        existingVehicle.setModel(vehicleDetails.getModel());
-        existingVehicle.setChassisNumber(vehicleDetails.getChassisNumber());
-        existingVehicle.setEngineNumber(vehicleDetails.getEngineNumber());
-        existingVehicle.setManufactureDate(vehicleDetails.getManufactureDate());
-        existingVehicle.setTotalKmDriven(vehicleDetails.getTotalKmDriven());
-        existingVehicle.setFuelEfficiency(vehicleDetails.getFuelEfficiency());
-        existingVehicle.setPresentCondition(vehicleDetails.getPresentCondition());
-        // Status update with null check
-        existingVehicle.setStatus(vehicleDetails.getStatus() != null ? vehicleDetails.getStatus() : existingVehicle.getStatus());
-
-        Vehicle updatedVehicle = vehicleRepository.save(existingVehicle);
-
-        saveHistory("Vehicle", String.valueOf(existingVehicle.getId()), "Updated", previousData);
-
-        return updatedVehicle;
+        return vehicleRepository.findByIsDeleted(1, pageable);
     }
 
-    // Change vehicle status (use this for status-only changes from UI)
-    public Vehicle changeVehicleStatus(Long vehicleId, Status status) {
-        Vehicle vehicle = vehicleRepository.findByIdAndIsDeleted(vehicleId, 0)
-                .orElseThrow(() -> new IllegalArgumentException("Vehicle not found or is deleted"));
-        String previousData;
-        try {
-            previousData = objectMapper.writeValueAsString(vehicle);
-        } catch (Exception e) {
-            previousData = "Error serializing vehicle data";
+    public Vehicle getActiveById(Long id) {
+        return vehicleRepository.findById(id)
+                .filter(v -> v.getIsDeleted() == 0)
+                .orElseThrow(() -> new IllegalArgumentException("Vehicle not found or deleted: id=" + id));
+    }
+
+    public Optional<Vehicle> getAnyById(Long id) {
+        return vehicleRepository.findById(id);
+    }
+
+    @Transactional
+    public Vehicle create(Vehicle body, String actor) {
+        if (vehicleRepository.existsByVehicleNumberAndIsDeleted(body.getVehicleNumber(), 0)) {
+            throw new IllegalArgumentException("Active vehicle already exists with number=" + body.getVehicleNumber());
         }
-        vehicle.setStatus(status);
-        Vehicle saved = vehicleRepository.save(vehicle);
-        saveHistory("Vehicle", String.valueOf(vehicle.getId()), "StatusChanged", previousData);
+        Vehicle saved = vehicleRepository.save(body);
+        logHistory("Vehicle", String.valueOf(saved.getId()), "Created", actor, null, toJson(saved));
         return saved;
     }
 
-    public void deleteVehicle(Long vehicleId) {
-        Vehicle existingVehicle = vehicleRepository.findByIdAndIsDeleted(vehicleId, 0)
-                .orElseThrow(() -> new IllegalArgumentException("Vehicle not found or is deleted"));
+    @Transactional
+    public Vehicle update(Long id, Vehicle patch, String actor) {
+        Vehicle existing = vehicleRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Vehicle not found: id=" + id));
+        String prev = toJson(existing);
 
-        String previousData;
-        try {
-            previousData = objectMapper.writeValueAsString(existingVehicle);
-        } catch (Exception e) {
-            previousData = "Error serializing vehicle data";
+        if (patch.getVehicleNumber() != null && !patch.getVehicleNumber().equals(existing.getVehicleNumber())) {
+            if (vehicleRepository.existsByVehicleNumberAndIsDeleted(patch.getVehicleNumber(), 0)) {
+                throw new IllegalArgumentException("Active vehicle already exists with number=" + patch.getVehicleNumber());
+            }
+            existing.setVehicleNumber(patch.getVehicleNumber());
         }
 
-        existingVehicle.setDeleted(true);
-        existingVehicle.setDeletedBy("system");
-        existingVehicle.setDeletedAt(new Date());
-        existingVehicle.setStatus(Status.REMOVED);
+        if (patch.getVehicleType() != null) existing.setVehicleType(patch.getVehicleType());
+        if (patch.getBrand() != null) existing.setBrand(patch.getBrand());
+        if (patch.getModel() != null) existing.setModel(patch.getModel());
+        if (patch.getChassisNumber() != null) existing.setChassisNumber(patch.getChassisNumber());
+        if (patch.getEngineNumber() != null) existing.setEngineNumber(patch.getEngineNumber());
+        if (patch.getManufactureDate() != null) existing.setManufactureDate(patch.getManufactureDate());
+        if (patch.getTotalKmDriven() != null) existing.setTotalKmDriven(patch.getTotalKmDriven());
+        if (patch.getFuelEfficiency() != null) existing.setFuelEfficiency(patch.getFuelEfficiency());
+        if (patch.getPresentCondition() != null) existing.setPresentCondition(patch.getPresentCondition());
+        if (patch.getStatus() != null) existing.setStatus(patch.getStatus());
 
-        vehicleRepository.save(existingVehicle);
-
-        saveHistory("Vehicle", String.valueOf(existingVehicle.getId()), "Deleted", previousData);
+        Vehicle saved = vehicleRepository.save(existing);
+        logHistory("Vehicle", String.valueOf(saved.getId()), "Updated", actor, prev, toJson(saved));
+        return saved;
     }
 
-    public Vehicle getVehicleById(Long vehicleId) {
-        return vehicleRepository.findByIdAndIsDeleted(vehicleId, 0)
-                .orElseThrow(() -> new IllegalArgumentException("Vehicle not found or is deleted"));
+    @Transactional
+    public void softDelete(Long id, String actor) {
+        Vehicle v = vehicleRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Vehicle not found: id=" + id));
+        String prev = toJson(v);
+        v.setIsDeleted(1);
+        v.setDeletedBy(actor);
+        v.setDeletedAt(new Date());
+        Vehicle saved = vehicleRepository.save(v);
+        logHistory("Vehicle", String.valueOf(id), "Deleted", actor, prev, toJson(saved));
     }
 
-    public List<Vehicle> getAllVehicles() {
-        return vehicleRepository.findByIsDeleted(0);
+    /** NEW: restore a soft-deleted vehicle */
+    @Transactional
+    public Vehicle restore(Long id, String actor) {
+        Vehicle v = vehicleRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Vehicle not found: id=" + id));
+        if (v.getIsDeleted() == 0) return v; // already active
+        String prev = toJson(v);
+        v.setIsDeleted(0);
+        v.setDeletedBy(null);
+        v.setDeletedAt(null);
+        Vehicle saved = vehicleRepository.save(v);
+        logHistory("Vehicle", String.valueOf(saved.getId()), "Restored", actor, prev, toJson(saved));
+        return saved;
     }
 
-    public List<Vehicle> getDeletedVehicles() {
-        return vehicleRepository.findByIsDeleted(1);
+    private String toJson(Object o) {
+        try {
+            return objectMapper.writeValueAsString(o);
+        } catch (Exception e) {
+            return "{\"$error\":\"" + e.getMessage() + "\"}";
+        }
     }
 
-    private void saveHistory(String entityType, String entityId, String action, String previousData) {
-        History history = History.builder()
-                .entityType(entityType)
-                .entityId(entityId)
+    private void logHistory(String type, String id, String action, String actor, String prev, String now) {
+        historyRepository.save(ChangeHistory.builder()
+                .entityType(type)
+                .entityId(id)
                 .action(action)
-                .performedBy("system")
+                .performedBy(actor == null ? "system" : actor)
                 .timestamp(new Date())
-                .previousData(previousData)
-                .build();
-        historyRepository.save(history);
+                .previousData(prev)
+                .newData(now)
+                .build());
     }
 }

@@ -1,31 +1,38 @@
+// backend/src/main/java/com/example/Transport/controller/HistoryController.java
 package com.example.Transport.controller;
 
-import com.example.Transport.entity.History;
+import com.example.Transport.common.ApiResponse;
+import com.example.Transport.history.dto.CompareResult;
+import com.example.Transport.history.dto.HistoryRecordDto;
 import com.example.Transport.service.HistoryService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/history")
+@RequiredArgsConstructor
 public class HistoryController {
 
-    @Autowired
-    private HistoryService historyService;
+    private final HistoryService historyService;
 
-    // Get history by entityType (e.g., Driver) and entityId (e.g., EMP001)
-    @GetMapping("/{entityType}/{entityId}")
-    public ResponseEntity<List<History>> getHistory(@PathVariable String entityType,
-                                                    @PathVariable String entityId) {
-        List<History> history = historyService.getHistoryByEntity(entityType, entityId);
-        return ResponseEntity.ok(history);
+    // NEW: recent list across all entities (for History page)
+    @GetMapping("/recent")
+    public ResponseEntity<ApiResponse<List<HistoryRecordDto>>> recent(@RequestParam(defaultValue = "200") int size) {
+        return ResponseEntity.ok(ApiResponse.success(historyService.recent(size)));
     }
 
-    // Get all history for all entities
-    @GetMapping("/all")
-    public ResponseEntity<List<History>> getAllHistory() {
-        List<History> allHistory = historyService.getAllHistory();
-        return ResponseEntity.ok(allHistory);
+    // Timeline for an entity
+    @GetMapping("/{entityType}/{entityId}")
+    public ResponseEntity<ApiResponse<List<HistoryRecordDto>>> timeline(@PathVariable String entityType,
+                                                                        @PathVariable String entityId) {
+        return ResponseEntity.ok(ApiResponse.success(historyService.timeline(entityType, entityId)));
+    }
+
+    // Compare a single history record (previous vs new)
+    @GetMapping("/compare/{historyId}")
+    public ResponseEntity<ApiResponse<CompareResult>> compareHistory(@PathVariable Long historyId) {
+        return ResponseEntity.ok(ApiResponse.success(historyService.compareHistoryRecord(historyId)));
     }
 }

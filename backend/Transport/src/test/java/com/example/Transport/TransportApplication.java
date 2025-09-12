@@ -1,12 +1,11 @@
 package com.example.Transport;
 
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
 
-@SpringBootApplication
-public class TransportApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(TransportApplication.class, args);
+@SpringBootTest
+class TransportApplicationTests {
+    @Test
+    void contextLoads() {
     }
 }
-

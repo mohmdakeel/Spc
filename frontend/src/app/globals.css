@@ -1,3 +1,4 @@
+/* src/app/globals.css */
 @import "tailwindcss";
 
 :root {
@@ -11,10 +12,6 @@
     --foreground: #ededed;
   }
 }
-
-/* No need for .print\:hidden or .print\\:hidden custom selectors!
-   Use Tailwind's print:hidden and print:block utility classes in your JSX.
-*/
 
 body {
   background: var(--background);
@@ -44,4 +41,22 @@ body {
     color: #222 !important;
     background: #fff !important;
   }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
 }

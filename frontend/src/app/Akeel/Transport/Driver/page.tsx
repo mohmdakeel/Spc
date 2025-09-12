@@ -1,485 +1,397 @@
-"use client";
-import React, { useEffect, useState } from "react";
+'use client';
+
+import React, { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'react-toastify';
+import {
+  Printer, History as HistoryIcon, Edit, Trash2, Plus, ArrowLeft,
+  ChevronLeft, ChevronRight,
+} from 'lucide-react';
+
 import {
   fetchDrivers,
   fetchDeletedDrivers,
-  fetchDriverWithPreviousData,
-  deleteDriver,
-  Driver,
   addDriver,
   updateDriver,
-} from "../services/driverService";
-import DriverModal from "./DriverModal";
-import DeletedDriverModal from "./DeletedDriverModal";
-import PreviousDataModal from "./PreviousDataModal";
-import DriverForm from "./DriverForm";
-import DeleteConfirmModal from "../components/DeleteConfirmModal";
-import SearchBar from "../components/SearchBar";
-import { useRouter } from "next/navigation";
-import { User, Printer, History, Edit, Trash2, Plus, Eye, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
+  deleteDriver,
+} from '../services/driverService';
 
-const ITEMS_PER_PAGE = 15;
-const LICENSE_EXPIRY_WARNING_DAYS = 30;
+import DriverForm from './DriverForm';
+import DeleteConfirmModal from '../components/DeleteConfirmModal';
+import EntityModal from '../components/EntityModal';
+import StatusPill from '../components/StatusPill';
+import SearchBar from '../components/SearchBar';
+import { Th, Td } from '../components/ThTd';
+import { printDriver, printDriverList } from '../utils/print';
+import type { Driver, DriverStatus } from '../services/types';
 
-const formatDate = (date?: string) => date ? new Date(date).toLocaleDateString() : "-";
+const ITEMS_PER_PAGE = 10;
 
-const isLicenseExpiringSoon = (expiryDate?: string) => {
-  if (!expiryDate) return false;
-  const expiry = new Date(expiryDate);
-  const today = new Date();
-  const diffTime = expiry.getTime() - today.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return diffDays > 0 && diffDays <= LICENSE_EXPIRY_WARNING_DAYS;
-};
+const ROW_TEXT = 'text-xs';
+const ROW_PX = 'px-2';
+const ROW_PY = 'py-2';
+const HEAD_TEXT = 'text-xs font-semibold text-orange-800';
+const HEAD_PY = 'py-2';
 
-const getStatusColor = (status?: string) => {
-  switch (status?.toLowerCase()) {
-    case 'active': return 'bg-green-100 text-green-800';
-    case 'suspended': return 'bg-red-100 text-red-800';
-    case 'inactive': return 'bg-yellow-100 text-yellow-800';
-    default: return 'bg-gray-100 text-gray-800';
-  }
-};
+const EXP_SOON_DAYS = 30;
 
-const DriverListPage = () => {
+const fmt = (v: unknown) => (v === null || v === undefined || v === '' ? '-' : String(v));
+const fmtDate = (s?: string | Date | null) => (s ? new Date(s as any).toLocaleDateString() : '-');
+const fmtDateTime = (s?: string | Date | null) => (s ? new Date(s as any).toLocaleString() : '-');
+
+function getExpiryState(expiry?: string | null) {
+  if (!expiry) return { label: '—', chip: 'bg-gray-100 text-gray-700' };
+  const d = new Date(expiry);
+  if (isNaN(d.getTime())) return { label: '—', chip: 'bg-gray-100 text-gray-700' };
+  const today = new Date(); today.setHours(0,0,0,0);
+  const diffDays = Math.ceil((d.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+  if (diffDays < 0) return { label: `Expired (${fmtDate(expiry)})`, chip: 'bg-red-100 text-red-700' };
+  if (diffDays <= EXP_SOON_DAYS) return { label: `Expiring Soon (${fmtDate(expiry)})`, chip: 'bg-amber-100 text-amber-800' };
+  return { label: `Valid (${fmtDate(expiry)})`, chip: 'bg-green-100 text-green-700' };
+}
+
+export default function DriverListPage() {
+  const router = useRouter();
+
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [deletedDrivers, setDeletedDrivers] = useState<Driver[]>([]);
   const [showDeleted, setShowDeleted] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+
   const [selected, setSelected] = useState<Driver | null>(null);
-  const [modalType, setModalType] = useState<"active" | "deleted" | "print" | "form" | null>(null);
-  const [search, setSearch] = useState("");
-  const [showPrevModal, setShowPrevModal] = useState(false);
+  const [showForm, setShowForm] = useState<false | 'add' | 'edit'>(false);
+  const [editing, setEditing] = useState<Driver | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Driver | null>(null);
-  const [formMode, setFormMode] = useState<"add" | "edit">("add");
-  const [currentPage, setCurrentPage] = useState(1);
-  const router = useRouter();
 
-  const loadDrivers = async () => setDrivers(await fetchDrivers());
-  const loadDeletedDrivers = async () => setDeletedDrivers(await fetchDeletedDrivers());
-
-  useEffect(() => {
-    loadDrivers();
-    loadDeletedDrivers();
-  }, []);
-
-  const filteredDrivers = (showDeleted ? deletedDrivers : drivers).filter(d =>
-    Object.values(d)
-      .join(" ")
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  );
-
-  const totalPages = Math.ceil(filteredDrivers.length / ITEMS_PER_PAGE);
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const displayedDrivers = filteredDrivers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-
-  const handlePrintDriver = (driver: Driver) => {
-    const printWindow = window.open('', '', 'width=800,height=600');
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Driver Details - ${driver.name}</title>
-            <style>
-              body { font-family: Arial, sans-serif; padding: 20px; }
-              h1 { color: #ea580c; border-bottom: 2px solid #ea580c; padding-bottom: 10px; }
-              .detail-row { margin-bottom: 10px; }
-              .label { font-weight: bold; color: #6b7280; min-width: 150px; display: inline-block; }
-              .warning { color: #dc2626; font-weight: bold; }
-            </style>
-          </head>
-          <body>
-            <h1>Driver Details</h1>
-            <div class="detail-row"><span class="label">ID:</span> ${driver.employeeId}</div>
-            <div class="detail-row"><span class="label">Name:</span> ${driver.name}</div>
-            <div class="detail-row"><span class="label">Phone:</span> ${driver.phone || '-'}</div>
-            <div class="detail-row"><span class="label">Email:</span> ${driver.email || '-'}</div>
-            <div class="detail-row"><span class="label">License:</span> ${driver.licenseNumber}</div>
-            <div class="detail-row">
-              <span class="label">License Expiry:</span> 
-              ${formatDate(driver.licenseExpiryDate)}
-              ${isLicenseExpiringSoon(driver.licenseExpiryDate) ? '<span class="warning"> (Expiring Soon)</span>' : ''}
-            </div>
-            <div class="detail-row"><span class="label">Experience:</span> ${driver.drivingExperience || '-'}</div>
-            <div class="detail-row"><span class="label">Status:</span> ${driver.status || '-'}</div>
-            <div class="detail-row"><span class="label">Printed On:</span> ${new Date().toLocaleString()}</div>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-      setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-      }, 200);
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [active, deleted] = await Promise.all([fetchDrivers(), fetchDeletedDrivers()]);
+      setDrivers(Array.isArray(active) ? active : []);
+      setDeletedDrivers(Array.isArray(deleted) ? deleted : []);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to load drivers');
+      setDrivers([]); setDeletedDrivers([]);
+    } finally {
+      setLoading(false);
     }
   };
+  useEffect(() => { load(); }, []);
 
-  const handlePrintAll = () => {
-    const printWindow = window.open('', '', 'width=900,height=600');
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>${showDeleted ? 'Deleted Drivers' : 'Active Drivers'}</title>
-            <style>
-              body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-              h1 { color: #ea580c; text-align: center; margin-bottom: 20px; }
-              table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-              th { background-color: #ffedd5; color: #9a3412; text-align: left; padding: 8px; }
-              td { padding: 8px; border-bottom: 1px solid #ddd; }
-              .warning { background-color: #fff3cd; }
-              .status-active { background-color: #dcfce7; color: #166534; }
-              .status-suspended { background-color: #fee2e2; color: #991b1b; }
-              .status-inactive { background-color: #fef9c3; color: #854d0e; }
-              .print-info { margin-bottom: 15px; font-size: 14px; }
-              .page-break { page-break-after: always; }
-            </style>
-          </head>
-          <body>
-            <h1>${showDeleted ? 'Deleted Drivers Report' : 'Active Drivers Report'}</h1>
-            <div class="print-info">Printed on: ${new Date().toLocaleString()}</div>
-            <div class="print-info">Total records: ${filteredDrivers.length}</div>
-            <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Name</th>
-                  <th>Phone</th>
-                  <th>Email</th>
-                  <th>License</th>
-                  <th>Expiry</th>
-                  <th>Experience</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${filteredDrivers.map((driver, index) => `
-                  <tr class="${isLicenseExpiringSoon(driver.licenseExpiryDate) ? 'warning' : ''}">
-                    <td>${driver.employeeId}</td>
-                    <td>${driver.name}</td>
-                    <td>${driver.phone || '-'}</td>
-                    <td>${driver.email || '-'}</td>
-                    <td>${driver.licenseNumber}</td>
-                    <td>
-                      ${formatDate(driver.licenseExpiryDate)}
-                      ${isLicenseExpiringSoon(driver.licenseExpiryDate) ? '<span style="color:red"> (Expiring Soon)</span>' : ''}
-                    </td>
-                    <td>${driver.drivingExperience || '-'}</td>
-                    <td class="status-${driver.status?.toLowerCase() || ''}">${driver.status || '-'}</td>
-                  </tr>
-                  ${(index + 1) % ITEMS_PER_PAGE === 0 && index !== filteredDrivers.length - 1 ? '<tr class="page-break"></tr>' : ''}
-                `).join('')}
-              </tbody>
-            </table>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-      setTimeout(() => {
-        printWindow.print();
-        printWindow.close();
-      }, 200);
-    }
-  };
+  const list = showDeleted ? deletedDrivers : drivers;
 
-  const handleRowClick = async (driver: Driver) => {
-    if (!showDeleted) {
-      const { driver: fullDriver, previousData } = await fetchDriverWithPreviousData(driver.employeeId);
-      setSelected({ ...fullDriver, previousData });
-      setModalType("active");
-    } else {
-      setSelected(driver);
-      setModalType("deleted");
-    }
-  };
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return list || [];
+    return (list || []).filter((d) =>
+      [
+        d.employeeId, d.name, d.phone, d.email,
+        d.licenseNumber, d.licenseExpiryDate, d.drivingExperience, d.status,
+      ].map(x => (x ?? '').toString().toLowerCase()).join(' ').includes(q)
+    );
+  }, [list, search]);
 
-  const handleAdd = () => {
-    setFormMode("add");
-    setSelected(null);
-    setModalType("form");
-  };
+  useEffect(() => { setPage(1); }, [search, showDeleted]);
 
-  const handleEdit = async (driver: Driver) => {
-    const { driver: fullDriver } = await fetchDriverWithPreviousData(driver.employeeId);
-    setSelected(fullDriver);
-    setFormMode("edit");
-    setModalType("form");
-  };
+  const totalPages = Math.max(1, Math.ceil((filtered?.length ?? 0) / ITEMS_PER_PAGE));
+  const start = (page - 1) * ITEMS_PER_PAGE;
+  const rows = (filtered ?? []).slice(start, start + ITEMS_PER_PAGE);
+  const goTo = (p: number) => setPage(Math.min(totalPages, Math.max(1, p)));
 
-  const handleSubmit = async (driver: Driver) => {
-    if (formMode === "add") {
-      await addDriver(driver);
-    } else if (formMode === "edit" && driver.employeeId) {
-      await updateDriver(driver.employeeId, driver);
-    }
-    setModalType(null);
-    loadDrivers();
-    loadDeletedDrivers();
-    setCurrentPage(1);
-  };
-
-  const handleDelete = async () => {
-    if (deleteTarget) {
-      await deleteDriver(deleteTarget.employeeId);
-      setDeleteTarget(null);
-      loadDrivers();
-      loadDeletedDrivers();
-      setCurrentPage(1);
-    }
-  };
-
-  return (
-    <div className="flex h-screen bg-orange-50">
-      <div className="flex-1 p-6 overflow-auto">
-        <div className="bg-white rounded-xl shadow-md p-6">
-          {/* Header */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
-            <div className="flex items-center mb-4 md:mb-0">
-              <User className="text-orange-600 mr-3" size={28} />
-              <div>
-                <h1 className="text-2xl font-bold text-gray-800">Driver Management</h1>
-                <p className="text-sm text-orange-600">{filteredDrivers.length} {showDeleted ? 'deleted' : 'active'} drivers</p>
-              </div>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex rounded-lg overflow-hidden border border-orange-300 shadow-sm">
-                <button
-                  className={`px-4 py-2 flex items-center gap-2 ${!showDeleted ? "bg-orange-600 text-white" : "bg-white text-orange-600 hover:bg-orange-50"}`}
-                  onClick={() => {
-                    setShowDeleted(false);
-                    setCurrentPage(1);
-                  }}
-                >
-                  <span>Active</span>
-                  <span className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded-full">
-                    {drivers.length}
-                  </span>
-                </button>
-                <button
-                  className={`px-4 py-2 flex items-center gap-2 ${showDeleted ? "bg-red-600 text-white" : "bg-white text-red-600 hover:bg-red-50"}`}
-                  onClick={() => {
-                    setShowDeleted(true);
-                    setCurrentPage(1);
-                  }}
-                >
-                  <span>Deleted</span>
-                  <span className="bg-red-100 text-red-800 text-xs px-2 py-1 rounded-full">
-                    {deletedDrivers.length}
-                  </span>
-                </button>
-              </div>
-              <button
-                className="flex items-center justify-center gap-2 bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors shadow-md"
-                onClick={handleAdd}
-              >
-                <Plus size={18} />
-                <span>Add Driver</span>
-              </button>
-              <button
-                className="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow-md"
-                onClick={handlePrintAll}
-              >
-                <Printer size={18} />
-                <span>Print All</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Search Bar */}
-          <div className="mb-6">
-            <SearchBar value={search} onChange={setSearch} />
-          </div>
-
-          {/* Table */}
-          <div className="overflow-x-auto rounded-lg border border-orange-100">
-            <table className="w-full">
-              <thead className="bg-orange-50">
-                <tr>
-                  <th className="p-3 text-left font-medium text-orange-800">ID</th>
-                  <th className="p-3 text-left font-medium text-orange-800">Driver</th>
-                  <th className="p-3 text-left font-medium text-orange-800">Contact</th>
-                  <th className="p-3 text-left font-medium text-orange-800">License</th>
-                  <th className="p-3 text-left font-medium text-orange-800">Status</th>
-                  <th className="p-3 text-left font-medium text-orange-800">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-orange-100">
-                {displayedDrivers.map((driver) => (
-                  <tr
-                    key={driver.employeeId}
-                    className={`hover:bg-orange-50 cursor-pointer transition-colors ${isLicenseExpiringSoon(driver.licenseExpiryDate) ? "bg-yellow-50" : ""}`}
-                    onClick={() => handleRowClick(driver)}
-                  >
-                    <td className="p-3 font-mono text-sm text-gray-600">{driver.employeeId}</td>
-                    <td className="p-3">
-                      <div className="font-medium">{driver.name}</div>
-                      <div className="text-sm text-gray-500">{driver.drivingExperience || 'No'} experience</div>
-                    </td>
-                    <td className="p-3">
-                      <div className="text-gray-800">{driver.phone || '-'}</div>
-                      <div className="text-sm text-gray-500">{driver.email || '-'}</div>
-                    </td>
-                    <td className="p-3">
-                      <div className="font-medium">{driver.licenseNumber}</div>
-                      <div className={`text-sm ${isLicenseExpiringSoon(driver.licenseExpiryDate) ? "text-red-600 font-semibold flex items-center gap-1" : "text-gray-500"}`}>
-                        {formatDate(driver.licenseExpiryDate)}
-                        {isLicenseExpiringSoon(driver.licenseExpiryDate) && (
-                          <AlertTriangle size={14} />
-                        )}
-                      </div>
-                    </td>
-                    <td className="p-3">
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(driver.status)}`}>
-                        {driver.status || 'Unknown'}
-                      </span>
-                    </td>
-                    <td className="p-3">
-                      <div className="flex gap-2">
-                        <button
-                          className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handlePrintDriver(driver);
-                          }}
-                          title="Print"
-                        >
-                          <Printer size={18} />
-                        </button>
-                        {!showDeleted && (
-                          <>
-                            <button
-                              className="p-2 text-orange-600 hover:bg-orange-100 rounded-lg transition-colors"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                router.push(
-                                  `/Akeel/Transport/History?entityType=Driver&entityId=${driver.employeeId}`
-                                );
-                              }}
-                              title="History"
-                            >
-                              <History size={18} />
-                            </button>
-                            <button
-                              className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition-colors"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEdit(driver);
-                              }}
-                              title="Edit"
-                            >
-                              <Edit size={18} />
-                            </button>
-                            <button
-                              className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeleteTarget(driver);
-                              }}
-                              title="Delete"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </>
-                        )}
-                        {showDeleted && (
-                          <button
-                            className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelected(driver);
-                              setModalType("deleted");
-                            }}
-                            title="View Deleted Data"
-                          >
-                            <Eye size={18} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {displayedDrivers.length === 0 && (
-              <div className="text-center py-12 text-gray-500">
-                <div className="text-lg mb-2">No {showDeleted ? 'deleted' : 'active'} drivers found</div>
-                <button
-                  onClick={handleAdd}
-                  className="text-orange-600 hover:text-orange-800 font-medium"
-                >
-                  Add a new driver
-                </button>
-              </div>
-            )}
-
-            {/* Pagination */}
-            {filteredDrivers.length > ITEMS_PER_PAGE && (
-              <div className="flex justify-between items-center p-4 border-t border-orange-100">
-                <button
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg ${currentPage === 1 ? "bg-gray-100 text-gray-400" : "bg-orange-600 text-white hover:bg-orange-700"}`}
-                >
-                  <ChevronLeft size={18} />
-                  Previous
-                </button>
-                <div className="flex items-center gap-4">
-                  <span className="text-sm text-gray-600">
-                    Page <span className="font-medium">{currentPage}</span> of <span className="font-medium">{totalPages}</span>
-                  </span>
-                  <span className="text-sm text-gray-600">
-                    Showing <span className="font-medium">{startIndex + 1}-{Math.min(startIndex + ITEMS_PER_PAGE, filteredDrivers.length)}</span> of <span className="font-medium">{filteredDrivers.length}</span>
-                  </span>
-                </div>
-                <button
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg ${currentPage === totalPages ? "bg-gray-100 text-gray-400" : "bg-orange-600 text-white hover:bg-orange-700"}`}
-                >
-                  Next
-                  <ChevronRight size={18} />
-                </button>
-              </div>
-            )}
-          </div>
+  const PaginationBar = () => {
+    if (!filtered.length) return null;
+    const windowSize = 5;
+    const first = 1;
+    const last = totalPages;
+    const startWin = Math.max(first, page - Math.floor(windowSize / 2));
+    const endWin = Math.min(last, startWin + windowSize - 1);
+    const nums: number[] = [];
+    for (let i = startWin; i <= endWin; i++) nums.push(i);
+    return (
+      <div className="flex items-center justify-between px-4 py-3 bg-orange-50 rounded-lg border border-orange-100 mt-4">
+        <span className="text-xs text-orange-800">
+          Showing {filtered.length ? start + 1 : 0}–{Math.min(start + ITEMS_PER_PAGE, filtered.length)} of {filtered.length}
+        </span>
+        <div className="flex items-center gap-1 sm:gap-2">
+          <button onClick={() => goTo(page - 1)} disabled={page === 1}
+            className={`p-2 rounded-md ${page === 1 ? 'text-gray-400 cursor-not-allowed' : 'text-orange-600 hover:bg-orange-100'}`}
+            aria-label="Previous page"><ChevronLeft size={16} /></button>
+          {startWin > first && (
+            <>
+              <button onClick={() => goTo(first)}
+                className={`px-3 py-1 rounded-md ${page === first ? 'bg-orange-600 text-white' : 'text-orange-600 hover:bg-orange-100'}`}>1</button>
+              {startWin > first + 1 && <span className="px-1">…</span>}
+            </>
+          )}
+          {nums.map(n => (
+            <button key={n} onClick={() => goTo(n)}
+              className={`px-3 py-1 rounded-md ${page === n ? 'bg-orange-600 text-white' : 'text-orange-600 hover:bg-orange-100'}`}>{n}</button>
+          ))}
+          {endWin < last && (
+            <>
+              {endWin < last - 1 && <span className="px-1">…</span>}
+              <button onClick={() => goTo(last)}
+                className={`px-3 py-1 rounded-md ${page === last ? 'bg-orange-600 text-white' : 'text-orange-600 hover:bg-orange-100'}`}>{last}</button>
+            </>
+          )}
+          <button onClick={() => goTo(page + 1)} disabled={page === totalPages}
+            className={`p-2 rounded-md ${page === totalPages ? 'text-gray-400 cursor-not-allowed' : 'text-orange-600 hover:bg-orange-100'}`}
+            aria-label="Next page"><ChevronRight size={16} /></button>
         </div>
       </div>
+    );
+  };
 
-      {/* Modals */}
-      {modalType === "active" && selected && (
-        <DriverModal
-          driver={selected}
-          onClose={() => setModalType(null)}
-          onShowPrev={() => setShowPrevModal(true)}
-        />
-      )}
-      {modalType === "deleted" && selected && (
-        <DeletedDriverModal driver={selected} onClose={() => setModalType(null)} />
-      )}
-      {modalType === "form" && (
+  const onAddSubmit = async (payload: Partial<Driver>) => {
+    try {
+      await addDriver(payload);
+      toast.success('Driver added successfully');
+      setShowForm(false);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to add driver');
+    }
+  };
+
+  const onEditSubmit = async (payload: Partial<Driver>) => {
+    try {
+      if (!editing?.employeeId) throw new Error('No driver selected for editing');
+      await updateDriver(editing.employeeId, payload);
+      toast.success('Driver updated successfully');
+      setShowForm(false);
+      setEditing(null);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to update driver');
+    }
+  };
+
+  const onDelete = async () => {
+    if (!deleteTarget?.employeeId) return;
+    try {
+      await deleteDriver(deleteTarget.employeeId);
+      toast.success('Driver deleted successfully');
+      setDeleteTarget(null);
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to delete driver');
+    }
+  };
+
+  const onChangeStatus = async (d: Driver, status: DriverStatus) => {
+    try {
+      await updateDriver(d.employeeId, {
+        employeeId: d.employeeId || '',
+        name: d.name || '',
+        licenseNumber: d.licenseNumber || '',
+        status: status || 'ACTIVE',
+      });
+      toast.success('Status updated');
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to change status');
+    }
+  };
+
+  const driverColsActive = [
+    'w-[5%]', 'w-[10%]', 'w-[12%]', 'w-[10%]', 'w-[15%]', 'w-[10%]',
+    'w-[8%]', 'w-[12%]', 'w-[8%]', 'w-[10%]',
+  ];
+  const driverColsDeleted = driverColsActive.slice(0, -1);
+  const dCols = showDeleted ? driverColsDeleted : driverColsActive;
+
+  return (
+    <div className="w-full min-h-screen p-4 bg-orange-50">
+      <div className="bg-white rounded-xl shadow-md p-4">
+        <div className="flex items-center mb-4">
+          <button onClick={() => router.back()}
+            className="flex items-center gap-2 text-orange-600 hover:text-orange-800 p-2 rounded-lg hover:bg-orange-50 mr-4">
+            <ArrowLeft size={20} />
+          </button>
+          <div>
+            <h1 className="text-xl font-bold text-gray-800">Driver Management</h1>
+            <p className="text-sm text-orange-600">
+              {filtered?.length ?? 0} {showDeleted ? 'deleted' : 'active'} drivers
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex rounded-lg overflow-hidden border border-orange-300 shadow-sm">
+              <button
+                className={`px-4 py-2 text-sm font-medium ${!showDeleted ? 'bg-orange-600 text-white' : 'bg-white text-orange-600 hover:bg-orange-50'}`}
+                onClick={() => setShowDeleted(false)}
+              >
+                Active
+                <span className="ml-2 text-xs bg-orange-100 text-orange-800 px-2 py-0.5 rounded-full">{drivers.length}</span>
+              </button>
+              <button
+                className={`px-4 py-2 text-sm font-medium ${showDeleted ? 'bg-red-600 text-white' : 'bg-white text-red-600 hover:bg-red-50'}`}
+                onClick={() => setShowDeleted(true)}
+              >
+                Deleted
+                <span className="ml-2 text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full">{deletedDrivers.length}</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              className="flex items-center gap-2 bg-orange-600 text-white px-3 py-2 rounded-lg hover:bg-orange-700 shadow-sm transition-colors text-sm"
+              onClick={() => { setEditing(null); setShowForm('add'); }}
+            >
+              <Plus size={16} /><span>Add Driver</span>
+            </button>
+            <button
+              className="flex items-center gap-2 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 shadow-sm transition-colors text-sm"
+              onClick={() => printDriverList(filtered as Driver[], showDeleted)}
+            >
+              <Printer size={16} /><span>Print All</span>
+            </button>
+          </div>
+        </div>
+
+        <SearchBar value={search} onChange={setSearch} placeholder="Search any field (ID, name, phone, email…)" />
+
+        {loading ? (
+          <div className="text-center py-16 text-gray-500">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mb-3"></div>
+            <p>Loading drivers...</p>
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto rounded-lg border border-orange-100 mt-4 shadow-sm">
+              <table className="w-full">
+                <colgroup>
+                  {dCols.map((w, i) => <col key={i} className={w} />)}
+                </colgroup>
+
+                <thead className="bg-orange-50 sticky top-0 z-10">
+                  <tr>
+                    <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>No</Th>
+                    <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Employee ID</Th>
+                    <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Name</Th>
+                    <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Phone</Th>
+                    <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Email</Th>
+                    <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>License NO</Th>
+                    <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Experience (yrs)</Th>
+                    <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>License Expiry</Th>
+                    <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Status</Th>
+                    {!showDeleted && <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>Actions</Th>}
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-orange-100">
+                  {rows.map((d, i) => {
+                    const exp = getExpiryState(d.licenseExpiryDate);
+                    return (
+                      <tr
+                        key={d.employeeId}
+                        className="hover:bg-orange-50 transition-colors cursor-pointer"
+                        onClick={() => setSelected(d)}
+                      >
+                        <Td className={`text-center ${ROW_PX} ${ROW_PY} ${ROW_TEXT}`}>{start + i + 1}</Td>
+                        <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT} truncate`} title={fmt(d.employeeId)}><span className="font-medium">{fmt(d.employeeId)}</span></Td>
+                        <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT} truncate`} title={fmt(d.name)}>{fmt(d.name)}</Td>
+                        <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT} truncate`} title={fmt(d.phone)}>{fmt(d.phone)}</Td>
+                        <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT} truncate`} title={fmt(d.email)}>{fmt(d.email)}</Td>
+                        <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT} truncate`} title={fmt(d.licenseNumber)}>{fmt(d.licenseNumber)}</Td>
+                        <Td className={`text-center ${ROW_PX} ${ROW_PY} ${ROW_TEXT} truncate`} title={fmt(d.drivingExperience)}>{fmt(d.drivingExperience)}</Td>
+                        <Td className={`text-center ${ROW_PX} ${ROW_PY} ${ROW_TEXT}`} title={fmtDate(d.licenseExpiryDate)}>
+                          <span className={`inline-block rounded px-2 py-0.5 text-xs ${exp.chip}`}>{exp.label}</span>
+                        </Td>
+                        <Td className={`text-center ${ROW_PX} ${ROW_PY}`} onClick={(e) => e.stopPropagation()}>
+                          <StatusPill
+                            mode="driver"
+                            value={d.status}
+                            editable={!showDeleted}
+                            onChange={(s) => onChangeStatus(d, s as DriverStatus)}
+                          />
+                        </Td>
+                        {!showDeleted && (
+                          <Td className={`text-center ${ROW_PX} ${ROW_PY}`} onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-center gap-1">
+                              <button className="w-6 h-6 grid place-items-center rounded text-blue-600 hover:bg-blue-100 transition-colors"
+                                onClick={() => printDriver(d)} title="Print" aria-label="Print">
+                                <Printer size={14} />
+                              </button>
+                              <button className="w-6 h-6 grid place-items-center rounded text-orange-600 hover:bg-orange-100 transition-colors"
+                                onClick={() => router.push(`/Akeel/Transport/History?type=Driver&id=${encodeURIComponent(d.employeeId)}`)}
+                                title="History" aria-label="History">
+                                <HistoryIcon size={14} />
+                              </button>
+                              <button className="w-6 h-6 grid place-items-center rounded text-green-600 hover:bg-green-100 transition-colors"
+                                onClick={() => { setEditing(d); setShowForm('edit'); }} title="Edit" aria-label="Edit">
+                                <Edit size={14} />
+                              </button>
+                              <button className="w-6 h-6 grid place-items-center rounded text-red-600 hover:bg-red-100 transition-colors"
+                                onClick={() => setDeleteTarget(d)} title="Delete" aria-label="Delete">
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </Td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                  {(rows?.length ?? 0) === 0 && (
+                    <tr>
+                      <Td colSpan={showDeleted ? 9 : 10} className="text-center py-6 text-gray-500">
+                        No {showDeleted ? 'deleted' : 'active'} drivers found.
+                      </Td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <PaginationBar />
+          </>
+        )}
+      </div>
+
+      {showForm && (
         <DriverForm
-          driver={selected}
-          onSubmit={handleSubmit}
-          onClose={() => setModalType(null)}
+          driver={showForm === 'edit' ? editing ?? undefined : undefined}
+          onSubmit={showForm === 'edit' ? onEditSubmit : onAddSubmit}
+          onClose={() => setShowForm(false)}
         />
       )}
-      {showPrevModal && selected?.previousData && (
-        <PreviousDataModal
-          prevData={selected.previousData}
-          onClose={() => setShowPrevModal(false)}
-          title="Previous Version"
-        />
-      )}
+
       {deleteTarget && (
         <DeleteConfirmModal
-          driver={deleteTarget}
-          onConfirm={handleDelete}
+          title="Delete Driver"
+          message={`Are you sure you want to delete ${deleteTarget.name}?`}
+          onConfirm={onDelete}
           onClose={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {selected && (
+        <EntityModal
+          title="Driver Details"
+          onClose={() => setSelected(null)}
+          fields={[
+            { label: 'Employee ID', value: selected.employeeId },
+            { label: 'Name', value: selected.name },
+            { label: 'Phone', value: selected.phone ?? '-' },
+            { label: 'Email', value: selected.email ?? '-' },
+            { label: 'License Number', value: selected.licenseNumber ?? '-' },
+            { label: 'License Expiry', value: fmtDate(selected.licenseExpiryDate) },
+            { label: 'Experience (years)', value: selected.drivingExperience ?? '-' },
+            { label: 'Status', value: selected.status ?? '-' },
+            { label: 'Created By', value: selected.createdBy ?? '-' },
+            { label: 'Created At', value: fmtDateTime(selected.createdAt) },
+            { label: 'Last Modified By', value: selected.updatedBy ?? '-' },
+            { label: 'Last Modified At', value: fmtDateTime(selected.updatedAt) },
+            { label: 'Deleted By', value: selected.deletedBy ?? '-' },
+            { label: 'Deleted At', value: fmtDateTime(selected.deletedAt) },
+          ]}
         />
       )}
     </div>
   );
-};
-
-export default DriverListPage;
+}

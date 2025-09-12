@@ -1,74 +1,120 @@
 package com.example.Transport.controller;
 
+import com.example.Transport.common.ApiResponse;
 import com.example.Transport.entity.Vehicle;
-import com.example.Transport.entity.Vehicle.Status;
+import com.example.Transport.history.JsonDiff;
+import com.example.Transport.history.dto.CompareResult;
+import com.example.Transport.repository.ChangeHistoryRepository;
 import com.example.Transport.service.VehicleService;
-import com.example.Transport.service.HistoryService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
-
-import java.util.List;
-
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/vehicles")
+@RequiredArgsConstructor
 public class VehicleController {
 
-    @Autowired
-    private VehicleService vehicleService;
-
-    @Autowired
-    private HistoryService historyService;
-
-    @PostMapping
-    public ResponseEntity<Vehicle> createVehicle(@Valid @RequestBody Vehicle vehicle) {
-        return ResponseEntity.ok(vehicleService.addVehicle(vehicle));
-    }
-
-    @PutMapping("/{vehicleId}")
-    public ResponseEntity<Vehicle> updateVehicle(@PathVariable Long vehicleId, 
-                                                @Valid @RequestBody Vehicle vehicleDetails) {
-        return ResponseEntity.ok(vehicleService.updateVehicle(vehicleId, vehicleDetails));
-    }
-
-    @PutMapping("/{vehicleId}/status")
-    public ResponseEntity<Vehicle> changeStatus(@PathVariable Long vehicleId, @RequestParam Status status) {
-        return ResponseEntity.ok(vehicleService.changeVehicleStatus(vehicleId, status));
-    }
-
-    @DeleteMapping("/{vehicleId}")
-    public ResponseEntity<Void> deleteVehicle(@PathVariable Long vehicleId) {
-        vehicleService.deleteVehicle(vehicleId);
-        return ResponseEntity.noContent().build();
-    }
-
-    @GetMapping("/{vehicleId}")
-    public ResponseEntity<Vehicle> getVehicle(@PathVariable Long vehicleId) {
-        return ResponseEntity.ok(vehicleService.getVehicleById(vehicleId));
-    }
+    private final VehicleService vehicleService;
+    private final ChangeHistoryRepository historyRepository;
+    private final ObjectMapper objectMapper;
 
     @GetMapping
-    public ResponseEntity<List<Vehicle>> getAllVehicles() {
-        return ResponseEntity.ok(vehicleService.getAllVehicles());
+    public ResponseEntity<ApiResponse<Page<Vehicle>>> listActive(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "15") int size,
+            @RequestParam(required = false) String search) {
+        return ResponseEntity.ok(ApiResponse.success(vehicleService.listActive(page, size, search)));
     }
 
     @GetMapping("/deleted")
-    public ResponseEntity<List<Vehicle>> getDeletedVehicles() {
-        return ResponseEntity.ok(vehicleService.getDeletedVehicles());
+    public ResponseEntity<ApiResponse<Page<Vehicle>>> listDeleted(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "15") int size,
+            @RequestParam(required = false) String search) {
+        return ResponseEntity.ok(ApiResponse.success(vehicleService.listDeleted(page, size, search)));
     }
 
-    // Endpoint to get allowed statuses for frontend (for dropdown etc.)
-    @GetMapping("/statuses")
-    public ResponseEntity<Status[]> getAllowedStatuses() {
-        return ResponseEntity.ok(Status.values());
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<Vehicle>> getOne(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(vehicleService.getActiveById(id)));
     }
 
-    // ✅ Vehicle history endpoint to fetch vehicle history
-    @GetMapping("/{vehicleId}/history")
-    public ResponseEntity<List<?>> getVehicleHistory(@PathVariable Long vehicleId) {
-        List<?> history = historyService.getHistoryByEntity("Vehicle", vehicleId.toString());
-        return ResponseEntity.ok(history);
+    @PostMapping
+    public ResponseEntity<ApiResponse<Vehicle>> create(@Valid @RequestBody Vehicle body,
+                                                       @RequestHeader(value = "X-Actor", required = false) String actor) {
+        return ResponseEntity.ok(ApiResponse.success(vehicleService.create(body, actor)));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<Vehicle>> update(@PathVariable Long id,
+                                                       @Valid @RequestBody Vehicle patch,
+                                                       @RequestHeader(value = "X-Actor", required = false) String actor) {
+        return ResponseEntity.ok(ApiResponse.success(vehicleService.update(id, patch, actor)));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> softDelete(@PathVariable Long id,
+                                                        @RequestHeader(value = "X-Actor", required = false) String actor) {
+        vehicleService.softDelete(id, actor);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    /** NEW: restore a previously soft-deleted vehicle */
+    @PatchMapping("/{id}/restore")
+    public ResponseEntity<ApiResponse<Vehicle>> restore(@PathVariable Long id,
+                                                        @RequestHeader(value = "X-Actor", required = false) String actor) {
+        return ResponseEntity.ok(ApiResponse.success(vehicleService.restore(id, actor)));
+    }
+
+    @GetMapping("/{id}/compare")
+    public ResponseEntity<ApiResponse<CompareResult>> compare(@PathVariable Long id) {
+        var current = vehicleService.getAnyById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Vehicle not found: id=" + id));
+
+        var history = historyRepository
+                .findByEntityTypeAndEntityIdOrderByTimestampDesc("Vehicle", String.valueOf(id))
+                .stream()
+                .filter(h -> "Updated".equals(h.getAction()) || "Deleted".equals(h.getAction()) || "Created".equals(h.getAction()))
+                .findFirst().orElse(null);
+
+        String prevJson = (history != null) ? history.getPreviousData() : null;
+        var changes = JsonDiff.diff(objectMapper, prevJson, current);
+
+        var result = CompareResult.builder()
+                .entityType("Vehicle")
+                .entityId(String.valueOf(id))
+                .action(history != null ? history.getAction() : "Created")
+                .comparedAgainst("latest-previous")
+                .performedBy(history != null ? history.getPerformedBy() : "system")
+                .timestamp(history != null ? history.getTimestamp() : current.getUpdatedAt())
+                .changes(changes)
+                .build();
+
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
+    @GetMapping("/{id}/with-previous")
+    public ResponseEntity<ApiResponse<Object>> withPrevious(@PathVariable Long id) {
+        var current = vehicleService.getAnyById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Vehicle not found: id=" + id));
+
+        var history = historyRepository
+                .findByEntityTypeAndEntityIdOrderByTimestampDesc("Vehicle", String.valueOf(id))
+                .stream().findFirst().orElse(null);
+
+        var payload = java.util.Map.of(
+                "current", current,
+                "previousJson", history != null ? history.getPreviousData() : null,
+                "historyMeta", history != null ? java.util.Map.of(
+                        "action", history.getAction(),
+                        "performedBy", history.getPerformedBy(),
+                        "timestamp", history.getTimestamp()
+                ) : null
+        );
+        return ResponseEntity.ok(ApiResponse.success(payload));
     }
 }
