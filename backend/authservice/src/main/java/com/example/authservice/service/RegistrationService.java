@@ -9,9 +9,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-
 @Service
 public class RegistrationService {
 
@@ -25,16 +25,20 @@ public class RegistrationService {
         return registrationRepository.findByDeletedFalse();
     }
 
-    public Registration getRegistrationById(Long id) {
-        return registrationRepository.findByIdAndDeletedFalse(id)
-                .orElseThrow(() -> new RuntimeException("Registration not found with id: " + id));
+    // Method to get all registered users
+    public List<Registration> getAllRegisteredUsers() {
+        return registrationRepository.findByDeletedFalse();
     }
 
     public Registration createRegistration(Registration registration, MultipartFile imageFile) throws IOException {
+        // Set system date and time for addedTime
+        registration.setAddedTime(LocalDateTime.now());
+
         if (imageFile != null && !imageFile.isEmpty()) {
             Map<?, ?> uploadResult = cloudinary.uploader().upload(imageFile.getBytes(), ObjectUtils.emptyMap());
             registration.setImageUrl(uploadResult.get("url").toString());
         }
+
         return registrationRepository.save(registration);
     }
 
@@ -66,6 +70,9 @@ public class RegistrationService {
         existing.setEmergencyContact(updatedData.getEmergencyContact());
         existing.setWorkingStatus(updatedData.getWorkingStatus());
 
+        // Set system date and time for modifiedTime
+        existing.setModifiedTime(LocalDateTime.now());
+
         if (imageFile != null && !imageFile.isEmpty()) {
             Map<?, ?> uploadResult = cloudinary.uploader().upload(imageFile.getBytes(), ObjectUtils.emptyMap());
             existing.setImageUrl(uploadResult.get("url").toString());
@@ -78,7 +85,15 @@ public class RegistrationService {
         Registration existing = registrationRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new RuntimeException("Registration not found with id: " + id));
 
+        // Mark as deleted and set the deletedTime
         existing.markAsDeleted(deletedBy);
+        existing.setDeletedTime(LocalDateTime.now());
+
         registrationRepository.save(existing);
+    }
+
+    public Registration getRegistrationById(Long id) {
+        return registrationRepository.findByIdAndDeletedFalse(id)
+                .orElseThrow(() -> new RuntimeException("Registration not found with id: " + id));
     }
 }
