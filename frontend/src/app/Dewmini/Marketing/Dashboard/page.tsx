@@ -18,7 +18,7 @@ export default function DashboardPage() {
     {
       title: "Dewmini Marketing",
       description: "Manage Dewmini campaigns and analytics",
-      link: "/Dewmini/Marketing",
+      link: "",
       emoji: "📈",
     },
   ];
