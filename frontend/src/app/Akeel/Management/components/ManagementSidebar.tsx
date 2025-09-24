@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, ListChecks, CheckCircle2, XCircle, Briefcase } from 'lucide-react';
+import { Home, ListChecks, CheckCircle2, XCircle, Briefcase, Search } from 'lucide-react';
 
 export default function ManagementSidebar() {
   const [collapsed, setCollapsed] = React.useState(false);
@@ -42,6 +42,7 @@ export default function ManagementSidebar() {
         <Item to="/Akeel/Management/Pending"   icon={<ListChecks size={18} />}   label="Pending Approvals" />
         <Item to="/Akeel/Management/Approved"  icon={<CheckCircle2 size={18} />} label="Approved" />
         <Item to="/Akeel/Management/Rejected"  icon={<XCircle size={18} />}      label="Rejected" />
+        <Item to="/Akeel/Management/Track"     icon={<Search size={18} />}       label="Track Request" />
       </nav>
     </aside>
   );

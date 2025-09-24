@@ -58,6 +58,14 @@ export interface Vehicle extends AuditFields {
   status?: VehicleStatus | null;
 }
 
+/* NEW: VehicleImage */
+export interface VehicleImage {
+  id: EntityId;
+  url: string;
+  sortOrder: number;                  // 0 = cover
+  createdAt?: ISODateTimeString | null;
+}
+
 export interface Driver extends AuditFields {
   employeeId: string;
   name: string;

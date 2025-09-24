@@ -13,7 +13,7 @@ import { toast } from 'react-toastify';
 const fmtTime = (s?: string | null) =>
   s ? new Date(s).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
 
-const chip = (label: 'Scheduled' | 'Departed' | 'Return') => {
+const chip = (label: 'Scheduled' | 'Departed' | 'Returned') => {
   const styles =
     label === 'Scheduled'
       ? 'bg-yellow-200 text-yellow-900 ring-1 ring-yellow-400/70'
@@ -31,12 +31,34 @@ const cleanPhone = (p?: string | null) =>
     .replace(/\s{2,}/g, ' ')
     .trim();
 
-// try to resolve officerId from explicit field or text like "Travelling Officer: X (ID: 123)"
-function resolveOfficerId(r: any): string | undefined {
-  if (r?.officerId) return String(r.officerId);
-  const text = `${r?.officialDescription || ''}\n${r?.remarks || ''}`;
-  const m = /\(\s*(?:Employee\s*ID|Emp\.?\s*ID|ID)\s*:\s*([^)]+)\)/i.exec(text);
-  return m?.[1]?.trim();
+/** ✅ Parse officer name, id, phone from either explicit fields or the description text */
+function resolveOfficerBits(r: any): { name?: string; id?: string; phone?: string } {
+  // explicit fields first
+  const directName  = r?.officerName  ?? r?.officer_name  ?? r?.officer ?? undefined;
+  const directId    = r?.officerId    ?? r?.officer_id    ?? r?.officerID ?? undefined;
+  const directPhone = r?.officerPhone ?? r?.officer_phone ?? r?.officerTel ?? undefined;
+
+  let name  = directName ? String(directName).trim() : undefined;
+  let id    = directId ? String(directId).trim() : undefined;
+  let phone = directPhone ? cleanPhone(String(directPhone)) : undefined;
+
+  // parse from description/remarks if any missing
+  if (!name || !id || !phone) {
+    const text = `${r?.officialDescription || ''}\n${r?.remarks || ''}`;
+    const m =
+      /Travell?ing\s+Officer:\s*([^\(\n,]+)?(?:\s*\((?:Employee\s*ID|Emp\.?\s*ID|ID)\s*:\s*([^)]+)\))?(?:,\s*(?:Phone|Tel)\s*:\s*([^\n]+))?/i
+        .exec(text);
+
+    const parsedName  = m?.[1]?.trim();
+    const parsedId    = m?.[2]?.trim();
+    const parsedPhone = m?.[3] ? cleanPhone(m[3]) : undefined;
+
+    if (!name  && parsedName)  name  = parsedName;
+    if (!id    && parsedId)    id    = parsedId;
+    if (!phone && parsedPhone) phone = parsedPhone;
+  }
+
+  return { name, id, phone };
 }
 
 export default function InchargeActiveVehiclesPage() {
@@ -64,7 +86,7 @@ export default function InchargeActiveVehiclesPage() {
         return true;
       });
 
-      // smart sort (upcoming, then departed, then returned)
+      // sort (upcoming → departed → returned)
       uniq.sort((a, b) => {
         const aState = a.gateEntryAt ? 2 : a.gateExitAt ? 1 : 0;
         const bState = b.gateEntryAt ? 2 : b.gateExitAt ? 1 : 0;
@@ -95,8 +117,9 @@ export default function InchargeActiveVehiclesPage() {
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
     if (!s) return rows;
-    return rows.filter((r: any) =>
-      [
+    return rows.filter((r: any) => {
+      const officer = resolveOfficerBits(r);
+      return [
         r.requestCode,
         r.assignedVehicleNumber,
         r.assignedDriverName,
@@ -105,12 +128,12 @@ export default function InchargeActiveVehiclesPage() {
         r.fromLocation,
         r.toLocation,
         r.department,
-        resolveOfficerId(r) || '',
+        officer.name, officer.id, officer.phone
       ]
         .map((x) => (x ?? '').toString().toLowerCase())
         .join(' ')
-        .includes(s)
-    );
+        .includes(s);
+    });
   }, [rows, q]);
 
   return (
@@ -120,18 +143,18 @@ export default function InchargeActiveVehiclesPage() {
       <main className="p-3 md:p-4 flex-1">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-[14px] md:text-lg font-bold text-orange-900">Active Vehicles</h1>
-          <SearchBar value={q} onChange={setQ} placeholder="Search code, vehicle, driver, route…" className="h-8" />
+          <SearchBar value={q} onChange={setQ} placeholder="Search code, vehicle, driver, route, officer…" className="h-8" />
         </div>
 
         <div className="bg-white rounded-lg border border-orange-200 overflow-auto">
           <table className="min-w-full table-fixed text-[12px] leading-[1.25]">
             {/* keep colgroup on one line to avoid whitespace text nodes */}
-            <colgroup><col className="w-[12%]"/><col className="w-[28%]"/><col className="w-[22%]"/><col className="w-[18%]"/><col className="w-[8%]"/><col className="w-[12%]"/></colgroup>
+            <colgroup><col className="w-[14%]"/><col className="w-[26%]"/><col className="w-[24%]"/><col className="w-[18%]"/><col className="w-[8%]"/><col className="w-[10%]"/></colgroup>
             <thead className="bg-orange-50">
               <tr>
                 <Th className="px-3 py-2 text-left">Request</Th>
                 <Th className="px-3 py-2 text-left">Schedule</Th>
-                <Th className="px-3 py-2 text-left">Vehicle / Driver</Th>
+                <Th className="px-3 py-2 text-left">Vehicle / Driver / Officer</Th>
                 <Th className="px-3 py-2 text-left">Route</Th>
                 <Th className="px-3 py-2 text-center">Status</Th>
                 <Th className="px-3 py-2 text-center">Action</Th>
@@ -148,10 +171,11 @@ export default function InchargeActiveVehiclesPage() {
               {!loading && filtered.map((r) => {
                 const isDeparted = !!r.gateExitAt && !r.gateEntryAt;
                 const isReturned = !!r.gateEntryAt;
-                const statusLabel: 'Scheduled' | 'Departed' | 'Return' =
-                  isReturned ? 'Return' : isDeparted ? 'Departed' : 'Scheduled';
+                const statusLabel: 'Scheduled' | 'Departed' | 'Returned' =
+                  isReturned ? 'Returned' : isDeparted ? 'Departed' : 'Scheduled';
+
+                const officer = resolveOfficerBits(r);
                 const driverPhone = cleanPhone(r.assignedDriverPhone);
-                const officerId = resolveOfficerId(r);
 
                 return (
                   <tr key={r.id} className="align-top">
@@ -163,13 +187,13 @@ export default function InchargeActiveVehiclesPage() {
 
                     {/* Schedule (4 lines) */}
                     <Td className="px-3 py-2">
-                      <div className="font-medium">Pickup: {r.timeFrom || fmtTime(r.scheduledPickupAt)}</div>
-                      <div>Return: {r.timeTo || fmtTime(r.scheduledReturnAt)}</div>
-                      <div className="text-blue-700">Departed: {fmtTime(r.gateExitAt)}</div>
-                      <div className="text-green-600">Returned: {fmtTime(r.gateEntryAt)}</div>
+                      <div className="font-medium">Pickup (Sched): {fmtTime(r.scheduledPickupAt) || '—'}</div>
+                      <div>Return (Sched): {fmtTime(r.scheduledReturnAt) || '—'}</div>
+                      <div className="text-blue-700">Departed (Actual): {fmtTime(r.gateExitAt)}</div>
+                      <div className="text-green-600">Returned (Actual): {fmtTime(r.gateEntryAt)}</div>
                     </Td>
 
-                    {/* Vehicle / Driver */}
+                    {/* Vehicle / Driver / Officer */}
                     <Td className="px-3 py-2">
                       <div className="font-medium">{r.assignedVehicleNumber || '—'}</div>
                       <div className="text-[12px] text-gray-800">
@@ -177,9 +201,11 @@ export default function InchargeActiveVehiclesPage() {
                         {r.assignedDriverId ? <span className="text-gray-600"> ({r.assignedDriverId})</span> : null}
                       </div>
                       <div className="text-[12px] text-gray-700">{driverPhone || '—'}</div>
-                      {officerId ? (
-                        <div className="text-[11px] text-gray-500">Officer ID: {officerId}</div>
-                      ) : null}
+                      <div className="text-[12px] text-gray-800 mt-1">
+                        Officer: {officer.name || '—'}
+                        {officer.id ? <span className="text-gray-600"> ({officer.id})</span> : null}
+                        {officer.phone ? <span className="text-gray-700">, {officer.phone}</span> : null}
+                      </div>
                     </Td>
 
                     {/* Route */}

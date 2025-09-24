@@ -5,7 +5,16 @@ import { toast } from 'react-toastify';
 import { Printer, History as HistoryIcon, Edit, Trash2, Plus, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 
 import VehicleForm from './VehicleForm';
-import { fetchVehicles, fetchDeletedVehicles, addVehicle, updateVehicle, deleteVehicle, fetchVehicleById } from '../services/VehicleService';
+import {
+  fetchVehicles,
+  fetchDeletedVehicles,
+  addVehicle,
+  updateVehicle,
+  deleteVehicle,
+  fetchVehicleById,
+  createVehicleWithImages,
+} from '../services/VehicleService';
+import VehicleImagesHero from '../Vehicle/VehicleImagesHero';
 import { printVehicle, printVehicleList } from '../utils/print';
 import SearchBar from '../components/SearchBar';
 import StatusPill from '../components/StatusPill';
@@ -13,6 +22,24 @@ import EntityModal from '../components/EntityModal';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
 import { Th, Td } from '../components/ThTd';
 import type { Vehicle, VehicleStatus } from '../services/types';
+
+/* one-view switch */
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(false);
+  useEffect(() => {
+    const mql = window.matchMedia(query);
+    const handler = (e: MediaQueryListEvent | MediaQueryList) =>
+      setMatches((e as MediaQueryList).matches ?? (e as MediaQueryListEvent).matches);
+    setMatches(mql.matches);
+    if (mql.addEventListener) mql.addEventListener('change', handler as any);
+    else mql.addListener(handler as any);
+    return () => {
+      if (mql.removeEventListener) mql.removeEventListener('change', handler as any);
+      else mql.removeListener(handler as any);
+    };
+  }, [query]);
+  return matches;
+}
 
 const ITEMS_PER_PAGE = 10;
 const ROW_TEXT = 'text-xs';
@@ -27,6 +54,8 @@ const fmt = (v: unknown) => (v == null || v === '' ? '-' : String(v));
 
 export default function VehicleListPage() {
   const router = useRouter();
+  const isMdUp = useMediaQuery('(min-width: 768px)');
+
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [deletedVehicles, setDeletedVehicles] = useState<Vehicle[]>([]);
   const [showDeleted, setShowDeleted] = useState(false);
@@ -47,7 +76,8 @@ export default function VehicleListPage() {
       setDeletedVehicles(Array.isArray(deleted) ? deleted : []);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to load vehicles');
-      setVehicles([]); setDeletedVehicles([]);
+      setVehicles([]);
+      setDeletedVehicles([]);
     } finally {
       setLoading(false);
     }
@@ -82,7 +112,7 @@ export default function VehicleListPage() {
     const endWin = Math.min(last, startWin + 4);
     const nums = Array.from({ length: endWin - startWin + 1 }, (_, i) => startWin + i);
     return (
-      <div className="flex items-center justify-between px-3 py-2 bg-orange-50 rounded-lg border border-orange-100 mt-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-3 py-2 bg-orange-50 rounded-lg border border-orange-100 mt-3">
         <span className="text-xs text-orange-800">
           Showing {filtered.length ? start + 1 : 0}–{Math.min(start + ITEMS_PER_PAGE, filtered.length)} of {filtered.length}
         </span>
@@ -117,9 +147,11 @@ export default function VehicleListPage() {
     );
   };
 
-  const onAddSubmit = async (payload: Partial<Vehicle>) => {
+  const onAddSubmit = async (payload: Partial<Vehicle>, files?: File[] | FileList) => {
     try {
-      await addVehicle(payload);
+      const hasFiles = !!files && (Array.isArray(files) ? files.length > 0 : files.length > 0);
+      if (hasFiles) await createVehicleWithImages(payload, files as any);
+      else await addVehicle(payload);
       toast.success('Vehicle added successfully');
       setShowForm(false);
       await load();
@@ -164,7 +196,6 @@ export default function VehicleListPage() {
     }
   };
 
-  // View modal: hydrate full entity on open
   const openView = async (v: Vehicle) => {
     setSelected(v);
     setShowView(true);
@@ -172,7 +203,7 @@ export default function VehicleListPage() {
     try {
       const full = await fetchVehicleById(v.id);
       if (full) setSelected(full);
-    } catch { /* keep lightweight row data */ }
+    } catch {}
   };
 
   const onOpenHistory = (v: Vehicle) => {
@@ -180,182 +211,268 @@ export default function VehicleListPage() {
     router.push(`/Akeel/Transport/History?type=Vehicle&id=${v.id}`);
   };
 
+  const MobileCard = ({ v, idx }: { v: Vehicle; idx: number }) => (
+    <div
+      className="rounded-xl border border-orange-200 bg-white shadow-sm p-3 flex flex-col gap-2"
+      onClick={() => openView(v)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && openView(v)}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="text-[11px] text-gray-500">#{start + idx + 1}</div>
+          <div className="text-sm font-semibold text-gray-800">{fmt(v.vehicleNumber)}</div>
+          <div className="text-xs text-gray-600">{fmt(v.vehicleType)}</div>
+          <div className="text-xs text-gray-600">
+            <span className="font-medium">{fmt(v.brand)}</span>
+            <span className="text-gray-500"> / {fmt(v.model)}</span>
+          </div>
+        </div>
+        <StatusPill
+          mode="vehicle"
+          value={v.status ?? undefined}
+          className="shrink-0"
+          editable={!showDeleted}
+          onChange={(s) => onChangeStatus(v, s as VehicleStatus)}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 text-[11px] text-gray-700">
+        <div><span className="text-gray-500">Chassis:</span> {fmt(v.chassisNumber)}</div>
+        <div><span className="text-gray-500">Engine:</span> {fmt(v.engineNumber)}</div>
+        <div><span className="text-gray-500">Mfg:</span> {fmtDate(v.manufactureDate)}</div>
+        <div><span className="text-gray-500">KM:</span> {fmt(v.totalKmDriven)}</div>
+        <div><span className="text-gray-500">Fuel:</span> {fmt(v.fuelEfficiency)}</div>
+        <div className="col-span-2"><span className="text-gray-500">Cond.:</span> {fmt(v.presentCondition)}</div>
+      </div>
+
+      {!showDeleted && (
+        <div className="flex items-center justify-end gap-2 pt-1">
+          <button
+            className="px-2 py-1 rounded text-blue-600 hover:bg-blue-50 text-[11px] font-medium"
+            onClick={(e) => { e.stopPropagation(); printVehicle(v); }}
+          >
+            Print
+          </button>
+          <button
+            className="px-2 py-1 rounded text-orange-600 hover:bg-orange-50 text-[11px] font-medium"
+            onClick={(e) => { e.stopPropagation(); onOpenHistory(v); }}
+          >
+            History
+          </button>
+          <button
+            className="px-2 py-1 rounded text-green-700 hover:bg-green-50 text-[11px] font-medium"
+            onClick={(e) => { e.stopPropagation(); setEditing(v); setShowForm('edit'); }}
+          >
+            Edit
+          </button>
+          <button
+            className="px-2 py-1 rounded text-red-600 hover:bg-red-50 text-[11px] font-medium"
+            onClick={(e) => { e.stopPropagation(); setDeleteTarget(v); }}
+          >
+            Delete
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   return (
-    <div className="w-full min-h-screen p-4 bg-orange-50">
-      <div className="bg-white rounded-xl shadow-md p-4">
-        {/* Header */}
-        <div className="flex items-center mb-4">
+    <div className="w-full min-h-screen p-3 sm:p-4 bg-orange-50">
+      <div className="bg-white rounded-xl shadow-md p-3 sm:p-4">
+        <div className="flex items-center mb-3 sm:mb-4">
           <button
             onClick={() => router.back()}
-            className="flex items-center gap-2 text-orange-600 hover:text-orange-800 p-2 rounded-lg hover:bg-orange-50 mr-4"
+            className="flex items-center gap-2 text-orange-600 hover:text-orange-800 p-2 rounded-lg hover:bg-orange-50 mr-3 sm:mr-4"
           >
             <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-xl font-bold text-gray-800">Vehicle Management</h1>
-            <p className="text-sm text-orange-600">
+            <h1 className="text-lg sm:text-xl font-bold text-gray-800">Vehicle Management</h1>
+            <p className="text-xs sm:text-sm text-orange-600">
               {filtered?.length ?? 0} {showDeleted ? 'deleted' : 'active'} vehicles
             </p>
           </div>
         </div>
 
-        {/* Controls */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-          <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-col gap-3 sm:gap-4 mb-3 sm:mb-4">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="flex rounded-lg overflow-hidden border border-orange-300 shadow-sm">
               <button
-                className={`px-4 py-2 text-sm font-medium ${!showDeleted ? 'bg-orange-600 text-white' : 'bg-white text-orange-600 hover:bg-orange-50'}`}
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium ${!showDeleted ? 'bg-orange-600 text-white' : 'bg-white text-orange-600 hover:bg-orange-50'}`}
                 onClick={() => setShowDeleted(false)}
               >
                 Active
-                <span className="ml-2 text-xs bg-orange-100 text-orange-800 px-2 py-0.5 rounded-full">{vehicles.length}</span>
+                <span className="ml-2 text-[10px] sm:text-xs bg-orange-100 text-orange-800 px-2 py-0.5 rounded-full">{vehicles.length}</span>
               </button>
               <button
-                className={`px-4 py-2 text-sm font-medium ${showDeleted ? 'bg-red-600 text-white' : 'bg-white text-red-600 hover:bg-red-50'}`}
+                className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium ${showDeleted ? 'bg-red-600 text-white' : 'bg-white text-red-600 hover:bg-red-50'}`}
                 onClick={() => setShowDeleted(true)}
               >
                 Deleted
-                <span className="ml-2 text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full">{deletedVehicles.length}</span>
+                <span className="ml-2 text-[10px] sm:text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full">{deletedVehicles.length}</span>
+              </button>
+            </div>
+
+            <div className="flex-1" />
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                className="flex items-center gap-2 bg-orange-600 text-white px-3 py-2 rounded-lg hover:bg-orange-700 shadow-sm transition-colors text-xs sm:text-sm"
+                onClick={() => { setEditing(null); setShowForm('add'); }}
+              >
+                <Plus size={16} />
+                <span>Add Vehicle</span>
+              </button>
+              <button
+                className="flex items-center gap-2 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 shadow-sm transition-colors text-xs sm:text-sm"
+                onClick={() => printVehicleList(filtered as Vehicle[], showDeleted)}
+              >
+                <Printer size={16} />
+                <span>Print All</span>
               </button>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              className="flex items-center gap-2 bg-orange-600 text-white px-3 py-2 rounded-lg hover:bg-orange-700 shadow-sm transition-colors text-sm"
-              onClick={() => { setEditing(null); setShowForm('add'); }}
-            >
-              <Plus size={16} />
-              <span>Add Vehicle</span>
-            </button>
-            <button
-              className="flex items-center gap-2 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 shadow-sm transition-colors text-sm"
-              onClick={() => printVehicleList(filtered as Vehicle[], showDeleted)}
-            >
-              <Printer size={16} />
-              <span>Print All</span>
-            </button>
-          </div>
+          <SearchBar value={search} onChange={setSearch} placeholder="Search any field (Number, Type, Brand, Model…)" />
         </div>
 
-        {/* Search */}
-        <SearchBar value={search} onChange={setSearch} placeholder="Search any field (Number, Type, Brand, Model…)" />
-
-        {/* Table */}
         {loading ? (
           <div className="text-center py-16 text-gray-500">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mb-3"></div>
             <p>Loading vehicles...</p>
           </div>
-        ) : (
-          <>
-            <div className="overflow-x-auto rounded-lg border border-orange-100 mt-4 shadow-sm">
-              <table className="w-full">
-                <colgroup>
-                  <col className="w-[4%]"/><col className="w-[12%]"/><col className="w-[8%]"/><col className="w-[10%]"/><col className="w-[10%]"/><col className="w-[12%]"/><col className="w-[12%]"/><col className="w-[8%]"/><col className="w-[5%]"/><col className="w-[5%]"/><col className="w-[10%]"/><col className="w-[8%]"/><col className={showDeleted ? 'w-0 hidden' : 'w-[6%]'} />
-                </colgroup>
-                <thead className="bg-orange-50">
-                  <tr>
-                    <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>No</Th>
-                    <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Number</Th>
-                    <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Type</Th>
-                    <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Brand</Th>
-                    <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Model</Th>
-                    <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Chassis</Th>
-                    <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Engine</Th>
-                    <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Mfg Date</Th>
-                    <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>KM</Th>
-                    <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>Fuel</Th>
-                    <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Condition</Th>
-                    <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Status</Th>
-                    {!showDeleted && <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>Actions</Th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-orange-100">
-                  {rows.map((v, i) => (
-                    <tr
-                      key={v.id ?? `${v.vehicleNumber}-${i}`}
-                      className="hover:bg-orange-50 transition-colors cursor-pointer"
-                      onClick={() => openView(v)}
-                    >
-                      <Td className={`text-center ${ROW_PX} ${ROW_PY} ${ROW_TEXT}`}>{start + i + 1}</Td>
-                      <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT} font-medium truncate`} title={fmt(v.vehicleNumber)}>{fmt(v.vehicleNumber)}</Td>
-                      <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT} truncate`} title={fmt(v.vehicleType)}>{fmt(v.vehicleType)}</Td>
-                      <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT} truncate`} title={fmt(v.brand)}>{fmt(v.brand)}</Td>
-                      <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT} truncate`} title={fmt(v.model)}>{fmt(v.model)}</Td>
-                      <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT} truncate`} title={fmt(v.chassisNumber)}>{fmt(v.chassisNumber)}</Td>
-                      <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT} truncate`} title={fmt(v.engineNumber)}>{fmt(v.engineNumber)}</Td>
-                      <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT}`}>{fmtDate(v.manufactureDate)}</Td>
-                      <Td className={`text-center ${ROW_PX} ${ROW_PY} ${ROW_TEXT}`}>{fmt(v.totalKmDriven)}</Td>
-                      <Td className={`text-center ${ROW_PX} ${ROW_PY} ${ROW_TEXT}`}>{fmt(v.fuelEfficiency)}</Td>
-                      <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT} truncate`} title={fmt(v.presentCondition)}>{fmt(v.presentCondition)}</Td>
-                      <Td className={`${ROW_PX} ${ROW_PY}`} onClick={(e) => e.stopPropagation()}>
-                        <div className="flex justify-center">
-                          <StatusPill
-                            mode="vehicle"
-                            value={v.status ?? undefined}
-                            editable={!showDeleted}
-                            onChange={(s) => onChangeStatus(v, s as VehicleStatus)}
-                          />
+        ) : isMdUp ? (
+          <div className="overflow-x-auto rounded-lg border border-orange-100 mt-4 shadow-sm">
+            <table className="w-full">
+              <colgroup>
+                <col className="w-[4%]" />
+                <col className="w-[12%]" />
+                <col className="w-[8%]" />
+                <col className="w-[16%]" />
+                <col className="w-[12%]" />
+                <col className="w-[12%]" />
+                <col className="w-[8%]" />
+                <col className="w-[5%]" />
+                <col className="w-[5%]" />
+                <col className="w-[10%]" />
+                <col className="w-[8%]" />
+                <col className={showDeleted ? 'w-0 hidden' : 'w-[6%]'} />
+              </colgroup>
+              <thead className="bg-orange-50">
+                <tr>
+                  <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>No</Th>
+                  <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Number</Th>
+                  <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Type</Th>
+                  <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Brand / Model</Th>
+                  <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Chassis</Th>
+                  <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Engine</Th>
+                  <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Mfg Date</Th>
+                  <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>KM</Th>
+                  <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>Fuel</Th>
+                  <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Condition</Th>
+                  <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Status</Th>
+                  {!showDeleted && <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>Actions</Th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-orange-100">
+                {rows.map((v, i) => (
+                  <tr
+                    key={v.id ?? `${v.vehicleNumber}-${i}`}
+                    className="hover:bg-orange-50 transition-colors cursor-pointer"
+                    onClick={() => openView(v)}
+                  >
+                    <Td className={`text-center ${ROW_PX} ${ROW_PY} ${ROW_TEXT}`}>{start + i + 1}</Td>
+                    <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT} font-medium truncate`} title={fmt(v.vehicleNumber)}>{fmt(v.vehicleNumber)}</Td>
+                    <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT} truncate`} title={fmt(v.vehicleType)}>{fmt(v.vehicleType)}</Td>
+                    <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT} truncate`} title={`${fmt(v.brand)} / ${fmt(v.model)}`}>
+                      <span className="font-medium">{fmt(v.brand)}</span>
+                      <span className="text-gray-500"> / {fmt(v.model)}</span>
+                    </Td>
+                    <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT} truncate`} title={fmt(v.chassisNumber)}>{fmt(v.chassisNumber)}</Td>
+                    <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT} truncate`} title={fmt(v.engineNumber)}>{fmt(v.engineNumber)}</Td>
+                    <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT}`}>{fmtDate(v.manufactureDate)}</Td>
+                    <Td className={`text-center ${ROW_PX} ${ROW_PY} ${ROW_TEXT}`}>{fmt(v.totalKmDriven)}</Td>
+                    <Td className={`text-center ${ROW_PX} ${ROW_PY} ${ROW_TEXT}`}>{fmt(v.fuelEfficiency)}</Td>
+                    <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT} truncate`} title={fmt(v.presentCondition)}>{fmt(v.presentCondition)}</Td>
+                    <Td className={`${ROW_PX} ${ROW_PY}`} onClick={(e) => e.stopPropagation()}>
+                      <div className="flex justify-center">
+                        <StatusPill
+                          mode="vehicle"
+                          value={v.status ?? undefined}
+                          editable={!showDeleted}
+                          onChange={(s) => onChangeStatus(v, s as VehicleStatus)}
+                        />
+                      </div>
+                    </Td>
+                    {!showDeleted && (
+                      <Td className={`text-center ${ROW_PX} ${ROW_PY}`} onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            className="w-6 h-6 grid place-items-center rounded text-blue-600 hover:bg-blue-100 transition-colors"
+                            title="Print"
+                            onClick={(e) => { e.stopPropagation(); printVehicle(v); }}
+                          >
+                            <Printer size={12} />
+                          </button>
+                          <button
+                            className="w-6 h-6 grid place-items-center rounded text-orange-600 hover:bg-orange-100 transition-colors"
+                            title="History"
+                            onClick={(e) => { e.stopPropagation(); onOpenHistory(v); }}
+                          >
+                            <HistoryIcon size={12} />
+                          </button>
+                          <button
+                            className="w-6 h-6 grid place-items-center rounded text-green-600 hover:bg-green-100 transition-colors"
+                            title="Edit"
+                            onClick={(e) => { e.stopPropagation(); setEditing(v); setShowForm('edit'); }}
+                          >
+                            <Edit size={12} />
+                          </button>
+                          <button
+                            className="w-6 h-6 grid place-items-center rounded text-red-600 hover:bg-red-100 transition-colors"
+                            title="Delete"
+                            onClick={(e) => { e.stopPropagation(); setDeleteTarget(v); }}
+                          >
+                            <Trash2 size={12} />
+                          </button>
                         </div>
                       </Td>
-                      {!showDeleted && (
-                        <Td className={`text-center ${ROW_PX} ${ROW_PY}`} onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              className="w-6 h-6 grid place-items-center rounded text-blue-600 hover:bg-blue-100 transition-colors"
-                              title="Print"
-                              onClick={(e) => { e.stopPropagation(); printVehicle(v); }}
-                            >
-                              <Printer size={12} />
-                            </button>
-                            <button
-                              className="w-6 h-6 grid place-items-center rounded text-orange-600 hover:bg-orange-100 transition-colors"
-                              title="History"
-                              onClick={(e) => { e.stopPropagation(); onOpenHistory(v); }}
-                            >
-                              <HistoryIcon size={12} />
-                            </button>
-                            <button
-                              className="w-6 h-6 grid place-items-center rounded text-green-600 hover:bg-green-100 transition-colors"
-                              title="Edit"
-                              onClick={(e) => { e.stopPropagation(); setEditing(v); setShowForm('edit'); }}
-                            >
-                              <Edit size={12} />
-                            </button>
-                            <button
-                              className="w-6 h-6 grid place-items-center rounded text-red-600 hover:bg-red-100 transition-colors"
-                              title="Delete"
-                              onClick={(e) => { e.stopPropagation(); setDeleteTarget(v); }}
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        </Td>
-                      )}
-                    </tr>
-                  ))}
-                  {(rows?.length ?? 0) === 0 && (
-                    <tr>
-                      <Td colSpan={showDeleted ? 12 : 13} className="text-center py-6 text-gray-500 text-xs">
-                        No {showDeleted ? 'deleted' : 'active'} vehicles found.
-                      </Td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            <PaginationBar />
-          </>
+                    )}
+                  </tr>
+                ))}
+                {(rows?.length ?? 0) === 0 && (
+                  <tr>
+                    <Td colSpan={showDeleted ? 11 : 12} className="text-center py-6 text-gray-500 text-xs">
+                      No {showDeleted ? 'deleted' : 'active'} vehicles found.
+                    </Td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {rows.map((v, i) => (
+              <MobileCard key={v.id ?? `${v.vehicleNumber}-${i}`} v={v} idx={i} />
+            ))}
+            {(rows?.length ?? 0) === 0 && (
+              <div className="text-center py-8 text-gray-500 text-xs col-span-full">
+                No {showDeleted ? 'deleted' : 'active'} vehicles found.
+              </div>
+            )}
+          </div>
         )}
+
+        <PaginationBar />
       </div>
 
-      {/* Modals */}
       {showView && selected && (
         <EntityModal
           title="Vehicle Details"
           status={selected.status ?? undefined}
           onClose={() => setShowView(false)}
+          top={<VehicleImagesHero vehicleId={selected.id!} />}
           fields={[
             { label: 'Vehicle Number', value: selected.vehicleNumber ?? '-' },
             { label: 'Type', value: selected.vehicleType ?? '-' },
@@ -380,6 +497,7 @@ export default function VehicleListPage() {
 
       {showForm && (
         <VehicleForm
+          enableImages={showForm === 'add'}
           vehicle={showForm === 'edit' ? editing ?? undefined : undefined}
           onSubmit={showForm === 'edit' ? onEditSubmit : onAddSubmit}
           onClose={() => setShowForm(false)}
