@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Sidebar from '../Transport/components/SideBar';      // <— correct casing: Sidebar.tsx
-import ActorBar from './components/ActorBar';
+// import ActorBar from './components/ActorBar';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -21,7 +21,7 @@ export default function TransportLayout({ children }: { children: React.ReactNod
       {/* Main column */}
       <main className="flex-1 min-w-0 min-h-0 flex flex-col">
         {/* Top bar (role/actor switch, etc.) */}
-        <ActorBar />
+        {/* <ActorBar /> */}
 
         {/* Scrollable content area */}
         <div className="w-full h-full overflow-auto">

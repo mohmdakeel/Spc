@@ -1,18 +1,18 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import InchargeSidebar from '../components/InchargeSidebar';
 import { listByStatus } from '../../Transport/services/usageService';
 import type { UsageRequest } from '../../Transport/services/types';
 import { Th, Td } from '../../Transport/components/ThTd';
 import SearchBar from '../../Transport/components/SearchBar';
-import AssignVehicleModal from '../../Transport/components/AssignVehicleModal';
+import AssignVehicleModal from '../components/AssignVehicleModal';
+import { X } from 'lucide-react';
 import { toast } from 'react-toastify';
 
-/* ---------------- helpers (same style as other pages) ---------------- */
-const fmtDT = (s?: string | null) => (s ? new Date(s).toLocaleString() : '-');
+/* ---------------- helpers ---------------- */
+const fmtDT = (s?: string | null) => (s ? new Date(s).toLocaleString() : '—');
 
-/** Applied label: prefers appliedDate + appliedTime; falls back to createdAt time */
 const appliedLabel = (r: Partial<UsageRequest> | any) => {
   const d = r.appliedDate ?? r.applied_at ?? r.appliedOn;
   const t = r.appliedTime ?? r.applied_time;
@@ -22,48 +22,87 @@ const appliedLabel = (r: Partial<UsageRequest> | any) => {
     return `${d} ${tt}`;
   }
   if (r.createdAt) return fmtDT(r.createdAt);
-  return '-';
+  return '—';
 };
 
-/** Officer from explicit fields OR parsed from "Travelling Officer:" text */
-function extractOfficer(
-  r?: Partial<UsageRequest> | null
-): { withOfficer: boolean; name?: string; id?: string; phone?: string } {
+const cleanPhone = (p?: string) =>
+  (p ?? '')
+    .replace(/[^\d+()\-\s./;]/g, '')
+    .replace(/^[;,\s-]+/, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+/** Extract Travelling Officer from explicit fields OR inside description/remarks */
+function extractOfficer(r?: Partial<UsageRequest> | null): {
+  withOfficer: boolean; name?: string; id?: string; phone?: string;
+} {
   if (!r) return { withOfficer: false };
+
+  // explicit fields present
   if ((r as any).travelWithOfficer || (r as any).officerName || (r as any).officerId || (r as any).officerPhone) {
     return {
       withOfficer: true,
       name: (r as any).officerName || undefined,
       id: (r as any).officerId || undefined,
-      phone: (r as any).officerPhone || undefined,
+      phone: cleanPhone((r as any).officerPhone) || undefined,
     };
   }
+
+  // parse from free text (officialDescription / remarks)
   const text = `${(r as any)?.officialDescription ?? ''}\n${(r as any)?.remarks ?? ''}`;
-  const m =
-    /Travelling Officer:\s*([^\(\n,]+)?(?:\s*\((?:Employee\s*ID|Emp\.?\s*ID|ID)\s*:\s*([^)]+)\))?(?:,\s*(?:Phone|Tel)\s*:\s*([^\s,]+))?/i.exec(
-      text
-    );
-  if (m) return { withOfficer: true, name: m[1]?.trim(), id: m[2]?.trim(), phone: m[3]?.trim() };
+  const m = /Travelling\s+Officer:\s*([^\(\n,]+)?(?:\s*\((?:Employee\s*ID|Emp\.?\s*ID|ID)\s*:\s*([^)]+)\))?(?:,\s*(?:Phone|Tel)\s*:\s*([^\n]+))?/i
+    .exec(text);
+
+  if (m) {
+    return {
+      withOfficer: true,
+      name: m[1]?.trim() || undefined,
+      id: m[2]?.trim() || undefined,
+      phone: cleanPhone(m[3]) || undefined,
+    };
+  }
+
   return { withOfficer: false };
 }
 
-/* ---------------- page ---------------- */
+/** Purpose with any "Travelling Officer:" lines removed */
+function purposeWithoutOfficer(r: any): string {
+  const raw = `${String(r?.officialDescription ?? '')}\n${String(r?.remarks ?? '')}`.trim();
+  if (!raw) return '—';
+  let cleaned = raw
+    .split(/\r?\n/)
+    .filter(l => !/travell?ing\s+officer\s*:/i.test(l))
+    .join('\n');
+  cleaned = cleaned.replace(/\b(?:Phone|Tel)\s*:\s*[\+\d()\-\s./;]+/gi, '');
+  return cleaned.trim() || '—';
+}
+
+const chipApproved = () => (
+  <span className="inline-block text-[10px] px-1.5 py-[2px] rounded bg-green-100 text-green-800 leading-none">
+    APPROVED
+  </span>
+);
+
+const COLS = ['12%', '17%', '8%', '12%', '15%', '13%', '13%', '10%'] as const;
+
+/* ---------------- Page ---------------- */
 export default function InchargeApprovedPage() {
   const [rows, setRows] = useState<UsageRequest[]>([]);
   const [q, setQ] = useState('');
   const [assignFor, setAssignFor] = useState<UsageRequest | null>(null);
-  const [open, setOpen] = useState(false);
+  const [openAssign, setOpenAssign] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<UsageRequest | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       setRows((await listByStatus('APPROVED')) || []);
     } finally {
       setLoading(false);
     }
-  };
-  useEffect(() => { load(); }, []);
+  }, []);
+  useEffect(() => { load(); }, [load]);
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -74,10 +113,7 @@ export default function InchargeApprovedPage() {
         r.requestCode, r.applicantName, r.employeeId, r.department,
         r.fromLocation, r.toLocation, r.dateOfTravel, r.timeFrom, r.timeTo,
         r.officialDescription, r.goods, off.name, off.id, off.phone, appliedLabel(r),
-      ]
-        .map(x => (x ?? '').toString().toLowerCase())
-        .join(' ')
-        .includes(s);
+      ].map(x => (x ?? '').toString().toLowerCase()).join(' ').includes(s);
     });
   }, [rows, q]);
 
@@ -91,88 +127,69 @@ export default function InchargeApprovedPage() {
         </div>
 
         <div className="bg-white rounded-lg border border-orange-200 overflow-auto">
-          {/* Keep colgroup in one line to avoid hydration whitespace warnings */}
-          <table className="w-full table-fixed text-[10px] leading-[1.15]">
-            <colgroup><col className="w-40"/><col className="w-[22rem]"/><col className="w-40"/><col className="w-48"/><col className="w-[26rem]"/><col className="w-28"/></colgroup>
+          <table className="w-full table-fixed text-[10.5px] leading-[1.15]">
+            <colgroup>{COLS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
             <thead className="bg-orange-50">
               <tr className="text-[9.5px]">
                 <Th className="px-2 py-1 text-left">RQ ID / Applied</Th>
-                <Th className="px-2 py-1 text-left">APPLICANT / OFFICER</Th>
+                <Th className="px-2 py-1 text-left">Applicant / Dept</Th>
+                <Th className="px-2 py-1 text-center">Status</Th>
                 <Th className="px-2 py-1 text-left">Travel</Th>
                 <Th className="px-2 py-1 text-left">Route</Th>
-                <Th className="px-2 py-1 text-left">Purpose</Th>
-                <Th className="px-2 py-1 text-center">Assign</Th>
+                <Th className="px-2 py-1 text-left">Officer</Th>
+                <Th className="px-2 py-1 text-left">Purpose / Goods</Th>
+                <Th className="px-2 py-1 text-center">Actions</Th>
               </tr>
             </thead>
 
             <tbody className="divide-y">
               {loading && (
                 <tr>
-                  <Td colSpan={6} className="px-2 py-6 text-center text-gray-500">Loading…</Td>
+                  <Td colSpan={8} className="px-2 py-6 text-center text-gray-500">Loading…</Td>
                 </tr>
               )}
 
               {!loading && filtered.map((r: any) => {
                 const off = extractOfficer(r);
                 return (
-                  <tr key={r.id} className="align-top hover:bg-orange-50/40">
-                    {/* RQ / Applied */}
+                  <tr
+                    key={r.id}
+                    className="align-top hover:bg-orange-50/40 cursor-pointer"
+                    onClick={() => setView(r)}
+                  >
                     <Td className="px-2 py-1">
-                      <div className="font-semibold text-orange-900 truncate" title={r.requestCode}>{r.requestCode}</div>
-                      <div className="text-[9px] text-gray-600 truncate" title={appliedLabel(r)}>{appliedLabel(r)}</div>
+                      <div className="font-semibold text-orange-900 truncate">{r.requestCode}</div>
+                      <div className="text-[9px] text-gray-600 truncate">{appliedLabel(r)}</div>
                     </Td>
-
-                    {/* Applicant / Officer */}
                     <Td className="px-2 py-1">
-                      <div className="truncate" title={`${r.applicantName} (${r.employeeId})`}>
-                        <span className="font-medium text-orange-900">Applicant:</span> {r.applicantName}
+                      <div className="truncate">
+                        <span className="font-medium text-orange-900">{r.applicantName}</span>
                         <span className="text-gray-600 text-[9px]"> ({r.employeeId})</span>
                       </div>
-                      <div
-                        className="text-[9.5px] text-gray-700 truncate"
-                        title={off.withOfficer ? `${off.name || '-'} (${off.id || '-'})${off.phone ? `, ${off.phone}` : ''}` : '—'}
-                      >
-                        <span className="font-medium">Officer:</span>{' '}
-                        {off.withOfficer ? (
-                          <>
-                            {off.name || '-'}
-                            <span className="text-gray-600 text-[9px]"> ({off.id || '-'})</span>
-                            {off.phone ? <span className="text-gray-600 text-[9px]">, {off.phone}</span> : null}
-                          </>
-                        ) : '—'}
-                      </div>
+                      <div className="text-[9px] text-gray-700 truncate">{r.department || '—'}</div>
                     </Td>
-
-                    {/* Travel */}
+                    <Td className="px-2 py-1 text-center">{chipApproved()}</Td>
                     <Td className="px-2 py-1">
-                      <div className="truncate" title={r.dateOfTravel}>{r.dateOfTravel}</div>
-                      <div className="text-[9px] text-gray-600">
-                        <span className="font-mono">{r.timeFrom}</span>–<span className="font-mono">{r.timeTo}</span>{' '}
-                        {r.overnight ? '(overnight)' : ''}
-                      </div>
+                      <div>{r.dateOfTravel}</div>
+                      <div className="text-[9px] text-gray-600">{r.timeFrom} – {r.timeTo}</div>
                     </Td>
-
-                    {/* Route */}
+                    <Td className="px-2 py-1">{r.fromLocation} → {r.toLocation}</Td>
                     <Td className="px-2 py-1">
-                      <div className="truncate" title={`${r.fromLocation} → ${r.toLocation}`}>{r.fromLocation} → {r.toLocation}</div>
+                      {off.withOfficer ? (
+                        <>
+                          <div>{off.name || '—'}{off.id ? <span className="text-[9px] text-gray-600"> ({off.id})</span> : null}</div>
+                          {off.phone ? <div className="text-[9px] text-gray-700">{off.phone}</div> : null}
+                        </>
+                      ) : '—'}
                     </Td>
-
-                    {/* Purpose */}
                     <Td className="px-2 py-1">
-                      <div className="text-orange-900 truncate" title={r.officialDescription || '—'}>
-                        {r.officialDescription || '—'}
-                      </div>
-                      {r.goods ? (
-                        <div className="text-[9px] text-orange-700/80 truncate" title={r.goods}>{r.goods}</div>
-                      ) : null}
+                      <div className="text-orange-900 whitespace-pre-wrap break-words">{purposeWithoutOfficer(r)}</div>
+                      <div className="text-[9px] text-orange-700/80">{r.goods || '—'}</div>
                     </Td>
-
-                    {/* Assign */}
-                    <Td className="px-2 py-1 text-center">
+                    <Td className="px-2 py-1 text-center" onClick={e => e.stopPropagation()}>
                       <button
-                        className="inline-flex items-center justify-center px-2.5 py-[6px] rounded bg-orange-600 text-white hover:bg-orange-700 text-[10px]"
-                        onClick={() => { setAssignFor(r); setOpen(true); }}
-                        title="Assign vehicle & driver"
+                        className="px-2.5 py-[6px] rounded bg-orange-600 text-white text-[10px]"
+                        onClick={() => { setAssignFor(r); setOpenAssign(true); }}
                       >
                         Assign
                       </button>
@@ -183,7 +200,7 @@ export default function InchargeApprovedPage() {
 
               {!loading && !filtered.length && (
                 <tr>
-                  <Td colSpan={6} className="px-2 py-6 text-center text-gray-500">No approved requests</Td>
+                  <Td colSpan={8} className="px-2 py-6 text-center text-gray-500">No approved requests</Td>
                 </tr>
               )}
             </tbody>
@@ -191,26 +208,78 @@ export default function InchargeApprovedPage() {
         </div>
       </main>
 
+      {/* Details modal → just view */}
+      {view && (
+        <DetailsModal request={view} onClose={() => setView(null)} />
+      )}
+
       {/* Assign modal */}
       {assignFor && (
         <AssignVehicleModal
-          open={open}
-          onClose={() => { setOpen(false); setAssignFor(null); }}
+          open={openAssign}
+          onClose={() => { setOpenAssign(false); setAssignFor(null); }}
           requestId={assignFor.id}
-          defaultValues={{
-            vehicleNumber: '',
-            driverName: '',
-            driverPhone: '',
-            // pickupAt / expectedReturnAt are selected in the modal
-          }}
+          request={assignFor}
+          defaultValues={{ vehicleNumber: '', driverName: '', driverPhone: '' }}
           onAssigned={() => {
             toast.success('Assignment saved');
             setAssignFor(null);
-            setOpen(false);
+            setOpenAssign(false);
             load();
           }}
         />
       )}
+    </div>
+  );
+}
+
+/* ---------------- Details Modal ---------------- */
+function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: () => void }) {
+  const off = extractOfficer(request as any);
+  return (
+    <div className="fixed inset-0 bg-black/40 grid place-items-center z-50 p-3" onClick={onClose}>
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-2 border-b bg-orange-50">
+          <h3 className="font-bold text-orange-900 text-[13px]">Request • {request.requestCode}</h3>
+          <button className="p-1 rounded hover:bg-orange-100" onClick={onClose}><X size={16} /></button>
+        </div>
+
+        <div className="p-4 text-[12px] leading-tight space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <section>
+              <div className="font-semibold text-orange-800 mb-1">Applicant / Dept</div>
+              <div>{request.applicantName} ({request.employeeId})</div>
+              <div>{request.department || '—'}</div>
+            </section>
+            <section>
+              <div className="font-semibold text-orange-800 mb-1">Status & Applied</div>
+              <div><b>Status:</b> APPROVED</div>
+              <div><b>Applied:</b> {appliedLabel(request)}</div>
+            </section>
+            <section>
+              <div className="font-semibold text-orange-800 mb-1">Travel / Route</div>
+              <div>{request.dateOfTravel}</div>
+              <div>{request.timeFrom} – {request.timeTo}</div>
+              <div>{request.fromLocation} → {request.toLocation}</div>
+            </section>
+            <section>
+              <div className="font-semibold text-orange-800 mb-1">Officer</div>
+              {off.withOfficer ? (
+                <div>{off.name || '—'}{off.id ? ` (${off.id})` : ''}{off.phone ? `, ${off.phone}` : ''}</div>
+              ) : '—'}
+            </section>
+            <section className="md:col-span-2">
+              <div className="font-semibold text-orange-800 mb-1">Purpose / Goods</div>
+              <div className="whitespace-pre-wrap break-words">{purposeWithoutOfficer(request)}</div>
+              <div>{request.goods || '—'}</div>
+            </section>
+          </div>
+        </div>
+
+        <div className="px-4 py-2 border-t bg-orange-50 flex justify-end">
+          <button className="px-4 py-2 rounded border" onClick={onClose}>Close</button>
+        </div>
+      </div>
     </div>
   );
 }

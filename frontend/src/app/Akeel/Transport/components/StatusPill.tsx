@@ -52,7 +52,7 @@ export default function StatusPill({ value, mode, editable, onChange, className 
     return (
       <div className={`relative inline-block ${className}`}>
         <select
-          className={`px-2.5 py-1 text-xs leading-none rounded-full font-semibold border whitespace-nowrap ${color} appearance-none pr-7 cursor-pointer transition-all hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-400`}
+          className={`px-2.5 py-1 text-[11px] md:text-xs leading-none rounded-full font-semibold border whitespace-nowrap ${color} appearance-none pr-7 cursor-pointer transition-all hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-400`}
           value={v || ''}
           onClick={(e) => e.stopPropagation()}
           onChange={(e) => onChange(e.target.value as AnyStatus)}
@@ -64,5 +64,9 @@ export default function StatusPill({ value, mode, editable, onChange, className 
       </div>
     );
   }
-  return <span className={`px-2.5 py-1 text-xs leading-none rounded-full font-semibold border whitespace-nowrap ${color} ${className}`}>{label(v)}</span>;
+  return (
+    <span className={`px-2.5 py-1 text-[11px] md:text-xs leading-none rounded-full font-semibold border whitespace-nowrap ${color} ${className}`}>
+      {label(v)}
+    </span>
+  );
 }

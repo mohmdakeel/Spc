@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, ListChecks, CheckCircle2, XCircle, Briefcase } from 'lucide-react';
+import { Home, ListChecks, CheckCircle2, XCircle, Briefcase, MapPin } from 'lucide-react';
 
 export default function HODSidebar() {
   const [collapsed, setCollapsed] = React.useState(false);
@@ -14,12 +14,14 @@ export default function HODSidebar() {
   const Item = ({ to, icon, label }: { to: string; icon: React.ReactNode; label: string }) => (
     <button
       onClick={() => go(to)}
-      className={`w-full px-3 py-2 rounded flex items-center gap-2 ${
-        isActive(to) ? 'bg-orange-600 text-white' : 'hover:bg-orange-200'
+      className={`w-full px-3 py-2 rounded flex items-center gap-2 transition ${
+        isActive(to) ? 'bg-orange-600 text-white' : 'hover:bg-orange-200 text-orange-900'
       }`}
+      title={label}
+      aria-current={isActive(to) ? 'page' : undefined}
     >
       {icon}
-      {!collapsed && label}
+      {!collapsed && <span className="truncate">{label}</span>}
     </button>
   );
 
@@ -37,13 +39,13 @@ export default function HODSidebar() {
         {collapsed ? 'Expand' : 'Collapse'}
       </button>
 
-   <nav className="space-y-1">
-  <Item to="/Akeel/Hod"           icon={<Home size={18} />}         label="Dashboard" />
-  <Item to="/Akeel/Hod/Pending"   icon={<ListChecks size={18} />}   label="Pending Approvals" />
-  <Item to="/Akeel/Hod/Approved"  icon={<CheckCircle2 size={18} />} label="Sent to Management" />
-  <Item to="/Akeel/Hod/MyApproved" icon={<CheckCircle2 size={18} />} label="My Approved (History)" /> {/* NEW */}
-  <Item to="/Akeel/Hod/Rejected"  icon={<XCircle size={18} />}      label="Rejected" />
-</nav>
+      <nav className="space-y-1">
+        <Item to="/Akeel/Hod"           icon={<Home size={18} />}        label="Dashboard" />
+        <Item to="/Akeel/Hod/Pending"   icon={<ListChecks size={18} />}  label="Pending Approvals" />
+        <Item to="/Akeel/Hod/Approved"  icon={<CheckCircle2 size={18} />} label="Approved" />
+        <Item to="/Akeel/Hod/Rejected"  icon={<XCircle size={18} />}     label="Rejected" />
+        <Item to="/Akeel/Hod/Track"     icon={<MapPin size={18} />}      label="Track by Request ID" />
+      </nav>
     </aside>
   );
 }

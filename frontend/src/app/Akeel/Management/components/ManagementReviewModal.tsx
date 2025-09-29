@@ -19,7 +19,6 @@ export default function ManagementReviewModal({
 
   const submitApprove = () => onApprove(remarks.trim() || undefined);
   const submitReject  = () => onReject(remarks.trim() || undefined);
-
   const disabled = !remarks.trim(); // backend requires remarks
 
   return (
@@ -66,8 +65,8 @@ export default function ManagementReviewModal({
               <FileText className="text-orange-600 mt-0.5" size={18}/>
               <div>
                 <div className="text-orange-800 font-semibold">Purpose / Goods</div>
-                <div className="text-orange-900">{request.officialDescription || '-'}</div>
-                <div className="text-orange-700/80">{request.goods || '-'}</div>
+                <div className="text-orange-900 break-words">{request.officialDescription || '-'}</div>
+                <div className="text-orange-700/80 break-words">{request.goods || '-'}</div>
               </div>
             </div>
           </div>

@@ -1,6 +1,8 @@
 'use client';
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
+import { createPortal } from 'react-dom';
 import ApplicantSidebar from '../components/ApplicantSidebar';
 import { useForm } from 'react-hook-form';
 import { createUsageRequest, type CreateUsageRequestDto } from '../../Transport/services/usageService';
@@ -25,14 +27,25 @@ type FormValues = CreateUsageRequestDto & {
   officerPhone?: string;
 };
 
+const REQUESTS_ROUTE = '/Akeel/Applicant/MyRequests';
+
+/* shared phone sanitizer */
+const cleanPhone = (p?: string) =>
+  (p ?? '')
+    .replace(/[^\d+()\-\s./]/g, '') // allow digits + ( ) - / . and spaces
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
 export default function ApplicantNewRequestPage() {
+  const router = useRouter();
+
   const {
     register, handleSubmit, reset, setValue, watch,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     defaultValues: {
       applicantName: '',
-      employeeId: '',               // hidden, filled from localStorage
+      employeeId: '',
       department: '',
       dateOfTravel: todayUtc(),
       timeFrom: '',
@@ -49,42 +62,41 @@ export default function ApplicantNewRequestPage() {
   });
 
   const withOfficer = watch('travelWithOfficer');
-
-  const [msg, setMsg] = React.useState<string | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
 
-  // Fill hidden employeeId from storage
+  // confirmation modal state
+  const [confirm, setConfirm] = React.useState<{ code: string; when: string } | null>(null);
+  const redirectTimer = React.useRef<NodeJS.Timeout | null>(null);
+
   React.useEffect(() => {
     const eid = getStoredEmpId();
     if (eid) setValue('employeeId', eid);
   }, [setValue]);
 
   const onSubmit = async (data: FormValues) => {
-    setMsg(null); setErr(null);
+    setErr(null);
     try {
       if (data.timeFrom === data.timeTo) throw new Error('timeFrom must differ from timeTo');
 
       const { travelWithOfficer, officerName, officerId, officerPhone, ...base } = data;
 
-      // Append officer details to description (until backend supports dedicated fields)
       let officialDescription = (base.officialDescription || '').trim();
       if (travelWithOfficer) {
+        const p = cleanPhone(officerPhone);
         const officerLine =
-          `Travelling Officer: ${officerName || '-'}${officerId ? ` (Employee ID: ${officerId})` : ''}${officerPhone ? `, Phone: ${officerPhone}` : ''}`;
+          `Travelling Officer: ${officerName || '-'}${officerId ? ` (Employee ID: ${officerId})` : ''}${p ? `, Phone: ${p}` : ''}`;
         officialDescription = officialDescription ? `${officialDescription}\n${officerLine}` : officerLine;
       }
 
       const payload: CreateUsageRequestDto = { ...base, officialDescription };
       const saved = await createUsageRequest(payload);
 
-      // Keep employee id in storage for future requests
       if (typeof window !== 'undefined' && base.employeeId) {
         localStorage.setItem('employeeId', base.employeeId);
         localStorage.setItem('actor', base.employeeId);
         localStorage.setItem('role', 'APPLICANT');
       }
 
-      setMsg(`Request ${saved.requestCode} submitted.`);
       reset({
         ...data,
         timeFrom: '',
@@ -98,8 +110,15 @@ export default function ApplicantNewRequestPage() {
         officerId: '',
         officerPhone: '',
       });
+
+      const code = saved?.requestCode || '—';
+      setConfirm({ code, when: new Date().toLocaleString() });
+
+      redirectTimer.current = setTimeout(() => {
+        router.push(REQUESTS_ROUTE);
+      }, 2000);
     } catch (e: any) {
-      setErr(e.message || 'Failed to save');
+      setErr(e?.message || 'Failed to save');
     }
   };
 
@@ -107,20 +126,32 @@ export default function ApplicantNewRequestPage() {
   const errCls = (b: boolean) =>
     `w-full border rounded px-3 py-2 text-[13px] ${b ? 'border-red-500' : 'border-orange-200'}`;
 
+  const closeModal = () => {
+    if (redirectTimer.current) { clearTimeout(redirectTimer.current); redirectTimer.current = null; }
+    setConfirm(null);
+  };
+
+  const goNow = () => {
+    if (redirectTimer.current) { clearTimeout(redirectTimer.current); redirectTimer.current = null; }
+    router.push(REQUESTS_ROUTE);
+  };
+
   return (
     <div className="flex min-h-screen bg-orange-50">
       <ApplicantSidebar />
-      <main className="p-4 flex-1">
+
+      <main className="p-4 flex-1 text-[13px]">
         <h1 className="text-base md:text-lg font-bold text-orange-900 mb-2">New Vehicle Request</h1>
 
-        {/* hidden employeeId field (kept for submission) */}
         <input type="hidden" {...register('employeeId', { required: true })} />
 
-        {msg && <div className="mb-3 text-xs md:text-sm rounded bg-green-50 border border-green-200 text-green-800 px-3 py-2">{msg}</div>}
-        {err && <div className="mb-3 text-xs md:text-sm rounded bg-red-50 border border-red-200 text-red-800 px-3 py-2">{err}</div>}
+        {err && (
+          <div className="mb-3 text-xs md:text-sm rounded bg-red-50 border border-red-200 text-red-800 px-3 py-2">
+            {err}
+          </div>
+        )}
 
         <form className="bg-white rounded-xl border border-orange-200 p-4 md:p-5 space-y-4" onSubmit={handleSubmit(onSubmit)}>
-          {/* Applicant (Employee ID removed from UI) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
             <div>
               {L('Applicant Name *')}
@@ -132,7 +163,6 @@ export default function ApplicantNewRequestPage() {
             </div>
           </div>
 
-          {/* Dates & Times */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-4">
             <div>
               {L('Date of Travel *')}
@@ -151,7 +181,6 @@ export default function ApplicantNewRequestPage() {
             </div>
           </div>
 
-          {/* Route */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
             <div>
               {L('From Location *')}
@@ -163,7 +192,6 @@ export default function ApplicantNewRequestPage() {
             </div>
           </div>
 
-          {/* Purpose / Goods */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
             <div>
               {L('Official Trip Description')}
@@ -175,7 +203,6 @@ export default function ApplicantNewRequestPage() {
             </div>
           </div>
 
-          {/* Travelling Officer */}
           <div className="border border-orange-200 rounded-lg p-3 md:p-4 bg-orange-50/40">
             <label className="flex items-center gap-2 text-sm text-orange-900 font-medium">
               <input type="checkbox" {...register('travelWithOfficer')} />
@@ -197,13 +224,23 @@ export default function ApplicantNewRequestPage() {
                 </div>
                 <div>
                   {L('Travelling Officer Phone')}
-                  <input className={errCls(false)} {...register('officerPhone', { maxLength: 20 })} />
+                  <input
+                    inputMode="tel"
+                    placeholder="e.g., +974 5555 1234"
+                    className={errCls(!!errors.officerPhone)}
+                    {...register('officerPhone', {
+                      maxLength: { value: 25, message: 'Too long' },
+                      pattern: { value: /^[0-9+()\-\s/.]{7,25}$/, message: 'Use digits, + ( ) - / . and spaces only' },
+                    })}
+                  />
+                  {errors.officerPhone && (
+                    <div className="mt-1 text-[11px] text-red-600">{String(errors.officerPhone.message)}</div>
+                  )}
                 </div>
               </div>
             )}
           </div>
 
-          {/* Actions */}
           <div className="flex justify-end gap-2 pt-2">
             <button type="reset" className="px-3 md:px-4 py-2 rounded border text-[13px]">Clear</button>
             <button type="submit" disabled={isSubmitting} className="px-3 md:px-4 py-2 rounded bg-orange-600 text-white disabled:opacity-60 text-[13px]">
@@ -212,6 +249,57 @@ export default function ApplicantNewRequestPage() {
           </div>
         </form>
       </main>
+
+      {/* Confirmation Modal */}
+      {confirm ? createPortal(
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-3"
+          role="dialog"
+          aria-modal
+          onClick={closeModal}
+        >
+          <div
+            className="w-full max-w-md rounded-xl bg-white shadow-xl border border-orange-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 border-b bg-orange-50">
+              <h3 className="text-[14px] font-bold text-orange-900">Request Submitted</h3>
+            </div>
+            <div className="p-4 text-[13px] space-y-2">
+              <div>
+                Your request has been submitted successfully.
+              </div>
+              <div className="text-sm">
+                <span className="text-gray-600">Request Code:</span>{' '}
+                <span className="font-semibold text-orange-900">{confirm.code}</span>
+              </div>
+              <div className="text-xs text-gray-600">Submitted at {confirm.when}</div>
+              <div className="pt-2 text-xs text-gray-500">
+                You’ll be taken to your Requests list shortly.
+              </div>
+            </div>
+            <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
+              <button
+                type="button"
+                className="px-3 py-1.5 rounded border text-[12px]"
+                onClick={closeModal}
+                title="Stay on this page"
+              >
+                Stay here
+              </button>
+              <button
+                type="button"
+                className="px-3 py-1.5 rounded bg-orange-600 text-white text-[12px] hover:bg-orange-700"
+                onClick={goNow}
+                title="Go to Requests now"
+              >
+                Go to My Requests
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      ) : null}
     </div>
   );
 }

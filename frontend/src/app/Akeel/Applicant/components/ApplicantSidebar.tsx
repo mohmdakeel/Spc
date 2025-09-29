@@ -1,11 +1,10 @@
 'use client';
 
 import React from 'react';
-import { Home, PlusCircle, ListChecks, Printer, Search, Car } from 'lucide-react';
+import { Home, PlusCircle, ListChecks, MapPin, Car } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 
 export default function ApplicantSidebar() {
-  const [collapsed, setCollapsed] = React.useState(false);
   const router = useRouter();
   const path = usePathname();
   const go = (p: string) => router.push(p);
@@ -14,35 +13,34 @@ export default function ApplicantSidebar() {
   const Item = ({ label, icon, to }: { label: string; icon: React.ReactNode; to: string }) => (
     <button
       onClick={() => go(to)}
-      className={`w-full px-3 py-2 rounded flex items-center gap-2 ${
-        is(to) ? 'bg-orange-600 text-white' : 'hover:bg-orange-200'
+      className={`w-full px-3 py-2 rounded flex items-center gap-2 text-sm ${
+        is(to) ? 'bg-orange-600 text-white' : 'hover:bg-orange-200 text-orange-900'
       }`}
     >
       {icon}
-      {!collapsed && label}
+      <span className="truncate">{label}</span>
     </button>
   );
 
   return (
-    <aside className={`${collapsed ? 'w-20' : 'w-64'} h-screen bg-orange-100 p-4 transition-all`}>
+    <aside
+      className="
+        w-[280px] min-w-[280px] shrink-0
+        h-screen sticky top-0
+        bg-orange-100 p-4
+        border-r border-orange-200
+      "
+    >
       <div className="flex items-center gap-2 mb-6">
         <Car className="text-orange-600" />
-        {!collapsed && <h1 className="font-bold">SPC Transport</h1>}
+        <h1 className="font-bold text-base text-orange-900">SPC Transport</h1>
       </div>
 
-      <button
-        onClick={() => setCollapsed((c) => !c)}
-        className="mb-4 w-full bg-orange-200 rounded py-2 text-sm"
-      >
-        {collapsed ? 'Expand' : 'Collapse'}
-      </button>
-
       <nav className="space-y-1">
-        <Item label="Dashboard" icon={<Home size={18} />} to="/Akeel/Applicant" />
-        <Item label="New Request" icon={<PlusCircle size={18} />} to="/Akeel/Applicant/NewRequest" />
-        <Item label="My Requests" icon={<ListChecks size={18} />} to="/Akeel/Applicant/MyRequests" />
-        {/* <Item label="Print Slip" icon={<Printer size={18} />} to="/Akeel/Applicant/PrintSlip" />
-        <Item label="Search Requests" icon={<Search size={18} />} to="/Akeel/Applicant/Search" /> */}
+        <Item label="Dashboard"     icon={<Home size={18} />}       to="/Akeel/Applicant" />
+        <Item label="New Request"   icon={<PlusCircle size={18} />} to="/Akeel/Applicant/NewRequest" />
+        <Item label="Requests"      icon={<ListChecks size={18} />} to="/Akeel/Applicant/MyRequests" />
+        <Item label="Track Request" icon={<MapPin size={18} />}     to="/Akeel/Applicant/Track" />
       </nav>
     </aside>
   );
