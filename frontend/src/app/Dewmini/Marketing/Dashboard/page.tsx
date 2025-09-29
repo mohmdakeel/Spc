@@ -1,8 +1,15 @@
 // src/app/Dewmini/Marketing/Dashboard/page.tsx
 import Link from "next/link";
 
+type Card = {
+  title: string;
+  description: string;
+  emoji: string;
+  link?: string; // make it optional
+};
+
 export default function DashboardPage() {
-  const cards = [
+  const cards: Card[] = [
     {
       title: "Transport",
       description: "Manage vehicles, drivers, and routes",
@@ -12,13 +19,13 @@ export default function DashboardPage() {
     {
       title: "Marketing",
       description: "Handle campaigns and analytics",
-      link: "/akee/marketing", // keep or update to your real route
+      link: "/akee/marketing",
       emoji: "📊",
     },
     {
       title: "Dewmini Marketing",
       description: "Manage Dewmini campaigns and analytics",
-      link: "",
+      // link omitted until route exists
       emoji: "📈",
     },
   ];
@@ -33,18 +40,32 @@ export default function DashboardPage() {
       </header>
 
       <section className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 max-w-5xl mx-auto">
-        {cards.map((card) => (
-          <Link key={card.title} href={card.link} className="group block">
+        {cards.map((card) => {
+          const CardBody = (
             <div className="p-6 bg-white rounded-xl shadow-sm ring-1 ring-gray-200 hover:shadow-md hover:ring-gray-300 transition">
               <div className="text-5xl mb-4">{card.emoji}</div>
               <h2 className="text-xl font-semibold">{card.title}</h2>
               <p className="text-gray-600 mt-1">{card.description}</p>
               <div className="mt-4 text-sm text-[#FF6B35] font-medium group-hover:underline">
-                Go to {card.title} →
+                {card.link ? `Go to ${card.title} →` : "Coming soon"}
               </div>
             </div>
-          </Link>
-        ))}
+          );
+
+          return card.link ? (
+            <Link key={card.title} href={card.link} className="group block">
+              {CardBody}
+            </Link>
+          ) : (
+            <div
+              key={card.title}
+              className="group block opacity-60 pointer-events-none"
+              aria-disabled="true"
+            >
+              {CardBody}
+            </div>
+          );
+        })}
       </section>
     </main>
   );
