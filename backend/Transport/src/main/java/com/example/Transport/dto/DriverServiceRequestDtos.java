@@ -1,10 +1,13 @@
 package com.example.Transport.dto;
 
 import com.example.Transport.enums.HrApprovalStatus;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.*;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+
+import java.time.LocalDate;
 import java.util.Date;
 import java.util.List;
 
@@ -17,7 +20,9 @@ public class DriverServiceRequestDtos {
 
         @NotBlank private String epf;
         private String driverName;
-        @NotNull private Date requestDate;
+
+        @JsonFormat(pattern = "yyyy-MM-dd")
+        @NotNull private LocalDate requestDate;
 
         private List<String> servicesNeeded;
 
@@ -47,7 +52,10 @@ public class DriverServiceRequestDtos {
         private String vehicleNumber;
         private String driverName;
         private String epf;
-        private Date requestDate;
+
+        @JsonFormat(pattern = "yyyy-MM-dd")
+        @NotNull private LocalDate requestDate;
+
         private List<String> servicesNeeded;
         private Long lastServiceReadingKm;
         private Long nextServiceReadingKm;

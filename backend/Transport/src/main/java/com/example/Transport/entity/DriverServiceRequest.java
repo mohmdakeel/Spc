@@ -1,9 +1,11 @@
 package com.example.Transport.entity;
 
 import com.example.Transport.enums.HrApprovalStatus;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDate;
 import java.util.Date;
 import java.util.List;
 
@@ -29,9 +31,10 @@ public class DriverServiceRequest {
     @Column(name = "epf", nullable = false)
     private String epf;
 
-    @Temporal(TemporalType.DATE)
-    private Date requestDate;
 
+
+    @Column(name = "request_date")
+    private LocalDate requestDate;
     /** simple list of requested services; could be normalized later */
     @ElementCollection
     @CollectionTable(name = "driver_service_request_items",
