@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface VehicleRepository extends JpaRepository<Vehicle, Long> {
 
@@ -39,4 +40,6 @@ public interface VehicleRepository extends JpaRepository<Vehicle, Long> {
         """)
     List<Vehicle> findDueByOdometer(@Param("intervalKm") long intervalKm,
                                     @Param("windowKm") long windowKm);
+
+    Optional<Vehicle> findByVehicleNumberAndIsDeleted(String vehicleNumber, Integer isDeleted);
 }

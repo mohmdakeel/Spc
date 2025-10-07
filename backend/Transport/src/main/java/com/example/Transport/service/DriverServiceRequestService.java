@@ -16,6 +16,8 @@ import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class DriverServiceRequestService {
@@ -24,21 +26,24 @@ public class DriverServiceRequestService {
     private final VehicleRepository vehicleRepo;
     private final ServiceCandidateRepository candidateRepo;
 
+    @Transactional(readOnly = true)
     public Page<DriverServiceRequestDtos.Response> list(int page, int size) {
-        Pageable p = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        return dsrRepo.findAll(p).map(this::toDto);
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        // IMPORTANT: use the graph so vehicle/servicesNeeded load
+        Page<DriverServiceRequest> requests = dsrRepo.findAllWithGraph(pageable);
+        return requests.map(this::toDto);
     }
 
+    @Transactional(readOnly = true)
     public DriverServiceRequestDtos.Response get(Long id) {
-        return dsrRepo.findById(id).map(this::toDto)
+        var r = dsrRepo.findByIdWithGraph(id)
                 .orElseThrow(() -> new BadRequestException("DriverServiceRequest not found: " + id));
+        return toDto(r);
     }
 
     @Transactional
     public DriverServiceRequestDtos.Response create(DriverServiceRequestDtos.CreateRequest req, String actor) {
-        Vehicle v = vehicleRepo.findAll().stream()
-                .filter(x -> x.getIsDeleted() == 0 && req.getVehicleNumber().equalsIgnoreCase(x.getVehicleNumber()))
-                .findFirst()
+        Vehicle v = vehicleRepo.findByVehicleNumberAndIsDeleted(req.getVehicleNumber(), 0)
                 .orElseThrow(() -> new BadRequestException("Active vehicle not found: " + req.getVehicleNumber()));
 
         var dsr = DriverServiceRequest.builder()
@@ -59,7 +64,7 @@ public class DriverServiceRequestService {
 
         var saved = dsrRepo.save(dsr);
 
-        // Add ServiceCandidate if not already ACTIVE
+        // Create ACTIVE ServiceCandidate if none exists
         boolean exists = candidateRepo.existsByVehicle_IdAndStatus(v.getId(), ServiceCandidateStatus.ACTIVE);
         if (!exists) {
             candidateRepo.save(
@@ -79,7 +84,7 @@ public class DriverServiceRequestService {
 
     @Transactional
     public DriverServiceRequestDtos.Response update(Long id, DriverServiceRequestDtos.UpdateRequest req, String actor) {
-        var dsr = dsrRepo.findById(id)
+        var dsr = dsrRepo.findByIdWithGraph(id)
                 .orElseThrow(() -> new BadRequestException("DriverServiceRequest not found: " + id));
 
         if (req.getServicesNeeded() != null) dsr.setServicesNeeded(req.getServicesNeeded());
@@ -99,10 +104,10 @@ public class DriverServiceRequestService {
             boolean exists = candidateRepo.existsByVehicle_IdAndStatus(v.getId(), ServiceCandidateStatus.ACTIVE);
             if (!exists) {
                 candidateRepo.save(
-                        com.example.Transport.entity.ServiceCandidate.builder()
+                        ServiceCandidate.builder()
                                 .vehicle(v)
-                                .source(com.example.Transport.enums.ServiceCandidateSource.HR_REQUEST)
-                                .status(com.example.Transport.enums.ServiceCandidateStatus.ACTIVE)
+                                .source(ServiceCandidateSource.HR_REQUEST)
+                                .status(ServiceCandidateStatus.ACTIVE)
                                 .reason("HR approved DSR #" + saved.getId())
                                 .notes("Auto-added on HR approval")
                                 .createdBy(actor == null ? "system" : actor)
@@ -116,12 +121,34 @@ public class DriverServiceRequestService {
 
     @Transactional
     public void delete(Long id) {
-        // Hard delete is fine for requests (or you can soft-delete, your call)
-        if (!dsrRepo.existsById(id)) throw new BadRequestException("DriverServiceRequest not found: " + id);
+        if (!dsrRepo.existsById(id))
+            throw new BadRequestException("DriverServiceRequest not found: " + id);
         dsrRepo.deleteById(id);
     }
 
+    /* ===== Query helpers used by controller ===== */
+
+    @Transactional(readOnly = true)
+    public List<DriverServiceRequestDtos.Response> getByEpf(String epf) {
+        return dsrRepo.findByEpf(epf).stream().map(this::toDto).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<DriverServiceRequestDtos.Response> getByVehicleNumber(String vehicleNumber) {
+        return dsrRepo.findByVehicle_VehicleNumber(vehicleNumber).stream().map(this::toDto).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<DriverServiceRequestDtos.Response> getByEpfAndVehicleNumber(String epf, String vehicleNumber) {
+        return dsrRepo.findByEpfAndVehicle_VehicleNumber(epf, vehicleNumber).stream().map(this::toDto).toList();
+    }
+
+    /* ===== mapper ===== */
+
     private DriverServiceRequestDtos.Response toDto(DriverServiceRequest r) {
+        // (EntityGraph already loads relations; size() is defensive)
+        if (r.getServicesNeeded() != null) r.getServicesNeeded().size();
+
         return DriverServiceRequestDtos.Response.builder()
                 .id(r.getId())
                 .vehicleId(r.getVehicle().getId())
