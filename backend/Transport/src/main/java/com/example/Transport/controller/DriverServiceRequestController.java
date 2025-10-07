@@ -9,6 +9,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/driver-service-requests")
 @RequiredArgsConstructor
@@ -26,6 +28,25 @@ public class DriverServiceRequestController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<DriverServiceRequestDtos.Response>> get(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(service.get(id)));
+    }
+
+    /* ===== NEW: Query helpers ===== */
+
+    @GetMapping("/by-epf/{epf}")
+    public ResponseEntity<ApiResponse<List<DriverServiceRequestDtos.Response>>> getByEpf(@PathVariable String epf) {
+        return ResponseEntity.ok(ApiResponse.success(service.getByEpf(epf)));
+    }
+
+    @GetMapping("/by-vehicle/{vehicleNumber}")
+    public ResponseEntity<ApiResponse<List<DriverServiceRequestDtos.Response>>> getByVehicle(@PathVariable String vehicleNumber) {
+        return ResponseEntity.ok(ApiResponse.success(service.getByVehicleNumber(vehicleNumber)));
+    }
+
+    @GetMapping("/by-epf-and-vehicle")
+    public ResponseEntity<ApiResponse<List<DriverServiceRequestDtos.Response>>> getByEpfAndVehicle(
+            @RequestParam String epf,
+            @RequestParam String vehicleNumber) {
+        return ResponseEntity.ok(ApiResponse.success(service.getByEpfAndVehicleNumber(epf, vehicleNumber)));
     }
 
     @PostMapping
