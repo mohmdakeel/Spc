@@ -60,3 +60,11 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
+
+@layer base {
+  /* Set default text color to black globally */
+  body {
+    color: #000;
+    opacity: 1
+  }
+}
