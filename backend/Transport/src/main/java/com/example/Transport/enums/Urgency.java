@@ -1,4 +1,3 @@
 package com.example.Transport.enums;
 
-public class Urgency {
-}
+public enum Urgency { IMMEDIATE, NORMAL }
