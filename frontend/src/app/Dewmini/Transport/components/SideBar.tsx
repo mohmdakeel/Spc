@@ -287,7 +287,7 @@ const Sidebar: React.FC<PropsWithChildren> = ({ children }) => {
               type="button"
               onClick={() => go('/Dewmini/Transport/Admin/ServiceCandidates')}
               className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
-                isActive('/Akeel/Transport/Maintenance/Log')
+                isActive('/Dewmini/Transport/Admin/ServiceCandidates')
                   ? 'bg-orange-600 text-white'
                   : 'text-black hover:text-white hover:bg-orange-500'
               }`}
