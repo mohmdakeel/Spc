@@ -1,4 +1,5 @@
 'use client';
+
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'react-toastify';
@@ -13,8 +14,7 @@ import {
   Plus,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-// 1. ADDED IMPORT FOR SIDEBAR
-import Sidebar from '../../components/SideBar'; 
+import Sidebar from '../../components/SideBar';
 
 type HrApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 type DSR = {
@@ -36,19 +36,50 @@ type DSR = {
 };
 
 const ITEMS_PER_PAGE = 10;
-
-// Routes you asked for
 const CREATE_URL = '/Dewmini/Transport/Admin/DriverServiceRequestForm';
 const EDIT_URL = '/Dewmini/Transport/Admin/DriverServiceRequestEditForm';
+
+type FilterMode = 'vehicleNumber' | 'driverName' | 'requestDate';
+
+/** Highlight helper: wraps q matches inside str with orange pills */
+function HL({ str, q }: { str?: string | number; q: string }) {
+  const s = (str ?? '').toString();
+  const query = q.trim();
+  if (!query) return <>{s || '-'}</>;
+  const lower = s.toLowerCase();
+  const ql = query.toLowerCase();
+
+  const parts: React.ReactNode[] = [];
+  let i = 0;
+  while (true) {
+    const idx = lower.indexOf(ql, i);
+    if (idx === -1) {
+      parts.push(s.slice(i));
+      break;
+    }
+    if (idx > i) parts.push(s.slice(i, idx));
+    parts.push(
+      <span key={idx} className="bg-orange-100 text-orange-700 rounded px-1">
+        {s.slice(idx, idx + query.length)}
+      </span>
+    );
+    i = idx + query.length;
+  }
+  return <>{parts.length ? parts : '-'}</>;
+}
 
 export default function DriverServiceRequestsPage() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<DSR[]>([]);
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
 
+  // ===== FILTER TOOLBAR STATE =====
+  const [filterMode, setFilterMode] = useState<FilterMode>('vehicleNumber');
+  const [filterQuery, setFilterQuery] = useState<string>(''); // for text or date value
+  const [activeFilter, setActiveFilter] = useState<{ mode: FilterMode; query: string } | null>(null);
+
+  const [page, setPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<DSR | null>(null);
 
   const loadRequests = async () => {
@@ -71,34 +102,48 @@ export default function DriverServiceRequestsPage() {
     loadRequests();
   }, []);
 
-  // Filtered by search
+  // ===== APPLY/CLEAR FILTER =====
+  const handleApplyFilter = () => {
+    const q = filterQuery.trim();
+    if (!q) {
+      setActiveFilter(null);
+      return;
+    }
+    setActiveFilter({ mode: filterMode, query: q });
+    setPage(1);
+  };
+
+  const handleClearFilter = () => {
+    setFilterQuery('');
+    setActiveFilter(null);
+    setPage(1);
+  };
+
+  // ===== FILTERED DATA =====
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return requests;
-    return requests.filter(r =>
-      [
-        r.id,
-        r.vehicleNumber,
-        r.driverName,
-        r.epf,
-        r.requestDate,
-        r.lastServiceReadingKm,
-        r.nextServiceReadingKm,
-        r.currentReadingKm,
-        r.adviceByVehicleOfficer,
-        r.adviceByMechanic,
-        r.hrApproval,
-        ...(r.servicesNeeded ?? []),
-      ]
-        .join(' ')
-        .toLowerCase()
-        .includes(q)
-    );
-  }, [requests, search]);
+    if (!activeFilter) return requests;
+
+    const q = activeFilter.query.toLowerCase();
+    switch (activeFilter.mode) {
+      case 'vehicleNumber':
+        return requests.filter((r) => (r.vehicleNumber ?? '').toLowerCase().includes(q));
+      case 'driverName':
+        return requests.filter((r) => (r.driverName ?? '').toLowerCase().includes(q));
+      case 'requestDate': {
+        // Exact day or startsWith to allow month filtering (e.g., "2025-10")
+        return requests.filter((r) => {
+          const v = (r.requestDate ?? '').trim();
+          return v === activeFilter.query || v.startsWith(activeFilter.query);
+        });
+      }
+      default:
+        return requests;
+    }
+  }, [requests, activeFilter]);
 
   useEffect(() => {
     setPage(1);
-  }, [search]);
+  }, [filterMode]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const start = (page - 1) * ITEMS_PER_PAGE;
@@ -124,13 +169,8 @@ export default function DriverServiceRequestsPage() {
   const fmtDate = (s?: string) => (s ? new Date(s).toLocaleDateString() : '-');
 
   return (
-    // REMOVED THE UNNECESSARY OUTER DIV AND KEPT ONLY THE SIDEBAR WRAPPER
-    <Sidebar> 
-      {/* This div is the content that goes into the <main> tag of the Sidebar component.
-        It needs to ensure it takes up the minimum height of the screen to push the
-        page footer (if any) down, but the overall screen-filling is handled by Sidebar.
-      */}
-      <div className="w-full min-h-screen p-3 sm:p-4 bg-gray-50"> 
+    <Sidebar>
+      <div className="w-full min-h-screen p-3 sm:p-4 bg-gray-50">
         <div className="bg-white rounded-xl shadow-md p-3 sm:p-4">
           <div className="flex items-center mb-3 sm:mb-4">
             <button
@@ -164,14 +204,78 @@ export default function DriverServiceRequestsPage() {
             </div>
           </div>
 
-          {/* Search */}
-          <input
-            type="text"
-            className="border border-gray-300 rounded px-2 py-1 w-full mb-4 text-gray-900"
-            placeholder="Search by vehicle, driver, EPF, services…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+          {/* ===== FILTER TOOLBAR ===== */}
+          <div className="border border-orange-100 rounded-lg p-3 bg-orange-50/40 mb-4">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Mode selector */}
+              <div className="inline-flex rounded-lg overflow-hidden border border-orange-200">
+                {([
+                  { k: 'vehicleNumber', label: 'Vehicle No' },
+                  { k: 'driverName', label: 'Driver' },
+                  { k: 'requestDate', label: 'Request Date' },
+                ] as { k: FilterMode; label: string }[]).map(({ k, label }) => {
+                  const active = filterMode === k;
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setFilterMode(k)}
+                      className={`px-3 py-1.5 text-sm ${
+                        active
+                          ? 'bg-orange-600 text-white'
+                          : 'bg-white text-orange-700 hover:bg-orange-100'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Query control */}
+              {filterMode === 'requestDate' ? (
+                <input
+                  type="date"
+                  value={filterQuery}
+                  onChange={(e) => setFilterQuery(e.target.value)}
+                  className="border border-orange-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-200"
+                />
+              ) : (
+                <input
+                  type="text"
+                  value={filterQuery}
+                  onChange={(e) => setFilterQuery(e.target.value)}
+                  placeholder={
+                    filterMode === 'vehicleNumber'
+                      ? 'Search vehicle e.g., SPC-2025'
+                      : 'Search driver name'
+                  }
+                  className="border border-orange-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-200 flex-1 min-w-[12rem]"
+                />
+              )}
+
+              <button
+                type="button"
+                onClick={handleApplyFilter}
+                className="px-3 py-2 text-sm rounded-lg bg-orange-600 text-white hover:bg-orange-700"
+              >
+                Search
+              </button>
+              <button
+                type="button"
+                onClick={handleClearFilter}
+                className="px-3 py-2 text-sm rounded-lg bg-white text-orange-700 border border-orange-200 hover:bg-orange-100"
+              >
+                Clear
+              </button>
+
+              {activeFilter && (
+                <span className="text-xs text-orange-700 ml-1">
+                  Filtering by <b>{activeFilter.mode}</b>: “{activeFilter.query}”
+                </span>
+              )}
+            </div>
+          </div>
 
           {/* Table */}
           {loading ? (
@@ -199,61 +303,99 @@ export default function DriverServiceRequestsPage() {
                 </thead>
                 <tbody>
                   {rows.length > 0 ? (
-                    rows.map((r, i) => (
-                      <tr key={r.id} className="bg-gray-50 text-gray-900 hover:bg-orange-100 transition-colors">
-                        <td className="border px-2 py-1 text-center text-xs">{start + i + 1}</td>
-                        <td className="border px-2 py-1 text-xs font-medium">{fmt(r.vehicleNumber)}</td>
-                        <td className="border px-2 py-1 text-xs">{fmt(r.driverName)}</td>
-                        <td className="border px-2 py-1 text-xs">{fmt(r.epf)}</td>
-                        <td className="border px-2 py-1 text-xs">{fmtDate(r.requestDate)}</td>
-                        <td className="border px-2 py-1 text-xs">
-                          {r.servicesNeeded?.length ? r.servicesNeeded.join(', ') : '-'}
-                        </td>
-                        <td className="border px-2 py-1 text-xs">
-                          {fmt(r.lastServiceReadingKm)} / {fmt(r.nextServiceReadingKm)} / {fmt(r.currentReadingKm)}
-                        </td>
-                        <td className="border px-2 py-1 text-xs">{fmt(r.adviceByVehicleOfficer)}</td>
-                        <td className="border px-2 py-1 text-xs">{fmt(r.adviceByMechanic)}</td>
-                        <td className="border px-2 py-1 text-xs">
-                          <span
-                            className={`px-2 py-0.5 rounded text-[11px] ${
-                              r.hrApproval === 'APPROVED'
-                                ? 'bg-green-100 text-green-700'
-                                : r.hrApproval === 'REJECTED'
-                                ? 'bg-red-100 text-red-700'
-                                : 'bg-yellow-100 text-yellow-700'
-                            }`}
-                          >
-                            {r.hrApproval}
-                          </span>
-                        </td>
-                        <td className="border px-2 py-1 text-xs text-center">
-                          <button
-                            onClick={() => toast.info('Hook to history')}
-                            className="px-1 text-orange-600 hover:text-orange-800"
-                            title="History"
-                          >
-                            <HistoryIcon size={14} />
-                          </button>
+                    rows.map((r, i) => {
+                      const isFiltered = !!activeFilter;
+                      return (
+                        <tr
+                          key={r.id}
+                          className={`bg-gray-50 text-gray-900 hover:bg-orange-100 transition-colors ${
+                            isFiltered ? '' : ''
+                          }`}
+                        >
+                          <td className="border px-2 py-1 text-center text-xs">{start + i + 1}</td>
 
-                          <Link
-                            href={`${EDIT_URL}?id=${r.id}`}
-                            className="px-1 text-green-600 hover:text-green-800 inline-flex"
-                            title="Edit"
-                          >
-                            <Edit size={14} />
-                          </Link>
+                          {/* Vehicle cell with highlight when filtering by vehicleNumber */}
+                          <td className="border px-2 py-1 text-xs font-medium">
+                            {activeFilter?.mode === 'vehicleNumber' ? (
+                              <HL str={r.vehicleNumber} q={activeFilter.query} />
+                            ) : (
+                              fmt(r.vehicleNumber)
+                            )}
+                          </td>
 
-                          <button
-                            onClick={() => setDeleteTarget(r)}
-                            className="px-1 text-red-600 hover:text-red-800"
-                            title="Delete"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                          {/* Driver cell with highlight when filtering by driverName */}
+                          <td className="border px-2 py-1 text-xs">
+                            {activeFilter?.mode === 'driverName' ? (
+                              <HL str={r.driverName} q={activeFilter.query} />
+                            ) : (
+                              fmt(r.driverName)
+                            )}
+                          </td>
+
+                          <td className="border px-2 py-1 text-xs">{fmt(r.epf)}</td>
+
+                          {/* Request date cell with highlight when filtering by requestDate */}
+                          <td className="border px-2 py-1 text-xs">
+                            {activeFilter?.mode === 'requestDate' ? (
+                              <HL str={r.requestDate} q={activeFilter.query} />
+                            ) : (
+                              fmtDate(r.requestDate)
+                            )}
+                          </td>
+
+                          <td className="border px-2 py-1 text-xs">
+                            {r.servicesNeeded?.length ? r.servicesNeeded.join(', ') : '-'}
+                          </td>
+
+                          <td className="border px-2 py-1 text-xs">
+                            {fmt(r.lastServiceReadingKm)} / {fmt(r.nextServiceReadingKm)} / {fmt(r.currentReadingKm)}
+                          </td>
+
+                          <td className="border px-2 py-1 text-xs">{fmt(r.adviceByVehicleOfficer)}</td>
+                          <td className="border px-2 py-1 text-xs">{fmt(r.adviceByMechanic)}</td>
+
+                          <td className="border px-2 py-1 text-xs">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[11px] ${
+                                r.hrApproval === 'APPROVED'
+                                  ? 'bg-green-100 text-green-700'
+                                  : r.hrApproval === 'REJECTED'
+                                  ? 'bg-red-100 text-red-700'
+                                  : 'bg-yellow-100 text-yellow-700'
+                              }`}
+                            >
+                              {r.hrApproval}
+                            </span>
+                          </td>
+
+                          <td className="border px-2 py-1 text-xs text-center">
+                            <button
+                              onClick={() => toast.info('Hook to history')}
+                              className="px-1 text-orange-600 hover:text-orange-800"
+                              title="History"
+                            >
+                              <HistoryIcon size={14} />
+                            </button>
+
+                            <Link
+                              href={`${EDIT_URL}?id=${r.id}`}
+                              className="px-1 text-green-600 hover:text-green-800 inline-flex"
+                              title="Edit"
+                            >
+                              <Edit size={14} />
+                            </Link>
+
+                            <button
+                              onClick={() => setDeleteTarget(r)}
+                              className="px-1 text-red-600 hover:text-red-800"
+                              title="Delete"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
                       <td colSpan={11} className="text-center py-6 text-gray-700 text-xs bg-gray-50">

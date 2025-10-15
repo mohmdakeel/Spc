@@ -274,18 +274,18 @@ const Sidebar: React.FC<PropsWithChildren> = ({ children }) => {
             </button>
             <button
               type="button"
-              onClick={() => go('/Akeel/Transport/Maintenance/Schedule')}
+              onClick={() => go('/Dewmini/Transport/Admin/DriverServiceRequests')}
               className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
                 isActive('/Akeel/Transport/Maintenance/Schedule')
                   ? 'bg-orange-600 text-white'
                   : 'text-black hover:text-white hover:bg-orange-500'
               }`}
             >
-              <CalendarCheck size={16} /> Maintenance Schedule
+              <CalendarCheck size={16} /> Service Candidates
             </button>
             <button
               type="button"
-              onClick={() => go('/Akeel/Transport/Maintenance/Log')}
+              onClick={() => go('/Dewmini/Transport/Admin/ServiceCandidates')}
               className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
                 isActive('/Akeel/Transport/Maintenance/Log')
                   ? 'bg-orange-600 text-white'
