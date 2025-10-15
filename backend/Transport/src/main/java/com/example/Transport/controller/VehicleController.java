@@ -27,6 +27,7 @@ public class VehicleController {
     private final ChangeHistoryRepository historyRepository;
     private final ObjectMapper objectMapper;
 
+
     @GetMapping
     public ResponseEntity<ApiResponse<Page<Vehicle>>> listActive(
             @RequestParam(defaultValue = "0") int page,
