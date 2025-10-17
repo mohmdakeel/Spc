@@ -7,9 +7,9 @@ import com.example.Transport.enums.Department;
 import com.example.Transport.enums.ServiceCandidateSource;
 import com.example.Transport.enums.ServiceCandidateStatus;
 import com.example.Transport.enums.Urgency;
-import com.example.Transport.exception.BadRequestException;
 import com.example.Transport.repository.ServiceCandidateRepository;
 import com.example.Transport.repository.ServiceRequisiteRepository;
+import com.example.Transport.util.HistoryRecorder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,8 +21,9 @@ import java.util.*;
 public class ServiceRequisiteService {
 
     private final ServiceRequisiteRepository srRepo;
-    private final ServiceCandidateService candidateService; // to convert to IN_PROGRESS later if you wish
+    private final ServiceCandidateService candidateService;
     private final ServiceCandidateRepository candidateRepo;
+    private final HistoryRecorder history;
 
     @Transactional
     public ServiceRequisiteDtos.Response createFromDsr(
@@ -31,7 +32,6 @@ public class ServiceRequisiteService {
             ServiceRequisiteDtos.HrApproveRequest req,
             String actor
     ) {
-        // idempotency: if already exists for this DSR, return it
         var existing = srRepo.findByDriverServiceRequestId(dsr.getId()).orElse(null);
         if (existing != null) return toDto(existing);
 
@@ -52,10 +52,12 @@ public class ServiceRequisiteService {
 
         var saved = srRepo.save(sr);
 
-        // Ensure ACTIVE ServiceCandidate exists (idempotent)
+        // 🔹 Record history: HR_APPROVE / CREATE
+        history.record("ServiceRequisite", String.valueOf(saved.getId()), "CREATE_FROM_DSR", null, saved, actor);
+
         boolean exists = candidateRepo.existsByVehicle_IdAndStatus(vehicle.getId(), ServiceCandidateStatus.ACTIVE);
         if (!exists) {
-            candidateRepo.save(
+            var candidate = candidateRepo.save(
                     com.example.Transport.entity.ServiceCandidate.builder()
                             .vehicle(vehicle)
                             .source(ServiceCandidateSource.HR_REQUEST)
@@ -65,6 +67,7 @@ public class ServiceRequisiteService {
                             .createdBy(actor == null ? "system" : actor)
                             .build()
             );
+            history.record("ServiceCandidate", String.valueOf(candidate.getId()), "AUTO_CREATE_FROM_SR", null, candidate, actor);
         }
 
         return toDto(saved);

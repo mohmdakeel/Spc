@@ -7,11 +7,15 @@ export async function fetchRecentHistory(size = 100): Promise<ChangeHistory[]> {
   return list.map(normalizeHistoryDto);
 }
 
-export async function fetchTimeline(entityType: "Vehicle" | "Driver", entityId: string | number): Promise<ChangeHistory[]> {
-  const { data } = await http.get(`/history/${entityType}/${entityId}`);
+export async function fetchTimeline(
+  entityType: "Vehicle" | "DriverServiceRequest" | "ServiceCandidate" | "ServiceRequisite",
+  entityId: string | number
+): Promise<ChangeHistory[]> {
+  const { data } = await http.get(`/api/history/${entityType}/${entityId}`);
   const list = unwrapApi<HistoryRecordDto[]>(data);
   return list.map(normalizeHistoryDto);
 }
+
 
 export async function fetchCompare(historyId: number): Promise<CompareResult> {
   const { data } = await http.get(`/history/compare/${historyId}`);
