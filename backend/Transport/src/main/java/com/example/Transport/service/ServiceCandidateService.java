@@ -8,6 +8,7 @@ import com.example.Transport.enums.ServiceCandidateStatus;
 import com.example.Transport.exception.BadRequestException;
 import com.example.Transport.repository.ServiceCandidateRepository;
 import com.example.Transport.repository.VehicleRepository;
+import com.example.Transport.util.HistoryRecorder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,7 @@ public class ServiceCandidateService {
 
     private final ServiceCandidateRepository candidateRepo;
     private final VehicleRepository vehicleRepo;
+    private final HistoryRecorder history;
 
     /** List ACTIVE by default */
     public Page<ServiceCandidateDtos.Response> list(ServiceCandidateStatus status, int page, int size) {
@@ -32,18 +34,20 @@ public class ServiceCandidateService {
 
     @Transactional
     public ServiceCandidateDtos.Response addFromDriver(ServiceCandidateDtos.CreateRequest req, String actor) {
-        return createCandidate(req, ServiceCandidateSource.DRIVER_REQUEST, actor);
+        var dto = createCandidate(req, ServiceCandidateSource.DRIVER_REQUEST, actor);
+        history.record("ServiceCandidate", String.valueOf(dto.getId()), "CREATE_DRIVER", null, dto, actor);
+        return dto;
     }
 
     @Transactional
     public ServiceCandidateDtos.Response addFromHR(ServiceCandidateDtos.CreateRequest req, String actor) {
-        return createCandidate(req, ServiceCandidateSource.HR_REQUEST, actor);
+        var dto = createCandidate(req, ServiceCandidateSource.HR_REQUEST, actor);
+        history.record("ServiceCandidate", String.valueOf(dto.getId()), "CREATE_HR", null, dto, actor);
+        return dto;
     }
 
-    /** Scan vehicles and create ACTIVE candidates if due by odometer (every 5000 km). */
     @Transactional
     public List<ServiceCandidateDtos.Response> autoDetectDueByOdometer(int intervalKm, int windowKm, String actor) {
-        // Pull all active vehicles (not deleted)
         var vehicles = vehicleRepo.findByIsDeleted(0, Pageable.unpaged()).getContent();
 
         return vehicles.stream()
@@ -58,7 +62,9 @@ public class ServiceCandidateService {
                             .notes("Auto-detected by odometer rule")
                             .createdBy(actor == null ? "system" : actor)
                             .build();
-                    return toDto(candidateRepo.save(sc));
+                    var saved = candidateRepo.save(sc);
+                    history.record("ServiceCandidate", String.valueOf(saved.getId()), "AUTO_CREATE", null, saved, actor);
+                    return toDto(saved);
                 })
                 .toList();
     }
@@ -67,7 +73,6 @@ public class ServiceCandidateService {
         if (v.getTotalKmDriven() == null) return false;
         long km = v.getTotalKmDriven();
         long mod = km % intervalKm;
-        // e.g., due if within first `windowKm` after hitting multiple or already past a multiple
         return mod <= windowKm || mod >= (intervalKm - windowKm);
     }
 
@@ -75,14 +80,24 @@ public class ServiceCandidateService {
     public ServiceCandidateDtos.Response updateStatus(Long id, ServiceCandidateDtos.UpdateStatusRequest req, String actor) {
         var sc = candidateRepo.findById(id)
                 .orElseThrow(() -> new BadRequestException("ServiceCandidate not found: " + id));
+        var before = ServiceCandidate.builder()
+                .id(sc.getId())
+                .vehicle(sc.getVehicle())
+                .status(sc.getStatus())
+                .source(sc.getSource())
+                .reason(sc.getReason())
+                .notes(sc.getNotes())
+                .build();
 
-        // If closing, allow; if moving to IN_PROGRESS, allow; blocking illegal transitions is optional
         sc.setStatus(req.getStatus());
         if (req.getNotes() != null && !req.getNotes().isBlank()) {
             sc.setNotes((sc.getNotes() == null ? "" : sc.getNotes() + "\n") + req.getNotes());
         }
         sc.setUpdatedBy(actor == null ? "system" : actor);
         var saved = candidateRepo.save(sc);
+
+        history.record("ServiceCandidate", String.valueOf(id), "UPDATE_STATUS", before, saved, actor);
+
         return toDto(saved);
     }
 
@@ -102,7 +117,6 @@ public class ServiceCandidateService {
                 .build();
     }
 
-    /** Utility to create with deduping */
     private ServiceCandidateDtos.Response createCandidate(ServiceCandidateDtos.CreateRequest req,
                                                           ServiceCandidateSource forcedSource,
                                                           String actor) {
@@ -125,6 +139,7 @@ public class ServiceCandidateService {
                 .createdBy(actor == null ? "system" : actor)
                 .build();
 
-        return toDto(candidateRepo.save(sc));
+        var saved = candidateRepo.save(sc);
+        return toDto(saved);
     }
 }

@@ -11,6 +11,7 @@ import com.example.Transport.exception.BadRequestException;
 import com.example.Transport.repository.DriverServiceRequestRepository;
 import com.example.Transport.repository.ServiceCandidateRepository;
 import com.example.Transport.repository.VehicleRepository;
+import com.example.Transport.util.HistoryRecorder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
@@ -25,11 +26,11 @@ public class DriverServiceRequestService {
     private final DriverServiceRequestRepository dsrRepo;
     private final VehicleRepository vehicleRepo;
     private final ServiceCandidateRepository candidateRepo;
+    private final HistoryRecorder history;
 
     @Transactional(readOnly = true)
     public Page<DriverServiceRequestDtos.Response> list(int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        // IMPORTANT: use the graph so vehicle/servicesNeeded load
         Page<DriverServiceRequest> requests = dsrRepo.findAllWithGraph(pageable);
         return requests.map(this::toDto);
     }
@@ -64,6 +65,9 @@ public class DriverServiceRequestService {
 
         var saved = dsrRepo.save(dsr);
 
+        // 🔹 Record history: CREATE
+        history.record("DriverServiceRequest", String.valueOf(saved.getId()), "CREATE", null, saved, actor);
+
         // Create ACTIVE ServiceCandidate if none exists
         boolean exists = candidateRepo.existsByVehicle_IdAndStatus(v.getId(), ServiceCandidateStatus.ACTIVE);
         if (!exists) {
@@ -84,23 +88,46 @@ public class DriverServiceRequestService {
 
     @Transactional
     public DriverServiceRequestDtos.Response update(Long id, DriverServiceRequestDtos.UpdateRequest req, String actor) {
-        var dsr = dsrRepo.findByIdWithGraph(id)
+        var before = dsrRepo.findByIdWithGraph(id)
                 .orElseThrow(() -> new BadRequestException("DriverServiceRequest not found: " + id));
 
-        if (req.getServicesNeeded() != null) dsr.setServicesNeeded(req.getServicesNeeded());
-        if (req.getLastServiceReadingKm() != null) dsr.setLastServiceReadingKm(req.getLastServiceReadingKm());
-        if (req.getNextServiceReadingKm() != null) dsr.setNextServiceReadingKm(req.getNextServiceReadingKm());
-        if (req.getCurrentReadingKm() != null) dsr.setCurrentReadingKm(req.getCurrentReadingKm());
-        if (req.getAdviceByVehicleOfficer() != null) dsr.setAdviceByVehicleOfficer(req.getAdviceByVehicleOfficer());
-        if (req.getAdviceByMechanic() != null) dsr.setAdviceByMechanic(req.getAdviceByMechanic());
-        if (req.getHrApproval() != null) dsr.setHrApproval(req.getHrApproval());
+        // Keep snapshot for history diff
+        var snapshot = DriverServiceRequest.builder()
+                .id(before.getId())
+                .vehicle(before.getVehicle())
+                .vehicleNumber(before.getVehicleNumber())
+                .driverName(before.getDriverName())
+                .epf(before.getEpf())
+                .requestDate(before.getRequestDate())
+                .servicesNeeded(before.getServicesNeeded())
+                .lastServiceReadingKm(before.getLastServiceReadingKm())
+                .nextServiceReadingKm(before.getNextServiceReadingKm())
+                .currentReadingKm(before.getCurrentReadingKm())
+                .adviceByVehicleOfficer(before.getAdviceByVehicleOfficer())
+                .adviceByMechanic(before.getAdviceByMechanic())
+                .hrApproval(before.getHrApproval())
+                .createdAt(before.getCreatedAt())
+                .createdBy(before.getCreatedBy())
+                .build();
 
-        dsr.setUpdatedBy(actor == null ? "system" : actor);
-        var saved = dsrRepo.save(dsr);
+        // Apply updates
+        if (req.getServicesNeeded() != null) before.setServicesNeeded(req.getServicesNeeded());
+        if (req.getLastServiceReadingKm() != null) before.setLastServiceReadingKm(req.getLastServiceReadingKm());
+        if (req.getNextServiceReadingKm() != null) before.setNextServiceReadingKm(req.getNextServiceReadingKm());
+        if (req.getCurrentReadingKm() != null) before.setCurrentReadingKm(req.getCurrentReadingKm());
+        if (req.getAdviceByVehicleOfficer() != null) before.setAdviceByVehicleOfficer(req.getAdviceByVehicleOfficer());
+        if (req.getAdviceByMechanic() != null) before.setAdviceByMechanic(req.getAdviceByMechanic());
+        if (req.getHrApproval() != null) before.setHrApproval(req.getHrApproval());
 
-        // When HR APPROVES, ensure candidate exists (idempotent)
+        before.setUpdatedBy(actor == null ? "system" : actor);
+        var saved = dsrRepo.save(before);
+
+        // 🔹 Record history: UPDATE
+        history.record("DriverServiceRequest", String.valueOf(id), "UPDATE", snapshot, saved, actor);
+
+        // HR approval hook
         if (req.getHrApproval() == HrApprovalStatus.APPROVED) {
-            var v = dsr.getVehicle();
+            var v = before.getVehicle();
             boolean exists = candidateRepo.existsByVehicle_IdAndStatus(v.getId(), ServiceCandidateStatus.ACTIVE);
             if (!exists) {
                 candidateRepo.save(
@@ -121,12 +148,16 @@ public class DriverServiceRequestService {
 
     @Transactional
     public void delete(Long id) {
-        if (!dsrRepo.existsById(id))
-            throw new BadRequestException("DriverServiceRequest not found: " + id);
-        dsrRepo.deleteById(id);
+        var before = dsrRepo.findById(id)
+                .orElseThrow(() -> new BadRequestException("DriverServiceRequest not found: " + id));
+
+        dsrRepo.delete(before);
+
+        // 🔹 Record history: DELETE
+        history.record("DriverServiceRequest", String.valueOf(id), "DELETE", before, null, "system");
     }
 
-    /* ===== Query helpers used by controller ===== */
+    /* ===== Query helpers ===== */
 
     @Transactional(readOnly = true)
     public List<DriverServiceRequestDtos.Response> getByEpf(String epf) {
@@ -143,12 +174,8 @@ public class DriverServiceRequestService {
         return dsrRepo.findByEpfAndVehicle_VehicleNumber(epf, vehicleNumber).stream().map(this::toDto).toList();
     }
 
-    /* ===== mapper ===== */
-
     private DriverServiceRequestDtos.Response toDto(DriverServiceRequest r) {
-        // (EntityGraph already loads relations; size() is defensive)
         if (r.getServicesNeeded() != null) r.getServicesNeeded().size();
-
         return DriverServiceRequestDtos.Response.builder()
                 .id(r.getId())
                 .vehicleId(r.getVehicle().getId())

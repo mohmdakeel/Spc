@@ -12,6 +12,9 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Sidebar from '../../components/SideBar';
+import HistoryModal from '../../components/HistoryModal';
+import { fetchTimeline } from '../../services/historyService';
+import type { ChangeHistory } from '../../services/types';
 
 // ---- Types ----
 type CandidateSource = 'DRIVER_REQUEST' | 'SYSTEM_RULE' | 'INSPECTION' | string;
@@ -66,12 +69,15 @@ export default function ServiceCandidatesPage() {
   const [loading, setLoading] = useState(true);
   const [candidates, setCandidates] = useState<ServiceCandidate[]>([]);
 
-  // ---- Filter toolbar state (same pattern) ----
   const [filterMode, setFilterMode] = useState<FilterMode>('vehicleNumber');
-  const [filterQuery, setFilterQuery] = useState<string>(''); // text or date value
+  const [filterQuery, setFilterQuery] = useState<string>(''); 
   const [activeFilter, setActiveFilter] = useState<{ mode: FilterMode; query: string } | null>(null);
-
   const [page, setPage] = useState(1);
+
+  // ==== History state ====
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyList, setHistoryList] = useState<ChangeHistory[]>([]);
+  const [selectedCandidate, setSelectedCandidate] = useState<ServiceCandidate | null>(null);
 
   // ---- Fetch ----
   const loadCandidates = async () => {
@@ -80,8 +86,6 @@ export default function ServiceCandidatesPage() {
       const res = await fetch('http://localhost:8081/api/service-candidates', { cache: 'no-store' });
       if (!res.ok) throw new Error('Failed to fetch service candidates');
       const json = await res.json();
-
-      // Expect: { ok, data: { content: [...] } }
       const list: ServiceCandidate[] = (json?.data?.content ?? []) as ServiceCandidate[];
       setCandidates(Array.isArray(list) ? list : []);
     } catch (e: any) {
@@ -96,7 +100,24 @@ export default function ServiceCandidatesPage() {
     loadCandidates();
   }, []);
 
-  // ---- Apply/Clear filter ----
+  // ---- History loader ----
+  const handleOpenHistory = async (id: number) => {
+    try {
+      const data = await fetchTimeline('ServiceCandidate', id);
+      if (data.length === 0) {
+        toast.info('No history found for this candidate.');
+        return;
+      }
+      setHistoryList(data);
+      const selected = candidates.find((c) => c.id === id) ?? null;
+      setSelectedCandidate(selected);
+      setHistoryOpen(true);
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to load candidate history');
+    }
+  };
+
+  // ---- Filter helpers ----
   const handleApplyFilter = () => {
     const q = filterQuery.trim();
     if (!q) {
@@ -113,21 +134,19 @@ export default function ServiceCandidatesPage() {
     setPage(1);
   };
 
-  // ---- Filtered data ----
   const filtered = useMemo(() => {
     if (!activeFilter) return candidates;
     const q = activeFilter.query.toLowerCase();
-
     switch (activeFilter.mode) {
       case 'vehicleNumber':
         return candidates.filter((c) => (c.vehicleNumber ?? '').toLowerCase().includes(q));
       case 'source':
         return candidates.filter((c) => (c.source ?? '').toLowerCase().includes(q));
       case 'createdDate': {
-        // Match exact day or startsWith for month-wide queries (e.g., "2025-09")
+        const date = activeFilter.query;
         return candidates.filter((c) => {
-          const v = (c.createdAt ?? '').slice(0, 10); // yyyy-MM-dd from ISO
-          return v === activeFilter.query || v.startsWith(activeFilter.query);
+          const v = (c.createdAt ?? '').slice(0, 10);
+          return v === date || v.startsWith(date);
         });
       }
       default:
@@ -139,7 +158,6 @@ export default function ServiceCandidatesPage() {
     setPage(1);
   }, [filterMode]);
 
-  // ---- Pagination ----
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const start = (page - 1) * ITEMS_PER_PAGE;
   const rows = filtered.slice(start, start + ITEMS_PER_PAGE);
@@ -150,7 +168,6 @@ export default function ServiceCandidatesPage() {
   const fmtDate = (iso?: string) => {
     if (!iso) return '-';
     try {
-      // Show local date & time for clarity
       const d = new Date(iso);
       return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     } catch {
@@ -176,7 +193,6 @@ export default function ServiceCandidatesPage() {
           {/* Header actions */}
           <div className="flex items-center justify-between mb-3">
             <h1 className="text-lg sm:text-xl font-bold text-gray-800">Service Candidates</h1>
-
             <div className="flex items-center gap-2">
               <button
                 className="flex items-center gap-2 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 shadow-sm transition-colors text-xs sm:text-sm"
@@ -188,7 +204,7 @@ export default function ServiceCandidatesPage() {
             </div>
           </div>
 
-          {/* ===== Filter Toolbar (3 options) ===== */}
+          {/* ===== Filter Toolbar ===== */}
           <div className="border border-orange-100 rounded-lg p-3 bg-orange-50/40 mb-4">
             <div className="flex flex-wrap items-center gap-2">
               <div className="inline-flex rounded-lg overflow-hidden border border-orange-200">
@@ -290,7 +306,6 @@ export default function ServiceCandidatesPage() {
                       >
                         <td className="border px-2 py-1 text-center text-xs">{start + i + 1}</td>
 
-                        {/* Vehicle (highlight in vehicleNumber mode) */}
                         <td className="border px-2 py-1 text-xs font-medium">
                           {activeFilter?.mode === 'vehicleNumber' ? (
                             <HL str={c.vehicleNumber} q={activeFilter.query} />
@@ -299,7 +314,6 @@ export default function ServiceCandidatesPage() {
                           )}
                         </td>
 
-                        {/* Source (highlight in source mode) */}
                         <td className="border px-2 py-1 text-xs">
                           {activeFilter?.mode === 'source' ? (
                             <HL str={c.source} q={activeFilter.query} />
@@ -308,7 +322,6 @@ export default function ServiceCandidatesPage() {
                           )}
                         </td>
 
-                        {/* Status (badge like your HR approval) */}
                         <td className="border px-2 py-1 text-xs">
                           <span
                             className={`px-2 py-0.5 rounded text-[11px] ${
@@ -328,25 +341,17 @@ export default function ServiceCandidatesPage() {
                         <td className="border px-2 py-1 text-xs">{fmt(c.reason)}</td>
                         <td className="border px-2 py-1 text-xs">{fmt(c.notes)}</td>
                         <td className="border px-2 py-1 text-xs">{fmt(c.createdBy)}</td>
-
-                        {/* Created At (highlight in createdDate mode; show ISO date string for exact match) */}
-                        <td className="border px-2 py-1 text-xs">
-                          {activeFilter?.mode === 'createdDate' ? (
-                            <HL str={(c.createdAt ?? '').slice(0, 10)} q={activeFilter.query} />
-                          ) : (
-                            fmtDate(c.createdAt)
-                          )}
-                        </td>
+                        <td className="border px-2 py-1 text-xs">{fmtDate(c.createdAt)}</td>
 
                         <td className="border px-2 py-1 text-xs text-center">
                           <button
-                            onClick={() => toast.info('Hook to candidate history')}
-                            className="px-1 text-orange-600 hover:text-orange-800"
-                            title="History"
-                          >
-                            <HistoryIcon size={14} />
-                          </button>
-                          {/* Add more actions (View, Convert to Work Order, etc.) as needed */}
+  onClick={() => router.push(`/Dewmini/Transport/Admin/ServiceCandidateHistoryPage?id=${c.id}`)}
+  className="px-1 text-orange-600 hover:text-orange-800"
+  title="History"
+>
+  <HistoryIcon size={14} />
+</button>
+
                         </td>
                       </tr>
                     ))
@@ -368,7 +373,9 @@ export default function ServiceCandidatesPage() {
               onClick={() => goTo(page - 1)}
               disabled={page === 1}
               className={`px-2 py-1 rounded ${
-                page === 1 ? 'text-gray-500 cursor-not-allowed bg-gray-100' : 'bg-orange-100 text-orange-600 hover:bg-orange-200'
+                page === 1
+                  ? 'text-gray-500 cursor-not-allowed bg-gray-100'
+                  : 'bg-orange-100 text-orange-600 hover:bg-orange-200'
               }`}
             >
               <ChevronLeft size={16} />
@@ -380,13 +387,23 @@ export default function ServiceCandidatesPage() {
               onClick={() => goTo(page + 1)}
               disabled={page === totalPages}
               className={`px-2 py-1 rounded ${
-                page === totalPages ? 'text-gray-500 cursor-not-allowed bg-gray-100' : 'bg-orange-100 text-orange-600 hover:bg-orange-200'
+                page === totalPages
+                  ? 'text-gray-500 cursor-not-allowed bg-gray-100'
+                  : 'bg-orange-100 text-orange-600 hover:bg-orange-200'
               }`}
             >
               <ChevronRight size={16} />
             </button>
           </div>
         </div>
+
+        {/* ===== History Modal ===== */}
+        {historyOpen && historyList.length > 0 && (
+          <HistoryModal
+            item={historyList[0]} // You can adapt HistoryModal to accept array if you prefer a timeline view
+            onClose={() => setHistoryOpen(false)}
+          />
+        )}
       </div>
     </Sidebar>
   );
