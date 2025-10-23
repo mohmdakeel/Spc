@@ -1,37 +1,35 @@
+// frontend/src/app/Akeel/Transport/layout.tsx
 'use client';
 
 import React from 'react';
-import Sidebar from '../Transport/components/SideBar';      // <— correct casing: Sidebar.tsx
-// import ActorBar from './components/ActorBar';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
-/**
- * App frame for Transport area.
- * - Left: Sidebar controls its own width
- * - Right: scrolls inside (no horizontal overflow)
- * - Toasts mounted at top-right
- */
+import Topbar from '../../../../components/Topbar';      // path from this file
+import Sidebar from './components/SideBar';           // adjust if your SideBar lives elsewhere
+import { useAuth } from '../../../../hooks/useAuth';
+
 export default function TransportLayout({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth(); // ← get the real logged-in user
+
   return (
     <div className="flex h-screen bg-orange-50 overflow-hidden">
       {/* Left nav */}
       <Sidebar />
 
       {/* Main column */}
-      <main className="flex-1 min-w-0 min-h-0 flex flex-col">
-        {/* Top bar (role/actor switch, etc.) */}
-        {/* <ActorBar /> */}
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+        {/* Top bar shows the same user */}
+        <Topbar user={user} />
 
         {/* Scrollable content area */}
-        <div className="w-full h-full overflow-auto">
+        <div className="flex-1 overflow-auto">
           <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
             {children}
           </div>
         </div>
-      </main>
+      </div>
 
-      {/* Toasts */}
       <ToastContainer
         position="top-right"
         autoClose={3000}

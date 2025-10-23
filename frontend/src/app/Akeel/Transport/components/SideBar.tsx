@@ -25,6 +25,7 @@ import {
   Building,
   LogOut,
 } from 'lucide-react';
+import { logout } from '../../../../../lib/auth'; // Import the same logout function
 
 type SidebarItemProps = {
   label: string;
@@ -43,7 +44,7 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
   active = false,
   onClick,
 }) => {
-  const [open, setOpen] = useState(active); // open group if active on load
+  const [open, setOpen] = useState(active);
 
   const handleClick = () => {
     if (children) setOpen((s) => !s);
@@ -140,10 +141,18 @@ const Sidebar: React.FC = () => {
     [pathname]
   );
 
-  const handleLogout = () => {
-    // TODO: wire up your logout
-    console.log('Logging out…');
-    // router.push('/login');
+  // FIXED: Add proper logout function to Sidebar
+  const handleLogout = async () => {
+    try {
+      await logout();
+      // Redirect to login page immediately after logout
+      router.push('/login');
+      router.refresh(); // Refresh to clear any cached state
+    } catch (error) {
+      console.error('Logout failed:', error);
+      // Still redirect to login even if there's an error
+      router.push('/login');
+    }
   };
 
   return (
@@ -424,10 +433,11 @@ const Sidebar: React.FC = () => {
           {!collapsed && <span className="text-sm font-medium">Settings</span>}
         </button>
 
+        {/* FIXED: Updated logout button with proper functionality */}
         <button
           type="button"
           onClick={handleLogout}
-          className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all text-black hover:bg-orange-500 hover:text-white ${
+          className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all text-black hover:bg-red-500 hover:text-white ${
             collapsed ? 'justify-center px-2' : ''
           }`}
         >

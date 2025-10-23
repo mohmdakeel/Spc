@@ -1,10 +1,12 @@
-module.exports = {
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   async rewrites() {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://localhost:8081/api/:path*', // Ensure backend is running on port 8081
+        destination: 'http://localhost:8082/api/:path*', // Spring Boot
       },
     ];
   },
 };
+module.exports = nextConfig;

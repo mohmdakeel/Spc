@@ -1,5 +1,7 @@
-import { redirect } from "next/navigation";
+// app/page.tsx
+import { RedirectType, redirect } from 'next/navigation';
 
 export default function Home() {
-  redirect("/AkeelAuth/public/login");
+  redirect('/login', RedirectType.replace);
+  return null;
 }

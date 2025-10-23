@@ -1,37 +1,27 @@
-import axios from "axios";
+// src/app/Akeel/Transport/services/http.ts
+import axios from 'axios';
 
 /**
- * If NEXT_PUBLIC_API_BASE is set (e.g. http://localhost:8081),
- * we hit it directly. Otherwise we use '/api' so Next.js
- * rewrites can proxy to your backend (next.config.js).
+ * If NEXT_PUBLIC_TRANSPORT_BASE is set (e.g. http://localhost:8082),
+ * we hit it directly. Otherwise use '/tapi' so Next rewrites proxy to 8082.
  */
-const rawBase = (process.env.NEXT_PUBLIC_API_BASE || "").replace(/\/$/, "");
-const baseURL = rawBase ? `${rawBase}/api` : "/api";
+const raw = (process.env.NEXT_PUBLIC_TRANSPORT_BASE || '').replace(/\/$/, '');
+const baseURL = raw ? `${raw}/api` : '/tapi';
 
 const http = axios.create({
   baseURL,
-  headers: { "Content-Type": "application/json" },
+  withCredentials: true,                 // ← ensure SPC_JWT cookie is sent
+  headers: { 'Content-Type': 'application/json' },
   timeout: 20000,
 });
 
-/** Attach X-Actor / X-Role from localStorage (client only) */
-http.interceptors.request.use((cfg) => {
-  if (typeof window !== "undefined") {
-    const actor = localStorage.getItem("actor") || "web";
-    const role = localStorage.getItem("role") || "";
-    cfg.headers = cfg.headers || {};
-    (cfg.headers as any)["X-Actor"] = actor;
-    if (role) (cfg.headers as any)["X-Role"] = role;
-  }
-  return cfg;
-});
-
+// keep your interceptors (X-Actor/X-Role) if you want
 export default http;
 
 export function unwrapApi<T>(body: any): T {
-  if (body && typeof body === "object" && "ok" in body) {
+  if (body && typeof body === 'object' && 'ok' in body) {
     if ((body as any).ok === false) {
-      const msg = (body as any).message || "Request failed";
+      const msg = (body as any).message || 'Request failed';
       throw new Error(msg);
     }
     return (body as any).data as T;

@@ -1,147 +1,148 @@
 package com.example.authservice.service;
 
-import com.example.authservice.dto.AuthRequest;
-import com.example.authservice.dto.AuthResponse;
-import com.example.authservice.dto.RegisterRequest;
-import com.example.authservice.model.Registration;
-import com.example.authservice.model.User;
-import com.example.authservice.repository.RegistrationRepository;
-import com.example.authservice.repository.UserRepository;
-import com.example.authservice.utils.JwtUtil;
-
-import jakarta.transaction.Transactional;
-import org.springframework.http.ResponseEntity;
+import com.example.authservice.dto.CreateUserFromEmployeeRequest;
+import com.example.authservice.model.*;
+import com.example.authservice.repository.*;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Service
+@RequiredArgsConstructor
 @Transactional
 public class UserService {
+  private final UserRepository users;
+  private final RegistrationRepository regs;
+  private final RoleRepository roles;
+  private final UserRoleRepository userRoles;
+  private final PasswordEncoder encoder;
+  private final AuditService audit;
+  private final AuditLogRepository auditRepo;
 
-    private final UserRepository userRepository;
-    private final RegistrationRepository registrationRepository;
-    private final PasswordEncoder passwordEncoder;
-    private final JwtUtil jwtUtil;
+  // per-user overrides
+  private final UserPermissionRepository userPerms;
+  private final PermissionRepository perms;
 
-    public UserService(UserRepository userRepository,
-                       RegistrationRepository registrationRepository,
-                       PasswordEncoder passwordEncoder,
-                       JwtUtil jwtUtil) {
-        this.userRepository = userRepository;
-        this.registrationRepository = registrationRepository;
-        this.passwordEncoder = passwordEncoder;
-        this.jwtUtil = jwtUtil;
+  // -------- protected root account helpers --------
+  private static final String PROTECTED_USERNAME = "admin1";
+  private boolean isProtected(User u) {
+    return u != null && PROTECTED_USERNAME.equalsIgnoreCase(u.getUsername());
+  }
+  private void forbid(String msg) {
+    throw new ResponseStatusException(HttpStatus.FORBIDDEN, msg);
+  }
+
+  public List<User> list() { return users.findAll(); }
+
+  public User createFromEmployee(String epfNo, CreateUserFromEmployeeRequest req) {
+    var reg = regs.findByEpfNoAndDeletedFalse(epfNo)
+        .orElseThrow(() -> new IllegalArgumentException("Employee not found for EPF"));
+    var u = User.builder()
+      .epfNo(reg.getEpfNo())
+      .username(req.getUsername().trim().toLowerCase())
+      .email(req.getEmail() == null ? null : req.getEmail().trim().toLowerCase())
+      .fullName(reg.getFullName())
+      .department(reg.getDepartment())
+      .active(true)
+      .addedDateTime(LocalDateTime.now())
+      .build();
+    u.setPassword(encoder.encode(req.getPassword()));
+    var saved = users.save(u);
+    if (req.getRole() != null && !req.getRole().isBlank()) {
+      var r = roles.findByCode(req.getRole()).orElseThrow();
+      userRoles.findByUserAndRole(saved, r)
+          .orElseGet(() -> userRoles.save(UserRole.builder().user(saved).role(r).build()));
     }
+    audit.log(actor(), "CREATE", "User", String.valueOf(saved.getId()),
+      "{\"epf\":\"" + saved.getEpfNo() + "\", \"role\":\"" + req.getRole() + "\"}");
+    return saved;
+  }
 
-    /** Get logged-in username from Spring Security context */
-    private String getCurrentUser() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
-            return auth.getName();
-        }
-        return "system";
+  public void assignRole(Long userId, String roleCode) {
+    var u = users.findById(userId).orElseThrow();
+    if (isProtected(u)) forbid("admin1 is protected: roles cannot be changed.");
+    var r = roles.findByCode(roleCode).orElseThrow();
+    if (!userRoles.existsByUserIdAndRoleId(u.getId(), r.getId()))
+      userRoles.save(UserRole.builder().user(u).role(r).build());
+    audit.log(actor(), "ASSIGN_ROLE", "User", String.valueOf(u.getId()),
+      "{\"role\":\"" + roleCode + "\"}");
+  }
+
+  public void transferRole(Long fromUserId, Long toUserId, String roleCode) {
+    var fromUser = users.findById(fromUserId).orElseThrow();
+    var toUser = users.findById(toUserId).orElseThrow();
+    if (isProtected(fromUser) || isProtected(toUser)) {
+      forbid("admin1 is protected: role transfers to/from this account are not allowed.");
     }
+    var r = roles.findByCode(roleCode).orElseThrow();
+    userRoles.findByUserAndRole(fromUser, r).ifPresent(userRoles::delete);
+    userRoles.findByUserAndRole(toUser, r)
+      .orElseGet(() -> userRoles.save(UserRole.builder().user(toUser).role(r).build()));
+    audit.log(actor(), "TRANSFER_ROLE", "User", String.valueOf(toUserId),
+      "{\"from\":\"" + fromUserId + "\", \"role\":\"" + roleCode + "\"}");
+  }
 
-    /** Register new user */
-    public String register(RegisterRequest req) {
-        if (userRepository.findByUsername(req.getUsername()).isPresent()) return "Username already taken";
-        if (userRepository.findByEmail(req.getEmail()).isPresent()) return "Email already registered";
+  public void delete(Long id){
+    var u = users.findById(id).orElseThrow();
+    if (isProtected(u)) forbid("admin1 is protected: user cannot be deleted.");
+    users.delete(u);
+    audit.log(actor(), "DELETE", "User", String.valueOf(id), "{}");
+  }
 
-        Registration reg = registrationRepository.findByEpfNo(req.getEpfNo())
-                .orElseThrow(() -> new RuntimeException("EPF No not found: " + req.getEpfNo()));
+  public List<AuditLog> myHistory() { return auditRepo.findAllByActorOrderByAtTimeDesc(actor()); }
+  public List<AuditLog> allHistory() { return auditRepo.findAllByOrderByAtTimeDesc(); }
 
-        User user = new User();
-        user.setUsername(req.getUsername());
-        user.setEmail(req.getEmail());
-        user.setPassword(passwordEncoder.encode(req.getPassword()));
-        user.setEpfNo(req.getEpfNo());
-        user.setFullName(reg.getFullName());
-        user.setDepartment(req.getDepartment());
-        user.setDesignation(req.getDesignation());
-        user.setContactNo(req.getContactNo());
-        user.setCompany(req.getCompany());
-        user.setCopyFromPrivileges(req.getCopyFromPrivileges());
-        user.setRemarks(req.getRemarks());
-        user.setRole(req.getRole());
-        user.setActive(true);
+  // ---- effective permissions (roles ± per-user overrides) ----
+  public List<String> effectivePermissionCodes(Long userId) {
+    var base = new LinkedHashSet<>(users.findRolePermissionCodes(userId));
+    var grants = new HashSet<>(userPerms.findGrantCodes(userId));
+    var revokes = new HashSet<>(userPerms.findRevokeCodes(userId));
+    base.addAll(grants);
+    base.removeAll(revokes);
+    return new ArrayList<>(base);
+  }
 
-        // Audit fields for creation
-        user.setAddedDateTime(LocalDateTime.now());
-        user.setAddedBy(getCurrentUser());
+  // NEW: expose direct GRANT codes
+  public List<String> directGrantCodes(Long userId) {
+    return userPerms.findGrantCodes(userId);
+  }
 
-        userRepository.save(user);
-        return "User registered successfully";
-    }
+  public void grantUserPermission(Long userId, String permCode) {
+    var u = users.findById(userId).orElseThrow();
+    if (isProtected(u)) forbid("admin1 is protected: permissions cannot be changed.");
+    var p = perms.findByCode(permCode).orElseThrow();
+    var up = userPerms.findByUserAndPermission(u, p)
+        .orElseGet(() -> userPerms.save(
+            UserPermission.builder().user(u).permission(p).effect(UserPermEffect.GRANT).build()
+        ));
+    up.setEffect(UserPermEffect.GRANT);
+    userPerms.save(up);
+    audit.log(actor(), "USER_PERM_GRANT", "User", String.valueOf(userId), "{\"perm\":\"" + permCode + "\"}");
+  }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<User> getUser(@PathVariable Long id) {
-        return ResponseEntity.of(userRepository.findById(id));
-    }
+  public void revokeUserPermission(Long userId, String permCode) {
+    var u = users.findById(userId).orElseThrow();
+    if (isProtected(u)) forbid("admin1 is protected: permissions cannot be changed.");
+    var p = perms.findByCode(permCode).orElseThrow();
+    var up = userPerms.findByUserAndPermission(u, p)
+        .orElseGet(() -> userPerms.save(
+            UserPermission.builder().user(u).permission(p).effect(UserPermEffect.REVOKE).build()
+        ));
+    up.setEffect(UserPermEffect.REVOKE);
+    userPerms.save(up);
+    audit.log(actor(), "USER_PERM_REVOKE", "User", String.valueOf(userId), "{\"perm\":\"" + permCode + "\"}");
+  }
 
-
-    /** Login user */
-    public AuthResponse login(AuthRequest req) {
-        User user = userRepository.findByUsername(req.getUsername())
-                .orElseThrow(() -> new RuntimeException("Invalid username or password"));
-
-        if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {
-            throw new RuntimeException("Invalid username or password");
-        }
-
-        String token = jwtUtil.generateToken(user.getUsername());
-        return new AuthResponse(token);
-    }
-
-    /** Get all users */
-    public List<User> getAll() {
-        return userRepository.findAll();
-    }
-
-    /** Update user */
-    public User updateUser(Long id, RegisterRequest req) {
-        User existing = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
-
-        existing.setEmail(req.getEmail());
-        existing.setUsername(req.getUsername());
-        existing.setDepartment(req.getDepartment());
-        existing.setDesignation(req.getDesignation());
-        existing.setContactNo(req.getContactNo());
-        existing.setCompany(req.getCompany());
-        existing.setCopyFromPrivileges(req.getCopyFromPrivileges());
-        existing.setRemarks(req.getRemarks());
-        existing.setRole(req.getRole());
-
-        // Audit fields for modification
-        existing.setModifiedDateTime(LocalDateTime.now());
-        existing.setModifiedBy(getCurrentUser());
-
-        return userRepository.save(existing);
-    }
-
-    /** Soft delete user */
-    public String deleteUser(Long id) {
-        User existing = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
-
-        existing.setActive(false); // optional: mark as inactive
-        existing.setDeletedDateTime(LocalDateTime.now());
-        existing.setDeletedBy(getCurrentUser());
-
-        userRepository.save(existing);
-        return "User deleted successfully";
-    }
-
-    public Optional<User> findById(Long id) {
-        return userRepository.findById(id);
-    }
-
+  private String actor() {
+    Authentication a = SecurityContextHolder.getContext().getAuthentication();
+    return a == null ? "system" : a.getName();
+  }
 }

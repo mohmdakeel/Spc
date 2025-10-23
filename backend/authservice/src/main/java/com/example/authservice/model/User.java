@@ -1,63 +1,25 @@
+// src/main/java/com/example/authservice/model/User.java
 package com.example.authservice.model;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
 import lombok.*;
-
 import java.time.LocalDateTime;
 
-@Entity
-@Getter @Setter
-@NoArgsConstructor @AllArgsConstructor
-@Table(name = "app_user")
+@Entity @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+@Table(name = "users", indexes = @Index(name = "idx_user_username", columnList = "username", unique = true))
 public class User {
+  @Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+  @Column(nullable = false, unique = true, length = 64) private String username;
+  @Column(nullable = false) private String password;
+  private String email;
 
-    @NotBlank
-    @Column(name = "epf_no", nullable = false, length = 64)
-    private String epfNo;
+  @Column(name = "epf_no", length = 64) private String epfNo;
+  private String fullName;
+  private String department;
 
-    @NotBlank
-    private String username;
+  @Builder.Default
+  private boolean active = true;
 
-    @NotBlank
-    private String email;
-
-    @NotBlank
-    private String password;
-
-    private String fullName;
-    private String department;
-    private String designation;
-    private String contactNo;
-    private String company;
-    private String copyFromPrivileges;
-    private String remarks;
-    private boolean active = true;
-
-    @NotBlank
-    private String role; // ADMIN / STAFF / USER
-
-    /** Audit fields */
-    private LocalDateTime addedDateTime;
-    private String addedBy;
-
-    private LocalDateTime modifiedDateTime;
-    private String modifiedBy;
-
-    private LocalDateTime deletedDateTime;
-    private String deletedBy;
-
-    /** Read-only relation using business key epf_no */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(
-            name = "epf_no",
-            referencedColumnName = "epf_no",
-            insertable = false,
-            updatable = false
-    )
-    private Registration registration;
+  private LocalDateTime addedDateTime;
 }

@@ -1,99 +1,122 @@
 package com.example.authservice.service;
 
+import com.example.authservice.dto.CreateRegistrationRequest;
+import com.example.authservice.dto.UpdateRegistrationRequest;
 import com.example.authservice.model.Registration;
 import com.example.authservice.repository.RegistrationRepository;
-import com.cloudinary.Cloudinary;
-import com.cloudinary.utils.ObjectUtils;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.example.authservice.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-import org.springframework.web.multipart.MultipartFile;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
-import java.io.IOException;
-import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
+
 @Service
+@RequiredArgsConstructor
+@Transactional
 public class RegistrationService {
+  private final RegistrationRepository repo;
+  private final AuditService audit;
+  private final UserRepository users;
 
-    @Autowired
-    private RegistrationRepository registrationRepository;
+  private static final String PROTECTED_USERNAME = "admin1";
 
-    @Autowired
-    private Cloudinary cloudinary;
+  private String protectedAdminEpf() {
+    return users.findByUsername(PROTECTED_USERNAME)
+      .map(u -> u.getEpfNo() == null ? "" : u.getEpfNo())
+      .orElse("EPF-0001"); // fallback to your seed EPF
+  }
 
-    public List<Registration> getAllRegistrations() {
-        return registrationRepository.findByDeletedFalse();
+  private void guardProtectedEpf(String epfNo, String op) {
+    if (epfNo != null && epfNo.equalsIgnoreCase(protectedAdminEpf())) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+          "Registration for admin1 is protected: cannot " + op + ".");
     }
+  }
 
-    // Method to get all registered users
-    public List<Registration> getAllRegisteredUsers() {
-        return registrationRepository.findByDeletedFalse();
-    }
+  public Registration create(CreateRegistrationRequest req) {
+    var r = Registration.builder()
+      .epfNo(req.getEpfNo().trim())
+      .attendanceNo(req.getAttendanceNo())
+      .nameWithInitials(req.getNameWithInitials())
+      .surname(req.getSurname())
+      .fullName(req.getFullName())
+      .nicNo(req.getNicNo())
+      .dateOfBirth(req.getDateOfBirth())
+      .civilStatus(req.getCivilStatus())
+      .gender(req.getGender())
+      .race(req.getRace())
+      .religion(req.getReligion())
+      .bloodGroup(req.getBloodGroup())
+      .permanentAddress(req.getPermanentAddress())
+      .district(req.getDistrict())
+      .mobileNo(req.getMobileNo())
+      .personalEmail(req.getPersonalEmail())
+      .cardStatus(req.getCardStatus())
+      .imageUrl(req.getImageUrl())
+      .currentAddress(req.getCurrentAddress())
+      .dsDivision(req.getDsDivision())
+      .residencePhone(req.getResidencePhone())
+      .emergencyContact(req.getEmergencyContact())
+      .workingStatus(req.getWorkingStatus())
+      .department(req.getDepartment())
+      .build();
+    var saved = repo.save(r);
+    audit.log(actor(), "CREATE", "Registration", String.valueOf(saved.getId()), "{\"epf\":\"" + saved.getEpfNo() + "\"}");
+    return saved;
+  }
 
-    public Registration createRegistration(Registration registration, MultipartFile imageFile) throws IOException {
-        // Set system date and time for addedTime
-        registration.setAddedTime(LocalDateTime.now());
+  public List<Registration> list() { return repo.findAllByDeletedFalseOrderByEpfNoAsc(); }
 
-        if (imageFile != null && !imageFile.isEmpty()) {
-            Map<?, ?> uploadResult = cloudinary.uploader().upload(imageFile.getBytes(), ObjectUtils.emptyMap());
-            registration.setImageUrl(uploadResult.get("url").toString());
-        }
+  public Registration getByEpf(String epfNo) {
+    return repo.findByEpfNoAndDeletedFalse(epfNo).orElseThrow(() -> new IllegalArgumentException("Registration not found"));
+  }
 
-        return registrationRepository.save(registration);
-    }
+  public Registration update(String epfNo, UpdateRegistrationRequest req) {
+    guardProtectedEpf(epfNo, "update");
+    var r = getByEpf(epfNo);
+    if (req.getAttendanceNo() != null) r.setAttendanceNo(req.getAttendanceNo());
+    if (req.getNameWithInitials() != null) r.setNameWithInitials(req.getNameWithInitials());
+    if (req.getSurname() != null) r.setSurname(req.getSurname());
+    if (req.getFullName() != null) r.setFullName(req.getFullName());
+    if (req.getNicNo() != null) r.setNicNo(req.getNicNo());
+    if (req.getDateOfBirth() != null) r.setDateOfBirth(req.getDateOfBirth());
+    if (req.getCivilStatus() != null) r.setCivilStatus(req.getCivilStatus());
+    if (req.getGender() != null) r.setGender(req.getGender());
+    if (req.getRace() != null) r.setRace(req.getRace());
+    if (req.getReligion() != null) r.setReligion(req.getReligion());
+    if (req.getBloodGroup() != null) r.setBloodGroup(req.getBloodGroup());
+    if (req.getPermanentAddress() != null) r.setPermanentAddress(req.getPermanentAddress());
+    if (req.getDistrict() != null) r.setDistrict(req.getDistrict());
+    if (req.getMobileNo() != null) r.setMobileNo(req.getMobileNo());
+    if (req.getPersonalEmail() != null) r.setPersonalEmail(req.getPersonalEmail());
+    if (req.getCardStatus() != null) r.setCardStatus(req.getCardStatus());
+    if (req.getImageUrl() != null) r.setImageUrl(req.getImageUrl());
+    if (req.getCurrentAddress() != null) r.setCurrentAddress(req.getCurrentAddress());
+    if (req.getDsDivision() != null) r.setDsDivision(req.getDsDivision());
+    if (req.getResidencePhone() != null) r.setResidencePhone(req.getResidencePhone());
+    if (req.getEmergencyContact() != null) r.setEmergencyContact(req.getEmergencyContact());
+    if (req.getWorkingStatus() != null) r.setWorkingStatus(req.getWorkingStatus());
+    if (req.getDepartment() != null) r.setDepartment(req.getDepartment());
+    var saved = repo.save(r);
+    audit.log(actor(), "UPDATE", "Registration", String.valueOf(saved.getId()), "{\"epf\":\"" + saved.getEpfNo() + "\"}");
+    return saved;
+  }
 
-    public Registration updateRegistration(Long id, Registration updatedData, MultipartFile imageFile) throws IOException {
-        Registration existing = registrationRepository.findByIdAndDeletedFalse(id)
-                .orElseThrow(() -> new RuntimeException("Registration not found with id: " + id));
+  public void softDelete(String epfNo) {
+    guardProtectedEpf(epfNo, "delete");
+    var r = getByEpf(epfNo);
+    r.markAsDeleted(actor());
+    repo.save(r);
+    audit.log(actor(), "DELETE", "Registration", String.valueOf(r.getId()), "{\"epf\":\"" + r.getEpfNo() + "\"}");
+  }
 
-        // Copy updated fields
-        existing.setEpfNo(updatedData.getEpfNo());
-        existing.setAttendanceNo(updatedData.getAttendanceNo());
-        existing.setNameWithInitials(updatedData.getNameWithInitials());
-        existing.setSurname(updatedData.getSurname());
-        existing.setFullName(updatedData.getFullName());
-        existing.setNicNo(updatedData.getNicNo());
-        existing.setDateOfBirth(updatedData.getDateOfBirth());
-        existing.setCivilStatus(updatedData.getCivilStatus());
-        existing.setGender(updatedData.getGender());
-        existing.setRace(updatedData.getRace());
-        existing.setReligion(updatedData.getReligion());
-        existing.setBloodGroup(updatedData.getBloodGroup());
-        existing.setPermanentAddress(updatedData.getPermanentAddress());
-        existing.setDistrict(updatedData.getDistrict());
-        existing.setMobileNo(updatedData.getMobileNo());
-        existing.setPersonalEmail(updatedData.getPersonalEmail());
-        existing.setCardStatus(updatedData.getCardStatus());
-        existing.setCurrentAddress(updatedData.getCurrentAddress());
-        existing.setDsDivision(updatedData.getDsDivision());
-        existing.setResidencePhone(updatedData.getResidencePhone());
-        existing.setEmergencyContact(updatedData.getEmergencyContact());
-        existing.setWorkingStatus(updatedData.getWorkingStatus());
-
-        // Set system date and time for modifiedTime
-        existing.setModifiedTime(LocalDateTime.now());
-
-        if (imageFile != null && !imageFile.isEmpty()) {
-            Map<?, ?> uploadResult = cloudinary.uploader().upload(imageFile.getBytes(), ObjectUtils.emptyMap());
-            existing.setImageUrl(uploadResult.get("url").toString());
-        }
-
-        return registrationRepository.save(existing);
-    }
-
-    public void deleteRegistration(Long id, String deletedBy) {
-        Registration existing = registrationRepository.findByIdAndDeletedFalse(id)
-                .orElseThrow(() -> new RuntimeException("Registration not found with id: " + id));
-
-        // Mark as deleted and set the deletedTime
-        existing.markAsDeleted(deletedBy);
-        existing.setDeletedTime(LocalDateTime.now());
-
-        registrationRepository.save(existing);
-    }
-
-    public Registration getRegistrationById(Long id) {
-        return registrationRepository.findByIdAndDeletedFalse(id)
-                .orElseThrow(() -> new RuntimeException("Registration not found with id: " + id));
-    }
+  private String actor() {
+    Authentication a = SecurityContextHolder.getContext().getAuthentication();
+    return a == null ? "system" : a.getName();
+  }
 }
