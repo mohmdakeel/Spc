@@ -8,12 +8,12 @@
   --foreground: #171717;
 }
 
-@media (prefers-color-scheme: dark) {
+/*@media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
   }
-}
+}*/
 
 body {
   background: var(--background);
@@ -62,3 +62,11 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
+
+input, select, textarea {
+  color: #000 !important;
+}
+::placeholder {
+  color: #9ca3af; /* Tailwind's gray-400 for readability */
+}
+
