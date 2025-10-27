@@ -1,63 +1,69 @@
-// lib/authz.ts - Enhanced version
+// lib/authz.ts
+
+// figure out which page user should land on after login
 export function pickHomeFor(user: any): string {
   if (!user || !user.roles) {
     return '/login';
   }
 
   const roles = user.roles.map((r: string) => r.toUpperCase());
-  
-  // Check if user has access to main dashboard (ADMIN only)
-  if (roles.includes('ADMIN')) {
+
+  // Admins and "multi-service" people go to the combined dashboard
+  if (
+    roles.includes('ADMIN') ||
+    (hasServiceAccess(user, 'auth') && hasServiceAccess(user, 'transport'))
+  ) {
     return '/maindashboard';
   }
-  
-  // Check if user has transport-specific roles
-  const transportRoles = ['TRANSPORT_MANAGER', 'TRANSPORT_SUPERVISOR', 'TRANSPORT_STAFF', 'DRIVER'];
-  const hasTransportRole = roles.some((r: string) => 
-    transportRoles.includes(r) || r.includes('TRANSPORT')
-  );
-  
-  // Check if user has auth service roles
-  const authRoles = ['HR', 'HOD', 'GM', 'MANAGER'];
-  const hasAuthRole = roles.some((r: string) => authRoles.includes(r));
-  
-  // Priority routing based on roles
-  if (hasTransportRole && !hasAuthRole) {
-    // Only transport roles - go to transport dashboard
-    return '/Akeel/Transport';
-  } else if (hasAuthRole && !hasTransportRole) {
-    // Only auth roles - go to auth dashboard
-    return '/dashboard';
-  } else if (hasTransportRole && hasAuthRole) {
-    // Both roles - check primary role or go to main dashboard
-    if (roles.includes('HR') || roles.includes('ADMIN')) {
-      return '/dashboard';
-    } else {
-      return '/Akeel/Transport';
-    }
+
+  // Transport-only users
+  if (hasServiceAccess(user, 'transport')) {
+    return '/Akeel/Transport'; // your custom transport dashboard
   }
-  
-  // Default fallback
-  return '/dashboard';
+
+  // HR / GM / etc -> auth dashboard
+  if (hasServiceAccess(user, 'auth')) {
+    return '/dashboard';
+  }
+
+  // default fallback
+  return '/maindashboard';
 }
 
-// Helper function to check service access
+// check if user can access a service area
 export function hasServiceAccess(user: any, service: 'auth' | 'transport'): boolean {
   if (!user?.roles) return false;
   
   const roles = user.roles.map((r: string) => r.toUpperCase());
-  
+
   if (service === 'auth') {
-    const authRoles = ['ADMIN', 'HR', 'HOD', 'GM', 'MANAGER'];
+    const authRoles = ['ADMIN', 'HR', 'HRD', 'HOD', 'GM', 'CHAIRMAN', 'STAFF'];
     return roles.some((r: string) => authRoles.includes(r));
   }
-  
+
   if (service === 'transport') {
-    const transportRoles = ['ADMIN', 'TRANSPORT_MANAGER', 'TRANSPORT_SUPERVISOR', 'TRANSPORT_STAFF', 'DRIVER'];
-    return roles.some((r: string) => 
-      transportRoles.includes(r) || r.includes('TRANSPORT')
-    );
+    const transportRoles = [
+      'ADMIN',
+      'TRANSPORT_ADMIN',
+      'TRANSPORT',
+      'VEHICLE_INCHARGE',
+      'GATE_SECURITY',
+    ];
+    return roles.some((r: string) => transportRoles.includes(r));
   }
-  
+
   return false;
+}
+
+// ("Where does this user mainly belong?")
+export function getUserPrimaryService(user: any): 'auth' | 'transport' | 'both' | 'none' {
+  if (!user?.roles) return 'none';
+
+  const hasAuth = hasServiceAccess(user, 'auth');
+  const hasTransport = hasServiceAccess(user, 'transport');
+
+  if (hasAuth && hasTransport) return 'both';
+  if (hasAuth) return 'auth';
+  if (hasTransport) return 'transport';
+  return 'none';
 }

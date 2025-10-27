@@ -2,7 +2,8 @@
 import api from './api';
 
 export async function login(body: { username: string; password: string }) {
-  await api.post('/auth/login', body);   // sets JWT cookie
+  const response = await api.post('/auth/login', body);
+  return response.data;
 }
 
 export async function me() {
@@ -11,5 +12,11 @@ export async function me() {
 }
 
 export async function logout() {
-  await api.post('/auth/logout');
+  const response = await api.post('/auth/logout');
+  return response.data;
+}
+
+export async function changePassword(body: { oldPassword: string; newPassword: string }) {
+  const response = await api.post('/auth/change-password', body);
+  return response.data;
 }

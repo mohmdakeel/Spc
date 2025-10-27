@@ -94,4 +94,37 @@ public class AuthController {
     audit.log(a.getName(), "CHANGE_PASSWORD", "User", u.getId().toString(), "{}");
     return ResponseEntity.ok(Map.of("ok", true));
   }
+
+
+  @PostMapping("/me/image")
+public ResponseEntity<?> updateMyImage(
+    @RequestBody Map<String,String> body,
+    Authentication a
+) {
+  if (a == null) {
+    return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+        .body(Map.of("ok", false));
+  }
+
+  String newUrl = body.get("imageUrl");
+  if (newUrl == null || newUrl.isBlank()) {
+    return ResponseEntity.badRequest()
+        .body(Map.of("ok", false, "message", "imageUrl is required"));
+  }
+
+  var u = users.findByUsername(a.getName()).orElseThrow();
+
+  if (u.getEpfNo() != null && !u.getEpfNo().isBlank()) {
+    regRepo.findByEpfNo(u.getEpfNo()).ifPresent(reg -> {
+      reg.setImageUrl(newUrl);
+      regRepo.save(reg);
+    });
+  }
+
+  audit.log(a.getName(), "UPDATE_IMAGE", "User", u.getId().toString(),
+      "{\"imageUrl\":\"" + newUrl + "\"}");
+
+  return ResponseEntity.ok(Map.of("ok", true));
+}
+
 }

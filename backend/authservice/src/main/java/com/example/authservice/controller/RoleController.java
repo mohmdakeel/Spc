@@ -1,4 +1,3 @@
-// src/main/java/com/example/authservice/controller/RoleController.java
 package com.example.authservice.controller;
 
 import com.example.authservice.model.Permission;
@@ -16,34 +15,34 @@ import java.util.List;
 public class RoleController {
   private final RoleService roles;
 
-  @PreAuthorize("hasRole('ADMIN')")
+  // ADMIN ONLY
+  @PreAuthorize("hasAuthority('ROLE_ADMIN')")
   @GetMapping
   public List<Role> list() { return roles.listRoles(); }
 
-  @PreAuthorize("hasRole('ADMIN')")
+  @PreAuthorize("hasAuthority('ROLE_ADMIN')")
   @GetMapping("/permissions")
   public List<Permission> perms() { return roles.listPerms(); }
 
-  @PreAuthorize("hasRole('ADMIN')")
+  @PreAuthorize("hasAuthority('ROLE_ADMIN')")
   @GetMapping("/{roleCode}/permissions")
   public List<String> rolePermissions(@PathVariable String roleCode) {
     return roles.listPermCodesForRole(roleCode);
   }
 
-  // NEW: usernames who currently have this role
-  @PreAuthorize("hasRole('ADMIN')")
+  @PreAuthorize("hasAuthority('ROLE_ADMIN')")
   @GetMapping("/{roleCode}/users")
   public List<String> roleUsers(@PathVariable String roleCode) {
     return roles.listUsernamesForRole(roleCode);
   }
 
-  @PreAuthorize("hasRole('ADMIN')")
+  @PreAuthorize("hasAuthority('ROLE_ADMIN')")
   @PostMapping("/{roleCode}/grant/{permCode}")
   public void grant(@PathVariable String roleCode, @PathVariable String permCode) {
     roles.grant(roleCode, permCode);
   }
 
-  @PreAuthorize("hasRole('ADMIN')")
+  @PreAuthorize("hasAuthority('ROLE_ADMIN')")
   @PostMapping("/{roleCode}/revoke/{permCode}")
   public void revoke(@PathVariable String roleCode, @PathVariable String permCode) {
     roles.revoke(roleCode, permCode);
