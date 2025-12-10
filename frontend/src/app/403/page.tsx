@@ -13,7 +13,7 @@ export default function AccessDenied() {
         
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
         <p className="text-gray-600 mb-6">
-          You don't have permission to access this page. Please contact your administrator if you believe this is an error.
+          You don&apos;t have permission to access this page. Please contact your administrator if you believe this is an error.
         </p>
         
         <div className="space-y-3">
@@ -30,7 +30,7 @@ export default function AccessDenied() {
             className="w-full flex items-center justify-center gap-2 border border-gray-300 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-50 transition-colors font-medium"
           >
             <Home className="w-4 h-4" />
-            Go to Dashboard
+            Logout
           </Link>
         </div>
       </div>

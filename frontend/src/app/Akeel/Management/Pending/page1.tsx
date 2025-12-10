@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import ManagementSidebar from '../components/ManagementSidebar';
 import { listByStatus, mgmtApprove, mgmtReject } from '../../Transport/services/usageService';
 import type { UsageRequest } from '../../Transport/services/types';
 import { Th, Td } from '../../Transport/components/ThTd';
@@ -12,7 +11,7 @@ import { Printer, X } from 'lucide-react';
 
 /* ---------- small helpers ---------- */
 const chip = (s: string) => (
-  <span className="inline-block text-[8px] px-1 py-[1px] rounded bg-blue-100 text-blue-800 leading-none">
+  <span className="inline-block text-[9px] px-1 py-[1px] rounded bg-blue-100 text-blue-800 leading-none">
     {s}
   </span>
 );
@@ -303,43 +302,40 @@ export default function ManagementPendingPage() {
   }, []);
 
   return (
-    <div className="flex min-h-screen bg-orange-50">
-      <ManagementSidebar />
+    <div className="space-y-4 p-3 md:p-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+        <h1 className="text-[12px] font-semibold text-orange-900">Pending Approvals</h1>
 
-      <main className="p-2 md:p-3 flex-1">
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="text-[12px] font-semibold text-orange-900">Pending Approvals</h1>
-
-          <div className="flex items-center gap-2">
-            <SearchBar value={q} onChange={setQ} placeholder="Search…" className="h-7 text-[11px]" />
-            <button
-              type="button"
-              onClick={printAllCurrent}
-              className="inline-flex items-center gap-1 px-2.5 h-7 rounded bg-orange-600 text-white hover:bg-orange-700 text-[11px]"
-              title="Print all (current filter)"
-            >
-              <Printer size={13} />
-              Print Page
-            </button>
-          </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <SearchBar value={q} onChange={setQ} placeholder="Search…" className="h-10 min-w-[220px] text-[12px]" />
+          <button
+            type="button"
+            onClick={printAllCurrent}
+            className="inline-flex items-center gap-2 px-4 h-10 rounded-lg bg-orange-600 text-white hover:bg-orange-700 text-sm font-semibold shadow-sm"
+            title="Print current list"
+          >
+            <Printer size={14} />
+            Print Page
+          </button>
         </div>
+      </div>
 
-        <div className="bg-white rounded-md border border-orange-200 overflow-auto">
-          <table className="w-full table-fixed text-[9px] leading-[1.1]">
-            <colgroup>
-              <col className="w-28" />
-              <col className="w-56" />
-              <col className="w-20" />
-              <col className="w-28" />
-              <col className="w-40" />
-              <col className="w-36" />
-              <col className="w-36" />
-              <col className="w-40" />
-              <col className="w-20" />
-            </colgroup>
+      <div className="bg-white rounded-md border border-orange-200 overflow-auto">
+        <table className="w-full table-fixed text-[8px] leading-tight">
+          <colgroup>
+            <col className="w-28" />
+            <col className="w-56" />
+            <col className="w-20" />
+            <col className="w-28" />
+            <col className="w-40" />
+            <col className="w-36" />
+            <col className="w-36" />
+            <col className="w-40" />
+            <col className="w-20" />
+          </colgroup>
 
-            <thead className="bg-orange-50">
-              <tr className="text-[8.5px]">
+            <thead className="bg-orange-50 text-[9px] uppercase tracking-wide">
+              <tr>
                 <Th className="px-1.5 py-1 text-left">RQ ID / Applied</Th>
                 <Th className="px-1.5 py-1 text-left">APPLICANT / OFFICER</Th>
                 <Th className="px-1.5 py-1 text-center">Status</Th>
@@ -375,7 +371,7 @@ export default function ManagementPendingPage() {
                         <div className="font-semibold text-orange-900 truncate" title={r.requestCode}>
                           {r.requestCode}
                         </div>
-                        <div className="text-[8px] text-gray-600 truncate" title={appliedLabel(r)}>
+                        <div className="text-xs text-gray-600 truncate" title={appliedLabel(r)}>
                           {appliedLabel(r)}
                         </div>
                       </Td>
@@ -384,10 +380,10 @@ export default function ManagementPendingPage() {
                       <Td className="px-1.5 py-1">
                         <div className="truncate" title={`${r.applicantName} (${r.employeeId})`}>
                           <span className="font-medium text-orange-900">Applicant:</span> {r.applicantName}
-                          <span className="text-gray-600 text-[8px]"> ({r.employeeId})</span>
+                          <span className="text-gray-600 text-xs"> ({r.employeeId})</span>
                         </div>
                         <div
-                          className="text-[8.5px] text-gray-700 truncate"
+                          className="text-xs text-gray-700 truncate"
                           title={
                             off.withOfficer
                               ? `${off.name || '-'} (${off.id || '-'})${off.phone ? `, ${off.phone}` : ''}`
@@ -398,8 +394,8 @@ export default function ManagementPendingPage() {
                           {off.withOfficer ? (
                             <>
                               {off.name || '-'}
-                              <span className="text-gray-600 text-[8px]"> ({off.id || '-'})</span>
-                              {off.phone ? <span className="text-gray-600 text-[8px]">, {off.phone}</span> : null}
+                              <span className="text-gray-600 text-xs"> ({off.id || '-'})</span>
+                              {off.phone ? <span className="text-gray-600 text-xs">, {off.phone}</span> : null}
                             </>
                           ) : (
                             '—'
@@ -415,7 +411,7 @@ export default function ManagementPendingPage() {
                         <div className="truncate" title={r.dateOfTravel}>
                           {r.dateOfTravel}
                         </div>
-                        <div className="text-[8px] text-gray-600">
+                        <div className="text-xs text-gray-600">
                           <span className="font-mono">{r.timeFrom}</span>–<span className="font-mono">{r.timeTo}</span>{' '}
                           {r.overnight ? '(overnight)' : ''}
                         </div>
@@ -433,7 +429,7 @@ export default function ManagementPendingPage() {
                         <div className="font-medium truncate" title={r.assignedVehicleNumber || '—'}>
                           {r.assignedVehicleNumber || '—'}
                         </div>
-                        <div className="text-[8px] text-gray-600 truncate" title={r.assignedDriverName || '—'}>
+                        <div className="text-xs text-gray-600 truncate" title={r.assignedDriverName || '—'}>
                           {r.assignedDriverName || '—'}
                         </div>
                       </Td>
@@ -443,7 +439,7 @@ export default function ManagementPendingPage() {
                         <div className="truncate" title={fmtDT(r.scheduledPickupAt)}>
                           P: {fmtDT(r.scheduledPickupAt)}
                         </div>
-                        <div className="text-[8px] text-gray-600 truncate" title={fmtDT(r.scheduledReturnAt)}>
+                        <div className="text-xs text-gray-600 truncate" title={fmtDT(r.scheduledReturnAt)}>
                           R: {fmtDT(r.scheduledReturnAt)}
                         </div>
                       </Td>
@@ -452,11 +448,11 @@ export default function ManagementPendingPage() {
                       <Td className="px-1.5 py-1 whitespace-nowrap">
                         <div className="truncate" title={`Exit ${fmtDT(r.gateExitAt)} Odo ${r.exitOdometer ?? '-'}`}>
                           Ex {fmtDT(r.gateExitAt)}{' '}
-                          <span className="text-[8px] text-gray-600">O {r.exitOdometer ?? '-'}</span>
+                          <span className="text-xs text-gray-600">O {r.exitOdometer ?? '-'}</span>
                         </div>
                         <div className="truncate" title={`Entry ${fmtDT(r.gateEntryAt)} Odo ${r.entryOdometer ?? '-'}`}>
                           En {fmtDT(r.gateEntryAt)}{' '}
-                          <span className="text-[8px] text-gray-600">O {r.entryOdometer ?? '-'}</span>
+                          <span className="text-xs text-gray-600">O {r.entryOdometer ?? '-'}</span>
                         </div>
                       </Td>
 
@@ -465,7 +461,7 @@ export default function ManagementPendingPage() {
                         <div className="flex items-center justify-center gap-1.5">
                           <button
                             type="button"
-                            className="px-2 py-[3px] rounded bg-orange-600 text-white hover:bg-orange-700 text-[10px]"
+                            className="px-2 py-[3px] rounded bg-orange-600 text-white hover:bg-orange-700 text-xs"
                             title="Review / Approve / Reject"
                             onClick={(e) => { e.stopPropagation(); setSelected(r); }}
                           >
@@ -527,14 +523,14 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
           </button>
         </div>
 
-        <div className="p-4 text-[10px] leading-tight space-y-3">
+        <div className="p-4 text-xs leading-tight space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {/* Applicant & Department */}
             <section>
               <div className="text-orange-800 font-semibold mb-1">Applicant & Department</div>
               <div className="truncate">
                 <span className="font-medium text-orange-900">Applicant Name:</span> {(request as any).applicantName}
-                <span className="text-gray-600 text-[9px]"> ({(request as any).employeeId})</span>
+                <span className="text-gray-600 text-xs"> ({(request as any).employeeId})</span>
               </div>
               <div className="truncate">
                 <span className="font-medium">Department:</span> {(request as any).department || '—'}
@@ -546,7 +542,7 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
               <div className="text-orange-800 font-semibold mb-1">Status</div>
               <div><b>Status:</b> Pending Management</div>
               <div><b>Applied:</b> {appliedLabel(request as any)}</div>
-              <div className="text-[9px] text-gray-600 mt-1">
+              <div className="text-xs text-gray-600 mt-1">
                 Created {fmtDT((request as any).createdAt)}
                 {(request as any).updatedAt ? ` • Updated ${fmtDT((request as any).updatedAt)}` : ''}
               </div>
@@ -624,10 +620,10 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
             <section className="md:col-span-2">
               <div className="text-orange-800 font-semibold mb-1">Gate / Trip</div>
               <div>
-                <b>Exit:</b> {fmtDT((request as any).gateExitAt)} • <span className="text-[9px] text-gray-600">O {(request as any).exitOdometer ?? '-'}</span>
+                <b>Exit:</b> {fmtDT((request as any).gateExitAt)} • <span className="text-xs text-gray-600">O {(request as any).exitOdometer ?? '-'}</span>
               </div>
               <div>
-                <b>Entry:</b> {fmtDT((request as any).gateEntryAt)} • <span className="text-[9px] text-gray-600">O {(request as any).entryOdometer ?? '-'}</span>
+                <b>Entry:</b> {fmtDT((request as any).gateEntryAt)} • <span className="text-xs text-gray-600">O {(request as any).entryOdometer ?? '-'}</span>
               </div>
             </section>
           </div>

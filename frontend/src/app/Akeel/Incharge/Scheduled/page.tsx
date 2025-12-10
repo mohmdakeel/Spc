@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import InchargeSidebar from '../components/InchargeSidebar';
 import { listByStatus } from '../../Transport/services/usageService';
 import type { UsageRequest } from '../../Transport/services/types';
 import { Th, Td } from '../../Transport/components/ThTd';
@@ -99,9 +98,7 @@ export default function InchargeScheduledPage() {
   }, [rows, q]);
 
   return (
-    <div className="flex min-h-screen bg-orange-50">
-      <InchargeSidebar />
-      <main className="p-3 md:p-4 flex-1">
+    <div className="space-y-3">
         <div className="flex items-center justify-between mb-2">
           <h1 className="text-[14px] md:text-lg font-bold text-orange-900">Scheduled Assignments</h1>
           <SearchBar value={q} onChange={setQ} placeholder="Search code, applicant, vehicle, driver…" className="h-8" />
@@ -236,7 +233,6 @@ export default function InchargeScheduledPage() {
             </table>
           </div>
         </div>
-      </main>
 
       {editFor && (
         <AssignVehicleModal

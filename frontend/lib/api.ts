@@ -34,20 +34,27 @@ api.interceptors.request.use(
 // Response interceptor
 api.interceptors.response.use(
   (response) => {
+    type ApiEnvelope<T> = { ok: boolean; data?: T; message?: string };
+
+    const isEnvelope = (value: unknown): value is ApiEnvelope<unknown> => {
+      return Boolean(
+        value &&
+        typeof value === 'object' &&
+        'ok' in value
+      );
+    };
+
     const payload = response.data;
-    if (
-      payload &&
-      typeof payload === 'object' &&
-      Object.prototype.hasOwnProperty.call(payload, 'ok')
-    ) {
-      if ((payload as any).ok) {
-        response.data =
-          Object.prototype.hasOwnProperty.call(payload as any, 'data') ? (payload as any).data : null;
+    if (isEnvelope(payload)) {
+      if (payload.ok) {
+        response.data = Object.prototype.hasOwnProperty.call(payload, 'data') ? payload.data ?? null : null;
         return response;
       }
 
-      const err = new Error((payload as any).message || 'Request failed');
-      (err as any).response = { status: response.status, data: payload };
+      const err = new Error(payload.message || 'Request failed') as Error & {
+        response?: { status: number; data: unknown };
+      };
+      err.response = { status: response.status, data: payload };
       return Promise.reject(err);
     }
     return response;

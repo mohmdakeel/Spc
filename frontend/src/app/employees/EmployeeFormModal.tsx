@@ -110,16 +110,21 @@ export default function EmployeeFormModal({
 
       let imageUrl = formData.imageUrl ?? '';
 
-      // upload image if new
+      // upload image if new (tolerate failures)
       if (imageFile) {
-        const body = new FormData();
-        body.append('file', imageFile);
+        try {
+          const body = new FormData();
+          body.append('file', imageFile);
 
-        const { data } = await api.post('/upload', body, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
+          const { data } = await api.post('/upload', body, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
 
-        imageUrl = data.url;
+          imageUrl = data.url;
+        } catch (err) {
+          console.warn('Image upload failed, continuing without image', err);
+          imageUrl = imageUrl || '';
+        }
       }
 
       const payload: Registration = {

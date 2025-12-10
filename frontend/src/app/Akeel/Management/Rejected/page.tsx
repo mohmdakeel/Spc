@@ -24,7 +24,7 @@ const appliedLabel = (r: any) => {
 };
 
 const chipRejected = () => (
-  <span className="inline-block text-[10px] px-1.5 py-[2px] rounded bg-red-100 text-red-800 leading-none">
+  <span className="inline-block text-[7px] px-1 py-px rounded bg-red-100 text-red-800 leading-none">
     REJECTED
   </span>
 );
@@ -222,25 +222,25 @@ th{background:#faf5f0;text-align:left;width:34%}
             value={q}
             onChange={setQ}
             placeholder="Search code, applicant, dept, route, officer, purpose…"
-            className="w-full lg:w-72"
+            className="w-full lg:w-72 h-10"
           />
           <button
             type="button"
             onClick={printPage}
-            className="inline-flex items-center gap-1 px-3 h-10 rounded-xl bg-orange-600 text-white hover:bg-orange-700 text-sm"
+            className="inline-flex items-center gap-2 px-4 h-10 rounded-lg bg-orange-600 text-white hover:bg-orange-700 text-sm font-semibold shadow-sm"
             title="Print current list"
           >
-            <Printer size={14} /> Print
+            <Printer size={16} /> Print Page
           </button>
         </div>
       </div>
 
       <div className="bg-white rounded-lg border border-orange-200 overflow-x-hidden overflow-y-auto">
         {/* hydration-safe colgroup */}
-        <table className="w-full table-fixed text-[10.5px] leading-[1.15]">
+        <table className="w-full table-fixed text-[8px] leading-tight align-top">
           <colgroup>{COLS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
-          <thead className="bg-orange-50">
-            <tr className="text-[9.5px]">
+            <thead className="bg-orange-50 text-[9px] uppercase tracking-wide">
+            <tr>
               <Th className="px-2 py-1 text-left">RQ ID / Applied</Th>
               <Th className="px-2 py-1 text-left">Applicant / Dept</Th>
               <Th className="px-2 py-1 text-center">Status</Th>
@@ -274,13 +274,13 @@ th{background:#faf5f0;text-align:left;width:34%}
                   title="Click for full details"
                 >
                     {/* RQ / Applied */}
-                    <Td className="px-2 py-1">
+                    <Td className="px-2 py-1 text-[10px]">
                       <div className="font-semibold text-orange-900 truncate">{r.requestCode || '—'}</div>
                       <div className="text-[9px] text-gray-600 truncate">{appliedLabel(r)}</div>
                     </Td>
 
                     {/* Applicant / Dept */}
-                    <Td className="px-2 py-1">
+                    <Td className="px-2 py-1 text-[10px]">
                       <div className="truncate">
                         <span className="font-medium text-orange-900">{r.applicantName || '—'}</span>{' '}
                         <span className="text-gray-600 text-[9px]">({r.employeeId || '—'})</span>
@@ -292,7 +292,7 @@ th{background:#faf5f0;text-align:left;width:34%}
                     <Td className="px-2 py-1 text-center">{chipRejected()}</Td>
 
                     {/* Travel */}
-                    <Td className="px-2 py-1">
+                    <Td className="px-2 py-1 text-[10px]">
                       <div className="truncate">{r.dateOfTravel || '—'}</div>
                       <div className="text-[9px] text-gray-600 truncate">
                         <span className="font-mono">{r.timeFrom || '—'}</span>–<span className="font-mono">{r.timeTo || '—'}</span> {r.overnight ? '(overnight)' : ''}
@@ -300,12 +300,12 @@ th{background:#faf5f0;text-align:left;width:34%}
                     </Td>
 
                     {/* Route */}
-                    <Td className="px-2 py-1">
+                    <Td className="px-2 py-1 text-[10px]">
                       <div className="truncate">{r.fromLocation || '—'} → {r.toLocation || '—'}</div>
                     </Td>
 
                     {/* Officer */}
-                    <Td className="px-2 py-1">
+                    <Td className="px-2 py-1 text-[10px]">
                       {off.withOfficer ? (
                         <>
                           <div className="truncate">
@@ -317,8 +317,8 @@ th{background:#faf5f0;text-align:left;width:34%}
                     </Td>
 
                     {/* Purpose / Goods */}
-                    <Td className="px-2 py-1">
-                      <div className="truncate">{purposeWithoutOfficer(r)}</div>
+                    <Td className="px-2 py-1 text-[10px]">
+                      <div className="truncate text-[9px] leading-tight">{purposeWithoutOfficer(r)}</div>
                       <div className="text-[9px] text-gray-700 truncate">{r.goods || '—'}</div>
                     </Td>
 
@@ -326,7 +326,7 @@ th{background:#faf5f0;text-align:left;width:34%}
                     <Td className="px-2 py-1 text-center" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
-                        className="inline-flex items-center justify-center px-2 py-[4px] rounded bg-orange-600 text-white hover:bg-orange-700 text-[10px]"
+                        className="inline-flex items-center justify-center px-2 py-[4px] rounded bg-orange-600 text-white hover:bg-orange-700 text-xs"
                         title="Print this request"
                         onClick={() => printOne(r)}
                       >
@@ -375,7 +375,7 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
               <div className="text-orange-800 font-semibold mb-1">Applicant & Department</div>
               <div className="truncate">
                 <span className="font-medium text-orange-900">Applicant:</span> {(request as any).applicantName}
-                <span className="text-gray-600 text-[10px]"> ({(request as any).employeeId})</span>
+                <span className="text-gray-600 text-xs"> ({(request as any).employeeId})</span>
               </div>
               <div className="truncate"><span className="font-medium">Department:</span> {(request as any).department || '—'}</div>
             </section>
@@ -384,7 +384,7 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
               <div className="text-orange-800 font-semibold mb-1">Status</div>
               <div><b>Status:</b> REJECTED</div>
               <div><b>Applied:</b> {appliedLabel(request as any)}</div>
-              <div className="text-[10px] text-gray-600 mt-1">
+              <div className="text-xs text-gray-600 mt-1">
                 Created {fmtDT((request as any).createdAt)}
                 {(request as any).updatedAt ? ` • Updated ${fmtDT((request as any).updatedAt)}` : ''}
               </div>
@@ -421,7 +421,7 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
                   <div>
                     <div className="text-gray-600">Officer</div>
                     <div className="break-words">
-                      {off.withOfficer ? (<>{off.name || '—'} {off.id ? <span className="text-[10px] text-gray-600">({off.id})</span> : null}{off.phone ? `, ${off.phone}` : ''}</>) : '—'}
+                      {off.withOfficer ? (<>{off.name || '—'} {off.id ? <span className="text-xs text-gray-600">({off.id})</span> : null}{off.phone ? `, ${off.phone}` : ''}</>) : '—'}
                     </div>
                   </div>
                 </div>

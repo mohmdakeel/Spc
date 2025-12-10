@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import Image from 'next/image';
 import {
   ChevronDown,
   ChevronUp,
@@ -90,7 +91,7 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
 const Sidebar: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
+  const collapsed = false;
 
   const go = (path: string) => router.push(path);
   const isActive = (path: string) => pathname === path || pathname?.startsWith(path + '/');
@@ -156,36 +157,26 @@ const Sidebar: React.FC = () => {
   };
 
   return (
-    <aside
-      className={`bg-orange-100 h-screen ${
-        collapsed ? 'w-20' : 'w-64'
-      } p-4 overflow-y-auto transition-all duration-300 ease-in-out flex flex-col shadow-[4px_0_20px_rgba(0,0,0,0.1)]`}
-    >
+    <aside className="hod-sidebar bg-orange-100 border-r border-orange-200 h-screen w-64 min-w-64 p-4 overflow-y-auto transition-all duration-300 ease-in-out flex flex-col shadow-[4px_0_20px_rgba(0,0,0,0.1)] sticky top-0">
       {/* Brand */}
-      <div className="mb-6 flex flex-col items-center">
-        {!collapsed ? (
-          <>
-            <div className="flex items-center gap-2 mb-2">
-              <Car size={28} className="text-orange-600" />
-              <h1 className="text-xl font-bold text-black truncate">SPC Transport</h1>
-            </div>
-            <p className="text-xs text-orange-800/80 truncate">Admin System</p>
-          </>
-        ) : (
-          <Car size={28} className="text-orange-600" />
-        )}
+      <div className="mb-6 flex items-center gap-3">
+        <div className="w-12 h-12 rounded-2xl border border-orange-200 bg-white/80 flex items-center justify-center shadow-sm">
+          <Image
+            src="/spclogopic.png"
+            alt="State Printing Corporation logo"
+            width={36}
+            height={36}
+            className="object-contain"
+            priority
+          />
+        </div>
+        <div className="min-w-0">
+          <h1 className="font-bold text-sm text-orange-900 leading-tight truncate">
+            State Printing Corporation
+          </h1>
+          <p className="text-xs text-orange-700/70 truncate">Transport Service</p>
+        </div>
       </div>
-
-      {/* Collapse toggle */}
-      <button
-        type="button"
-        onClick={() => setCollapsed((c) => !c)}
-        aria-pressed={collapsed}
-        className="hidden md:flex items-center justify-center p-2 mb-4 bg-orange-200 rounded-lg hover:bg-orange-300 transition-all text-black hover:text-white"
-        title={collapsed ? 'Expand' : 'Collapse'}
-      >
-        {collapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
-      </button>
 
       {/* Dashboard */}
       <button
@@ -198,7 +189,7 @@ const Sidebar: React.FC = () => {
         }`}
       >
         <Home size={20} />
-        {!collapsed && <span>Dashboard</span>}
+        <span>Dashboard</span>
       </button>
 
       {/* Groups */}
@@ -251,7 +242,7 @@ const Sidebar: React.FC = () => {
           </button>
         </SidebarItem>
 
-        <SidebarItem
+          <SidebarItem
           label="Vehicle Maintenance"
           icon={<Wrench size={20} />}
           collapsed={collapsed}
@@ -402,47 +393,53 @@ const Sidebar: React.FC = () => {
       <div className="pt-4 border-t border-orange-300 mt-auto space-y-1">
         <button
           type="button"
-          onClick={() => go('/Akeel/Transport/Reports')}
+          onClick={() => go('/Akeel/Transport/Profile')}
           className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all
-          ${isActive('/Akeel/Transport/Reports') ? 'bg-orange-600 text-white' : 'text-black hover:bg-orange-500 hover:text-white'}
+          ${isActive('/Akeel/Transport/Profile') ? 'bg-orange-600 text-white' : 'text-black hover:bg-orange-500 hover:text-white'}
           ${collapsed ? 'justify-center px-2' : ''}`}
         >
+          <User size={18} />
+          {!collapsed && <span className="text-sm font-medium">Profile</span>}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => go('/Akeel/Transport/Reports')}
+          className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all
+          ${isActive('/Akeel/Transport/Reports') ? 'bg-orange-600 text-white' : 'text-black hover:bg-orange-500 hover:text-white'}`}
+        >
           <PieChart size={18} />
-          {!collapsed && <span className="text-sm font-medium">Reports</span>}
+          <span className="text-sm font-medium">Reports</span>
         </button>
 
         <button
           type="button"
           onClick={() => go('/Akeel/Transport/History')}
           className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all
-          ${isActive('/Akeel/Transport/History') ? 'bg-orange-600 text-white' : 'text-black hover:bg-orange-500 hover:text-white'}
-          ${collapsed ? 'justify-center px-2' : ''}`}
+          ${isActive('/Akeel/Transport/History') ? 'bg-orange-600 text-white' : 'text-black hover:bg-orange-500 hover:text-white'}`}
         >
           <FileText size={18} />
-          {!collapsed && <span className="text-sm font-medium">History</span>}
+          <span className="text-sm font-medium">History</span>
         </button>
 
         <button
           type="button"
           onClick={() => go('/Akeel/Transport/Settings')}
           className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all
-          ${isActive('/Akeel/Transport/Settings') ? 'bg-orange-600 text-white' : 'text-black hover:bg-orange-500 hover:text-white'}
-          ${collapsed ? 'justify-center px-2' : ''}`}
+          ${isActive('/Akeel/Transport/Settings') ? 'bg-orange-600 text-white' : 'text-black hover:bg-orange-500 hover:text-white'}`}
         >
           <Settings size={18} />
-          {!collapsed && <span className="text-sm font-medium">Settings</span>}
+          <span className="text-sm font-medium">Settings</span>
         </button>
 
         {/* FIXED: Updated logout button with proper functionality */}
         <button
           type="button"
           onClick={handleLogout}
-          className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all text-black hover:bg-red-500 hover:text-white ${
-            collapsed ? 'justify-center px-2' : ''
-          }`}
+          className="flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all text-black hover:bg-red-500 hover:text-white"
         >
           <LogOut size={18} />
-          {!collapsed && <span className="text-sm font-medium">Logout</span>}
+          <span className="text-sm font-medium">Logout</span>
         </button>
       </div>
     </aside>

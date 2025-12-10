@@ -15,37 +15,44 @@ export default function TransportLayout({ children }: { children: React.ReactNod
 
   return (
     <RequireRole roles={['ADMIN', 'TRANSPORT_ADMIN', 'TRANSPORT']}>
-      <div className="flex h-screen bg-orange-50 overflow-hidden">
-      {/* Left nav */}
-      <Sidebar />
+      <div className="auth-shell">
+        {/* Left nav */}
+        <Sidebar />
 
-      {/* Main column */}
-      <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-        {/* Top bar shows the same user */}
-        <Topbar user={user} />
+        {/* Main column */}
+        <div className="auth-shell__main overflow-hidden">
+          {/* Top bar shows the same user */}
+          <Topbar
+            user={user}
+            appName="SPC Transport"
+            workspace="Transport Operations"
+            profileTag="Transport Suite"
+            profileHref="/Akeel/Transport/Profile"
+            settingsHref="/Akeel/Transport/Settings"
+          />
 
-        {/* Scrollable content area */}
-        <div className="flex-1 overflow-auto">
-          <div className="mx-auto w-full max-w-[1400px] px-3 sm:px-4 lg:px-6 py-3 sm:py-4">
-            {children}
-          </div>
+          {/* Scrollable content area */}
+          <main className="auth-shell__content">
+            <div className="mx-auto w-full max-w-[1400px] space-y-6">
+              {children}
+            </div>
+          </main>
         </div>
-      </div>
 
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        theme="light"
-        style={{ zIndex: 10000 }}
-      />
-    </div>
+        <ToastContainer
+          position="top-right"
+          autoClose={3000}
+          hideProgressBar={false}
+          newestOnTop
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+          theme="light"
+          style={{ zIndex: 10000 }}
+        />
+      </div>
     </RequireRole>
   );
 }

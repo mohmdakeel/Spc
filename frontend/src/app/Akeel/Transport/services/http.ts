@@ -17,6 +17,28 @@ const http = axios.create({
 
 export default http;
 
+// Attach actor/role headers so backend auditing captures who performed the action.
+http.interceptors.request.use((config) => {
+  if (typeof window !== 'undefined') {
+    const actor =
+      localStorage.getItem('username') || // prefer username if stored
+      localStorage.getItem('actor') ||
+      localStorage.getItem('employeeId') ||
+      undefined;
+    if (actor) {
+      config.headers = config.headers ?? {};
+      config.headers['X-Actor'] = actor;
+    }
+
+    const role = localStorage.getItem('role') || undefined;
+    if (role) {
+      config.headers = config.headers ?? {};
+      config.headers['X-Role'] = role;
+    }
+  }
+  return config;
+});
+
 export function unwrapApi<T>(body: any): T {
   if (body && typeof body === 'object' && 'ok' in body) {
     if ((body as any).ok === false) {

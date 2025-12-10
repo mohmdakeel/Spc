@@ -265,15 +265,20 @@ export default function Employees() {
 
       // if user picked a file in step 2, upload it first
       if (imageFile) {
-        const formDataUpload = new FormData();
-        formDataUpload.append('file', imageFile);
+        try {
+          const formDataUpload = new FormData();
+          formDataUpload.append('file', imageFile);
 
-        const { data } = await api.post('/upload', formDataUpload, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
+          const { data } = await api.post('/upload', formDataUpload, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
 
-        // backend returns { url: "https://res.cloudinary.com/.../image.jpg", ... }
-        imageUrl = data.url;
+          // backend returns { url: "https://res.cloudinary.com/.../image.jpg", ... }
+          imageUrl = data.url;
+        } catch (err) {
+          console.warn('Image upload failed, continuing without image', err);
+          imageUrl = imageUrl || '';
+        }
       }
 
       const payload = { ...formData, imageUrl };
@@ -440,7 +445,7 @@ export default function Employees() {
                 <input
                   name="nicNo"
                   placeholder="NIC number"
-                  value={formData.nicNo}
+                  value={formData.nicNo ?? ''}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
@@ -974,9 +979,9 @@ export default function Employees() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
+          <div className="space-y-8">
             {/* MAIN CONTENT - EMPLOYEES TABLE */}
-            <div className="xl:col-span-3">
+            <div className="w-full">
               <div className="bg-white rounded-2xl shadow-lg border border-orange-200 overflow-hidden">
                 <div className="p-6 border-b border-orange-200 bg-orange-50">
                   <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
@@ -1161,83 +1166,6 @@ export default function Employees() {
                     </div>
                   </>
                 )}
-              </div>
-            </div>
-
-            {/* RIGHT COLUMN - QUICK STATS */}
-            <div className="space-y-6">
-              {/* QUICK STATS */}
-              <div className="bg-white rounded-2xl shadow-lg border border-orange-200 overflow-hidden">
-                <div className="p-6 border-b border-orange-200 bg-orange-50">
-                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                    <Filter className="w-5 h-5 text-orange-600" />
-                    Quick Stats
-                  </h2>
-                </div>
-                <div className="p-6 space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Total Employees</span>
-                    <span className="text-2xl font-bold text-orange-600">{registrations.length}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Filtered</span>
-                    <span className="text-2xl font-bold text-blue-600">{filteredRegistrations.length}</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* PERMISSIONS INFO */}
-              <div className="bg-white rounded-2xl shadow-lg border border-orange-200 overflow-hidden">
-                <div className="p-6 border-b border-orange-200 bg-orange-50">
-                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                    <Shield className="w-5 h-5 text-orange-600" />
-                    Your Permissions
-                  </h2>
-                </div>
-                <div className="p-6">
-                  <div className="space-y-3">
-                    <div className={`p-3 rounded-lg border ${canRead ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">View Employees</span>
-                        {canRead ? (
-                          <CheckCircle className="w-4 h-4 text-green-600" />
-                        ) : (
-                          <XCircle className="w-4 h-4 text-gray-400" />
-                        )}
-                      </div>
-                    </div>
-                    <div className={`p-3 rounded-lg border ${canCreate ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Create Employees</span>
-                        {canCreate ? (
-                          <CheckCircle className="w-4 h-4 text-green-600" />
-                        ) : (
-                          <XCircle className="w-4 h-4 text-gray-400" />
-                        )}
-                      </div>
-                    </div>
-                    <div className={`p-3 rounded-lg border ${canUpdate ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Edit Employees</span>
-                        {canUpdate ? (
-                          <CheckCircle className="w-4 h-4 text-green-600" />
-                        ) : (
-                          <XCircle className="w-4 h-4 text-gray-400" />
-                        )}
-                      </div>
-                    </div>
-                    <div className={`p-3 rounded-lg border ${canDelete ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">Delete Employees</span>
-                        {canDelete ? (
-                          <CheckCircle className="w-4 h-4 text-green-600" />
-                        ) : (
-                          <XCircle className="w-4 h-4 text-gray-400" />
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           </div>

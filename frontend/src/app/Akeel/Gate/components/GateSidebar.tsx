@@ -1,81 +1,85 @@
 'use client';
 
-import React from 'react';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import {
-  Home,
-  CalendarClock,
-  Users,
-  Building,
-  Shield,
-  Gauge,
-  History
-} from 'lucide-react';
+import { Home, CalendarClock, Gauge, History, Users, Building, UserCircle, Settings, LogOut } from 'lucide-react';
+import { logout } from '../../../../../lib/auth';
+
+const MENU = [
+  { label: 'Dashboard', icon: Home, to: '/Akeel/Gate' },
+  { label: 'Scheduled Vehicles', icon: CalendarClock, to: '/Akeel/Gate/Scheduled' },
+  { label: 'Active Vehicles', icon: Gauge, to: '/Akeel/Gate/Active' },
+  { label: 'Trips History', icon: History, to: '/Akeel/Gate/History' },
+  { label: 'Visitor Vehicles', icon: Users, to: '/Akeel/Gate/Visitors' },
+  { label: 'Company Vehicles', icon: Building, to: '/Akeel/Gate/Company' },
+];
 
 export default function GateSidebar() {
-  const [collapsed, setCollapsed] = React.useState(false);
   const router = useRouter();
-  const path = usePathname();
+  const pathname = usePathname();
 
-  const go = (p: string) => router.push(p);
-  const isActive = (p: string) => path === p || path?.startsWith(p + '/');
+  const isActive = (to: string) => pathname === to || pathname.startsWith(`${to}/`);
 
-  const Item = ({
-    to,
-    icon,
-    label
-  }: {
-    to: string;
-    icon: React.ReactNode;
-    label: string;
-  }) => {
-    const active = isActive(to);
-    return (
-      <button
-        onClick={() => go(to)}
-        title={collapsed ? label : undefined}
-        aria-current={active ? 'page' : undefined}
-        className={[
-          'w-full px-3 py-2 rounded flex items-center gap-2 text-sm transition-colors',
-          active
-            ? 'bg-orange-600 text-white'
-            : 'text-orange-900 hover:bg-orange-200'
-        ].join(' ')}
-      >
-        {icon}
-        {!collapsed && <span className="truncate">{label}</span>}
-      </button>
-    );
+  const handleLogout = async () => {
+    await logout();
+    router.push('/login');
   };
 
   return (
-    <aside
-      className={[
-        collapsed ? 'w-20' : 'w-64',
-        'h-screen bg-orange-100 p-4 transition-all sticky top-0'
-      ].join(' ')}
-    >
-      <div className="flex items-center gap-2 mb-6">
-        <Shield className="text-orange-600" />
-        {!collapsed && <h1 className="font-bold text-orange-900">Gate Security</h1>}
+    <aside className="hod-sidebar w-64 min-w-64 shrink-0 h-screen sticky top-0 bg-orange-100 p-4 border-r border-orange-200 flex flex-col">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-12 h-12 rounded-2xl border border-orange-200 bg-white/80 flex items-center justify-center shadow-sm">
+          <Image
+            src="/spclogopic.png"
+            alt="State Printing Corporation logo"
+            width={36}
+            height={36}
+            className="object-contain"
+            priority
+          />
+        </div>
+        <div className="min-w-0">
+          <h1 className="font-bold text-sm text-orange-900 leading-tight truncate">Gate Security</h1>
+          <p className="text-xs text-orange-700/70 truncate">Vehicle entry & exit</p>
+        </div>
       </div>
 
-      <button
-        onClick={() => setCollapsed(c => !c)}
-        className="mb-4 w-full bg-orange-200 hover:bg-orange-300 rounded py-2 text-xs font-medium text-orange-900"
-        aria-pressed={collapsed}
-      >
-        {collapsed ? 'Expand' : 'Collapse'}
-      </button>
-
-      <nav className="space-y-1">
-        <Item to="/Akeel/Gate"            icon={<Home size={18} />}          label="Dashboard" />
-        <Item to="/Akeel/Gate/Scheduled"   icon={<CalendarClock size={18} />} label="Scheduled Vehicles" />
-        <Item to="/Akeel/Gate/Active"      icon={<Gauge size={18} />}         label="Active Vehicles" />
-        <Item to="/Akeel/Gate/History"     icon={<History size={18} />}       label="Trips History" />
-        <Item to="/Akeel/Gate/Visitors"    icon={<Users size={18} />}         label="Visitor Vehicles" />
-        <Item to="/Akeel/Gate/Company"     icon={<Building size={18} />}      label="Company Vehicles" />
+      <nav className="space-y-1 flex-1">
+        {MENU.map(({ label, icon: Icon, to }) => (
+          <button
+            key={label}
+            onClick={() => router.push(to)}
+            className={`hod-sidebar__item ${isActive(to) ? 'is-active' : ''}`}
+          >
+            <Icon size={18} />
+            <span className="truncate">{label}</span>
+          </button>
+        ))}
       </nav>
+
+      <div className="pt-4 mt-6 border-t border-orange-200 space-y-2">
+        <button
+          onClick={() => router.push('/Akeel/Gate/Profile')}
+          className="hod-sidebar__link"
+        >
+          <UserCircle size={18} />
+          <span>Profile</span>
+        </button>
+        <button
+          onClick={() => router.push('/Akeel/Gate/Settings')}
+          className="hod-sidebar__link"
+        >
+          <Settings size={18} />
+          <span>Settings</span>
+        </button>
+        <button
+          onClick={handleLogout}
+          className="hod-sidebar__danger"
+        >
+          <LogOut size={18} />
+          <span>Logout</span>
+        </button>
+      </div>
     </aside>
   );
 }

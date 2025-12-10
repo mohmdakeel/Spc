@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { listByStatus } from '../Transport/services/usageService';
 import type { UsageRequest } from '../Transport/services/types';
 import WorkspaceSearchBar from '../../../../components/workspace/WorkspaceSearchBar';
+import { useSearchParams } from 'next/navigation';
 
 const MANAGEMENT_ROLES: string[] = ['HR', 'HRD', 'HRM', 'GM', 'GENERAL_MANAGER', 'CHAIRMAN', 'MANAGEMENT'];
 
@@ -15,6 +16,12 @@ export default function ManagementDashboardPage() {
   const [rejected, setRejected] = useState<UsageRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const params = useSearchParams();
+
+  useEffect(() => {
+    const q = params.get('q') || params.get('search');
+    if (q) setSearchTerm(q);
+  }, [params]);
 
   useEffect(() => {
     const load = async () => {

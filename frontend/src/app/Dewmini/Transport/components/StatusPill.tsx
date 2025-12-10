@@ -25,7 +25,7 @@ const colorOf = (v: AnyStatus | '') => {
     case 'RETIRED': return 'bg-gray-100 text-gray-700 border-gray-200';
     case 'SUSPENDED':
     case 'UNDER_REPAIR': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-    case 'IN_SERVICE': return 'bg-blue-100 text-blue-800 border-blue-200';
+    case 'IN_SERVICE': return 'bg-orange-100 text-orange-800 border-orange-200';
     default: return 'bg-orange-100 text-orange-800 border-orange-200';
   }
 };

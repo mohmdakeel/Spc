@@ -231,7 +231,7 @@ export default function DriverListPage() {
               <Plus size={16} /><span>Add Driver</span>
             </button>
             <button
-              className="flex items-center gap-2 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 shadow-sm transition-colors text-sm"
+              className="flex items-center gap-2 bg-orange-100 text-orange-700 border border-orange-200 px-3 py-2 rounded-lg hover:bg-orange-200 shadow-sm transition-colors text-sm"
               onClick={() => printDriverList(filtered as Driver[], showDeleted)}
             >
               <Printer size={16} /><span>Print</span>
@@ -297,7 +297,7 @@ export default function DriverListPage() {
                         {!showDeleted && (
                           <Td className={`text-center ${ROW_PX} ${ROW_PY}`} onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-center gap-1">
-                              <button className="w-6 h-6 grid place-items-center rounded text-blue-600 hover:bg-blue-100 transition-colors"
+                              <button className="w-6 h-6 grid place-items-center rounded text-orange-600 hover:bg-orange-100 transition-colors"
                                 onClick={() => printDriver(d)} title="Print" aria-label="Print">
                                 <Printer size={14} />
                               </button>

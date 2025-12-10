@@ -542,9 +542,9 @@ export default function UsersManagement() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
+          <div className="space-y-8">
             {/* MAIN TABLE CARD */}
-            <div className="xl:col-span-3">
+            <div className="w-full">
               <div className="bg-white rounded-2xl shadow-lg border border-orange-200 overflow-hidden">
                 {/* TABLE HEADER / FILTERS */}
                 <div className="p-6 border-b border-orange-200 bg-orange-50">
@@ -632,7 +632,7 @@ export default function UsersManagement() {
                   <div className="p-8 text-center">
                     <Shield className="w-12 h-12 text-gray-400 mx-auto mb-3" />
                     <p className="text-gray-600">
-                      You don't have permission to view users (need{' '}
+                      You don&apos;t have permission to view users (need{' '}
                       <code className="bg-gray-100 px-2 py-1 rounded text-sm">
                         READ
                       </code>{' '}
@@ -845,60 +845,6 @@ export default function UsersManagement() {
               </div>
             </div>
 
-            {/* RIGHT COLUMN: Quick Stats + Permissions */}
-            <div className="space-y-6">
-              {/* QUICK STATS CARD */}
-              <div className="bg-white rounded-2xl shadow-lg border border-orange-200 overflow-hidden">
-                <div className="p-6 border-b border-orange-200 bg-orange-50">
-                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                    <Filter className="w-5 h-5 text-orange-600" />
-                    Quick Stats
-                  </h2>
-                </div>
-                <div className="p-6 space-y-4 text-sm">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Total Users</span>
-                    <span className="text-2xl font-bold text-orange-600">
-                      {users.length}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Filtered</span>
-                    <span className="text-2xl font-bold text-blue-600">
-                      {filteredUsers.length}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Page</span>
-                    <span className="font-semibold text-gray-900">
-                      {safePage}/{totalPages}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Available Roles</span>
-                    <span className="text-2xl font-bold text-green-600">
-                      {roles.length}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* PERMISSIONS CARD */}
-              <div className="bg-white rounded-2xl shadow-lg border border-orange-200 overflow-hidden">
-                <div className="p-6 border-b border-orange-200 bg-orange-50">
-                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                    <Key className="w-5 h-5 text-orange-600" />
-                    Your Permissions
-                  </h2>
-                </div>
-                <div className="p-6">
-                  <PermRow label="View Users" ok={canRead} />
-                  <PermRow label="Create Users" ok={canCreate} />
-                  <PermRow label="Edit Users" ok={canUpdate} />
-                  <PermRow label="Export / Print" ok={canPrint} />
-                </div>
-              </div>
-            </div>
           </div>
 
           {/* ========== MODALS ========== */}

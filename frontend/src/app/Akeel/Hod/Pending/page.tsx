@@ -17,7 +17,8 @@ import { Th, Td } from '../../Transport/components/ThTd';
 import ReviewModal from '../components/ReviewModal';
 import HODSearchBar from '../components/HODSearchBar';
 import { toast } from 'react-toastify';
-import { Printer, X, ClipboardCheck } from 'lucide-react';
+import { Printer, X, ClipboardCheck, RefreshCw } from 'lucide-react';
+import { login } from '../../../../../lib/auth';
 
 /* ---------------- helpers ---------------- */
 const fmtDT = (s?: string | null) => (s ? new Date(s).toLocaleString() : '—');
@@ -135,12 +136,18 @@ export default function HODPendingPage() {
   const [selected, setSelected] = useState<UsageRequest | null>(null); // Review modal
   const [view, setView] = useState<UsageRequest | null>(null);         // Details modal
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const list = await listByStatus('PENDING_HOD');
       setRows(list || []);
+    } catch (err: any) {
+      console.warn('Failed to load pending HOD list', err);
+      setError(err?.message || 'Unable to load pending requests right now.');
+      setRows([]);
     } finally {
       setLoading(false);
     }
@@ -160,11 +167,23 @@ export default function HODPendingPage() {
     });
   }, [rows, q]);
 
-  const actApprove = async (remarks?: string) => {
+  const resolveUsername = () => {
+    if (typeof window === 'undefined') return '';
+    return (
+      localStorage.getItem('username') ||
+      localStorage.getItem('actor') ||
+      localStorage.getItem('employeeId') ||
+      ''
+    );
+  };
+
+  const actApprove = async (remarks: string, password: string) => {
     if (!selected) return;
     try {
+      const username = resolveUsername();
+      if (!username || !password.trim()) throw new Error('Missing credentials; please re-enter password.');
+      await login({ username, password });
       await hodApprove(selected.id, remarks);
-      saveMyApproval(selected, remarks);
       toast?.success?.('Approved & sent to Management');
       setSelected(null);
       load();
@@ -172,9 +191,13 @@ export default function HODPendingPage() {
       toast?.error?.(e?.message || 'Failed to approve');
     }
   };
-  const actReject = async (remarks?: string) => {
+
+  const actReject = async (remarks: string, password: string) => {
     if (!selected) return;
     try {
+      const username = resolveUsername();
+      if (!username || !password.trim()) throw new Error('Missing credentials; please re-enter password.');
+      await login({ username, password });
       await hodReject(selected.id, remarks);
       toast?.success?.('Request rejected');
       setSelected(null);
@@ -282,6 +305,15 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
             />
             <button
               type="button"
+              onClick={load}
+              disabled={loading}
+              className="inline-flex items-center justify-center gap-1 px-3 h-11 md:h-10 rounded-lg border border-orange-200 text-orange-800 hover:bg-orange-50 text-xs font-semibold disabled:opacity-60"
+              title="Refresh from server"
+            >
+              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
+            </button>
+            <button
+              type="button"
               onClick={printPage}
               className="inline-flex items-center justify-center gap-1 px-3 h-11 md:h-10 rounded-lg bg-orange-600 text-white hover:bg-orange-700 text-xs font-semibold"
               title="Print current list"
@@ -318,7 +350,7 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
               </tr>
             )}
 
-            {!loading && filtered.map((r: any) => {
+            {!loading && !error && filtered.map((r: any) => {
               const off = extractOfficer(r);
               const rowKey = String(r?.id ?? r?.requestCode ?? `${r?.employeeId}-${r?.dateOfTravel}-${r?.timeFrom}`);
 
@@ -406,10 +438,17 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
               );
             })}
 
-            {!loading && !filtered.length && (
+            {!loading && !error && !filtered.length && (
               <tr>
                 <Td colSpan={8} className="px-2 py-6 text-center text-gray-500">
                   No pending requests
+                </Td>
+              </tr>
+            )}
+            {!loading && error && (
+              <tr>
+                <Td colSpan={8} className="px-2 py-6 text-center text-red-600 text-[12px]">
+                  {error}
                 </Td>
               </tr>
             )}

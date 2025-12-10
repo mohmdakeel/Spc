@@ -33,6 +33,7 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [userSearch, setUserSearch] = useState('');
   const [employeeSearch, setEmployeeSearch] = useState('');
+  const [tab, setTab] = useState<'users' | 'employees'>('users');
 
   useEffect(() => {
     if (!user) return;
@@ -227,124 +228,151 @@ export default function ReportsPage() {
               <p className="text-gray-600">Loading reports...</p>
             </div>
           ) : (
-            <div className="space-y-8">
-              <section className="bg-white rounded-2xl border border-orange-200 shadow overflow-hidden">
-                <div className="p-6 border-b border-orange-200 bg-orange-50 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                    <Users className="w-5 h-5 text-orange-600" />
-                    User Report
-                  </h2>
-                  <div className="flex gap-3">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                      <input
-                        value={userSearch}
-                        onChange={(e) => setUserSearch(e.target.value)}
-                        placeholder="Search users..."
-                        className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm"
-                      />
-                    </div>
-                    <button
-                      onClick={handlePrintUsersReport}
-                      className="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm flex items-center gap-2 hover:bg-gray-700 transition-colors"
-                    >
-                      <Printer className="w-4 h-4" />
-                      Print
-                    </button>
-                  </div>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full table-auto">
-                    <thead className="bg-orange-50">
-                      <tr>
-                        <th className="p-3 text-left text-sm text-gray-700 font-semibold">Username</th>
-                        <th className="p-3 text-left text-sm text-gray-700 font-semibold">Full Name</th>
-                        <th className="p-3 text-left text-sm text-gray-700 font-semibold">Email</th>
-                        <th className="p-3 text-left text-sm text-gray-700 font-semibold">Department</th>
-                        <th className="p-3 text-left text-sm text-gray-700 font-semibold">Roles</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {filteredUsers.map((u) => (
-                        <tr key={u.id ?? u.username}>
-                          <td className="p-3 text-gray-900">{u.username}</td>
-                          <td className="p-3 text-gray-600">{u.fullName || '—'}</td>
-                          <td className="p-3 text-gray-600">{u.email || '—'}</td>
-                          <td className="p-3 text-gray-600">{u.department || '—'}</td>
-                          <td className="p-3 text-gray-600">
-                            {(u.roles || []).length ? u.roles.join(', ') : '—'}
-                          </td>
-                        </tr>
-                      ))}
-                      {!filteredUsers.length && (
-                        <tr>
-                          <td colSpan={5} className="p-6 text-center text-gray-500">
-                            No users match your filter.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTab('users')}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold border ${
+                    tab === 'users'
+                      ? 'bg-orange-600 text-white border-orange-600 shadow-sm'
+                      : 'bg-white text-orange-900 border-orange-200 hover:bg-orange-50'
+                  }`}
+                >
+                  User Report
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTab('employees')}
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold border ${
+                    tab === 'employees'
+                      ? 'bg-orange-600 text-white border-orange-600 shadow-sm'
+                      : 'bg-white text-orange-900 border-orange-200 hover:bg-orange-50'
+                  }`}
+                >
+                  Employee Report
+                </button>
+              </div>
 
-              <section className="bg-white rounded-2xl border border-orange-200 shadow overflow-hidden">
-                <div className="p-6 border-b border-orange-200 bg-orange-50 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                    <ClipboardList className="w-5 h-5 text-orange-600" />
-                    Employee Report
-                  </h2>
-                  <div className="flex gap-3">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                      <input
-                        value={employeeSearch}
-                        onChange={(e) => setEmployeeSearch(e.target.value)}
-                        placeholder="Search employees..."
-                        className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm"
-                      />
+              {tab === 'users' ? (
+                <section className="bg-white rounded-2xl border border-orange-200 shadow overflow-hidden">
+                  <div className="p-6 border-b border-orange-200 bg-orange-50 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                      <Users className="w-5 h-5 text-orange-600" />
+                      User Report
+                    </h2>
+                    <div className="flex gap-3">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <input
+                          value={userSearch}
+                          onChange={(e) => setUserSearch(e.target.value)}
+                          placeholder="Search users..."
+                          className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm"
+                        />
+                      </div>
+                      <button
+                        onClick={handlePrintUsersReport}
+                        className="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm flex items-center gap-2 hover:bg-gray-700 transition-colors"
+                      >
+                        <Printer className="w-4 h-4" />
+                        Print
+                      </button>
                     </div>
-                    <button
-                      onClick={handlePrintEmployeesReport}
-                      className="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm flex items-center gap-2 hover:bg-gray-700 transition-colors"
-                    >
-                      <Printer className="w-4 h-4" />
-                      Print
-                    </button>
                   </div>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full table-auto">
-                    <thead className="bg-orange-50">
-                      <tr>
-                        <th className="p-3 text-left text-sm text-gray-700 font-semibold">EPF No</th>
-                        <th className="p-3 text-left text-sm text-gray-700 font-semibold">Full Name</th>
-                        <th className="p-3 text-left text-sm text-gray-700 font-semibold">Department</th>
-                        <th className="p-3 text-left text-sm text-gray-700 font-semibold">Mobile</th>
-                        <th className="p-3 text-left text-sm text-gray-700 font-semibold">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {filteredEmployees.map((emp) => (
-                        <tr key={emp.id ?? emp.epfNo}>
-                          <td className="p-3 text-gray-900">{emp.epfNo}</td>
-                          <td className="p-3 text-gray-600">{emp.fullName}</td>
-                          <td className="p-3 text-gray-600">{emp.department || '—'}</td>
-                          <td className="p-3 text-gray-600">{emp.mobileNo || '—'}</td>
-                          <td className="p-3 text-gray-600">{emp.workingStatus || '—'}</td>
-                        </tr>
-                      ))}
-                      {!filteredEmployees.length && (
+                  <div className="overflow-x-auto">
+                    <table className="w-full table-auto">
+                      <thead className="bg-orange-50">
                         <tr>
-                          <td colSpan={5} className="p-6 text-center text-gray-500">
-                            No employees match your filter.
-                          </td>
+                          <th className="p-3 text-left text-sm text-gray-700 font-semibold">Username</th>
+                          <th className="p-3 text-left text-sm text-gray-700 font-semibold">Full Name</th>
+                          <th className="p-3 text-left text-sm text-gray-700 font-semibold">Email</th>
+                          <th className="p-3 text-left text-sm text-gray-700 font-semibold">Department</th>
+                          <th className="p-3 text-left text-sm text-gray-700 font-semibold">Roles</th>
                         </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {filteredUsers.map((u) => (
+                          <tr key={u.id ?? u.username}>
+                            <td className="p-3 text-gray-900">{u.username}</td>
+                            <td className="p-3 text-gray-600">{u.fullName || '—'}</td>
+                            <td className="p-3 text-gray-600">{u.email || '—'}</td>
+                            <td className="p-3 text-gray-600">{u.department || '—'}</td>
+                            <td className="p-3 text-gray-600">
+                              {(u.roles || []).length ? u.roles.join(', ') : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                        {!filteredUsers.length && (
+                          <tr>
+                            <td colSpan={5} className="p-6 text-center text-gray-500">
+                              No users match your filter.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              ) : (
+                <section className="bg-white rounded-2xl border border-orange-200 shadow overflow-hidden">
+                  <div className="p-6 border-b border-orange-200 bg-orange-50 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                      <ClipboardList className="w-5 h-5 text-orange-600" />
+                      Employee Report
+                    </h2>
+                    <div className="flex gap-3">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <input
+                          value={employeeSearch}
+                          onChange={(e) => setEmployeeSearch(e.target.value)}
+                          placeholder="Search employees..."
+                          className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 text-sm"
+                        />
+                      </div>
+                      <button
+                        onClick={handlePrintEmployeesReport}
+                        className="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm flex items-center gap-2 hover:bg-gray-700 transition-colors"
+                      >
+                        <Printer className="w-4 h-4" />
+                        Print
+                      </button>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full table-auto">
+                      <thead className="bg-orange-50">
+                        <tr>
+                          <th className="p-3 text-left text-sm text-gray-700 font-semibold">EPF No</th>
+                          <th className="p-3 text-left text-sm text-gray-700 font-semibold">Full Name</th>
+                          <th className="p-3 text-left text-sm text-gray-700 font-semibold">Department</th>
+                          <th className="p-3 text-left text-sm text-gray-700 font-semibold">Mobile</th>
+                          <th className="p-3 text-left text-sm text-gray-700 font-semibold">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {filteredEmployees.map((emp) => (
+                          <tr key={emp.id ?? emp.epfNo}>
+                            <td className="p-3 text-gray-900">{emp.epfNo}</td>
+                            <td className="p-3 text-gray-600">{emp.fullName}</td>
+                            <td className="p-3 text-gray-600">{emp.department || '—'}</td>
+                            <td className="p-3 text-gray-600">{emp.mobileNo || '—'}</td>
+                            <td className="p-3 text-gray-600">{emp.workingStatus || '—'}</td>
+                          </tr>
+                        ))}
+                        {!filteredEmployees.length && (
+                          <tr>
+                            <td colSpan={5} className="p-6 text-center text-gray-500">
+                              No employees match your filter.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              )}
             </div>
           )}
 

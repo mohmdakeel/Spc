@@ -250,7 +250,7 @@ export default function VehicleListPage() {
       {!showDeleted && (
         <div className="flex items-center justify-end gap-2 pt-1">
           <button
-            className="px-2 py-1 rounded text-blue-600 hover:bg-blue-50 text-[11px] font-medium"
+            className="px-2 py-1 rounded text-orange-600 hover:bg-orange-50 text-[11px] font-medium"
             onClick={(e) => { e.stopPropagation(); printVehicle(v); }}
           >
             Print
@@ -325,7 +325,7 @@ export default function VehicleListPage() {
                 <span>Add Vehicle</span>
               </button>
               <button
-                className="flex items-center gap-2 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 shadow-sm transition-colors text-xs sm:text-sm"
+                className="flex items-center gap-2 bg-orange-100 text-orange-700 border border-orange-200 px-3 py-2 rounded-lg hover:bg-orange-200 shadow-sm transition-colors text-xs sm:text-sm"
                 onClick={() => printVehicleList(filtered as Vehicle[], showDeleted)}
               >
                 <Printer size={16} />
@@ -409,7 +409,7 @@ export default function VehicleListPage() {
                       <Td className={`text-center ${ROW_PX} ${ROW_PY}`} onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
                           <button
-                            className="w-6 h-6 grid place-items-center rounded text-blue-600 hover:bg-blue-100 transition-colors"
+                            className="w-6 h-6 grid place-items-center rounded text-orange-600 hover:bg-orange-100 transition-colors"
                             title="Print"
                             onClick={(e) => { e.stopPropagation(); printVehicle(v); }}
                           >

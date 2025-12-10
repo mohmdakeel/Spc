@@ -239,9 +239,9 @@ export default function HistoryPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
+          <div className="space-y-8">
             {/* MAIN TABLE CARD */}
-            <div className="xl:col-span-3">
+            <div className="w-full">
               <div className="bg-white rounded-2xl shadow-lg border border-orange-200 overflow-hidden">
                 {/* CARD HEADER */}
                 <div className="p-6 border-b border-orange-200 bg-orange-50">
@@ -447,77 +447,6 @@ export default function HistoryPage() {
                       <ChevronRight className="w-4 h-4 ml-1" />
                     </button>
                   </div>
-                </div>
-              </div>
-            </div>
-
-            {/* RIGHT PANEL: STATS / INFO */}
-            <div className="space-y-6">
-              {/* QUICK STATS */}
-              <div className="bg-white rounded-2xl shadow-lg border border-orange-200 overflow-hidden">
-                <div className="p-6 border-b border-orange-200 bg-orange-50">
-                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-orange-600" />
-                    Quick Stats
-                  </h2>
-                </div>
-                <div className="p-6 space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Total Logs</span>
-                    <span className="text-2xl font-bold text-orange-600">
-                      {logs.length}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">After Search</span>
-                    <span className="text-2xl font-bold text-blue-600">
-                      {filteredLogs.length}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Page Size</span>
-                    <span className="text-lg font-semibold text-gray-800">
-                      {pageSize}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600">Viewing</span>
-                    <span className="text-lg font-semibold text-gray-800 capitalize">
-                      {view}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* VIEW INFO CARD */}
-              <div className="bg-white rounded-2xl shadow-lg border border-orange-200 overflow-hidden">
-                <div className="p-6 border-b border-orange-200 bg-orange-50">
-                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                    <Shield className="w-5 h-5 text-orange-600" />
-                    View Information
-                  </h2>
-                </div>
-                <div className="p-6 space-y-3 text-sm text-gray-700">
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                    <h3 className="font-semibold text-blue-800 text-sm mb-1">
-                      My History
-                    </h3>
-                    <p className="text-blue-700 text-xs">
-                      Shows only your own activities and actions.
-                    </p>
-                  </div>
-
-                  {isAdmin && (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                      <h3 className="font-semibold text-green-800 text-sm mb-1">
-                        All History
-                      </h3>
-                      <p className="text-green-700 text-xs">
-                        Full system trail: who created, updated, deleted any
-                        employee/user.
-                      </p>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>

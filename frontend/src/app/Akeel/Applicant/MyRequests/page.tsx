@@ -44,6 +44,22 @@ function statusChip(raw?: string) {
   );
 }
 
+/** Resolve the account username that created the request, with sensible fallbacks */
+const resolveAccountUser = (r: any): string => {
+  const cleaned = [r?.createdBy, r?.created_by, r?.actor]
+    .map((v) => (v === undefined || v === null ? '' : String(v).trim()))
+    .find((v) => v && !['system', 'null', 'undefined', '-'].includes(v.toLowerCase()));
+  return cleaned || '—';
+};
+
+/** Resolve who last updated the record; fall back to submitter so the trail is never blank */
+const resolveUpdatedBy = (r: any, submitter: string): string => {
+  const raw = r?.updatedBy ?? r?.updated_by;
+  const val = raw === undefined || raw === null ? '' : String(raw).trim();
+  if (val && !['system', 'null', 'undefined', '-'].includes(val.toLowerCase())) return val;
+  return submitter || '—';
+};
+
 /* ---- phone sanitizer ---- */
 const cleanPhone = (p?: string) =>
   (p ?? '')
@@ -120,7 +136,8 @@ export default function RequestsPage() {
   React.useEffect(() => {
     const eid = (typeof window !== 'undefined' && (localStorage.getItem('employeeId') || '')) || '';
     const actor = (typeof window !== 'undefined' && (localStorage.getItem('actor') || '')) || '';
-    const uniqueIds = Array.from(new Set([eid, actor].filter(Boolean)));
+    const username = (typeof window !== 'undefined' && (localStorage.getItem('username') || '')) || '';
+    const uniqueIds = Array.from(new Set([eid, actor, username].filter(Boolean)));
     setIds(uniqueIds);
 
     (async () => {
@@ -139,12 +156,14 @@ export default function RequestsPage() {
         } catch {}
       }
 
-      if (merged.length === 0) {
-        try {
-          const all: any[] = await listAllRequests();
-          merged = all.filter((u: any) => uniqueIds.includes(u?.employeeId) || uniqueIds.includes(u?.createdBy || ''));
-        } catch {}
-      }
+      try {
+        const all: any[] = await listAllRequests();
+        const filtered = all.filter((u: any) => {
+          const created = u?.createdBy ?? u?.created_by ?? '';
+          return uniqueIds.includes(u?.employeeId) || uniqueIds.includes(created);
+        });
+        merged = merged.concat(filtered);
+      } catch {}
 
       const seen = new Set<string>();
       merged = merged.filter((r: any) => {
@@ -177,8 +196,9 @@ export default function RequestsPage() {
 
   const printAllCurrent = React.useCallback(() => {
     const rowsHtml = filtered
-      .map((r: any, index) => {
+      .map((r: any) => {
         const off = extractOfficer(r);
+        const submitterAccount = resolveAccountUser(r);
         const officerText = off.withOfficer
           ? `${formatPrintValue(off.name)}${off.id ? ` <span class="sub">(${formatPrintValue(off.id)})</span>` : ''}${
               off.phone ? `, ${formatPrintValue(off.phone)}` : ''
@@ -193,7 +213,7 @@ export default function RequestsPage() {
     <td>
       ${formatPrintValue(r.applicantName)} <span class="sub">(${formatPrintValue(r.employeeId)})</span>
       <div class="sub">${formatPrintValue(r.department)}</div>
-      <div class="sub">Account: ${formatPrintValue(r.createdBy)}</div>
+      <div class="sub">Account: ${formatPrintValue(submitterAccount)}</div>
     </td>
     <td class="center">${formatPrintValue(r.status)}</td>
     <td>
@@ -241,6 +261,8 @@ export default function RequestsPage() {
 
   const printOne = React.useCallback((r: any) => {
     const off = extractOfficer(r);
+    const submitterAccount = resolveAccountUser(r);
+    const updatedAccount = resolveUpdatedBy(r, submitterAccount);
     const officerDetails = off.withOfficer
       ? `${formatPrintValue(off.name)}${off.id ? ` (${formatPrintValue(off.id)})` : ''}${
           off.phone ? `, ${formatPrintValue(off.phone)}` : ''
@@ -255,7 +277,8 @@ export default function RequestsPage() {
           <tr><td>Department</td><td>${formatPrintValue(r.department)}</td></tr>
           <tr><td>Status</td><td>${formatPrintValue(r.status)}</td></tr>
           <tr><td>Applied</td><td>${escapeHtml(appliedLabel(r))}</td></tr>
-          <tr><td>Submitted By</td><td>${formatPrintValue(r.createdBy)}</td></tr>
+          <tr><td>Account Username</td><td>${escapeHtml(submitterAccount)}</td></tr>
+          <tr><td>Last Updated By</td><td>${escapeHtml(updatedAccount)}</td></tr>
         </table>
       </div>
       <div class="spc-section">
@@ -368,7 +391,7 @@ export default function RequestsPage() {
                         <span className="text-gray-600 text-[11px]">({r.employeeId || '—'})</span>
                       </div>
                       <div className="text-[11px] text-gray-700">{r.department || '—'}</div>
-                      <div className="text-[10px] text-gray-500">Account: {r.createdBy || '—'}</div>
+                      <div className="text-[10px] text-gray-500">Account: {resolveAccountUser(r)}</div>
                     </Td>
 
                     <Td className="px-2 py-1 text-center align-top">
@@ -426,6 +449,11 @@ export default function RequestsPage() {
 /* ========== Details Modal ========== */
 function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: () => void }) {
   const off = extractOfficer(request as any);
+  const submitterAccount = resolveAccountUser(request as any);
+  const updatedAccount = resolveUpdatedBy(request as any, submitterAccount);
+  const submitterName = `${(request as any).applicantName || '—'}${
+    (request as any).employeeId ? ` (${(request as any).employeeId})` : ''
+  }`;
   const yn = (b?: boolean) => (b ? 'Yes' : 'No');
 
   return (
@@ -460,9 +488,10 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
             </section>
             <section className="md:col-span-2 border border-orange-100 rounded-lg p-3">
               <div className="text-orange-800 font-semibold mb-1">Account trail</div>
-              <div><b>Submitted by account:</b> {(request as any).createdBy || '—'}</div>
+              <div><b>Submitted by account:</b> {submitterAccount}</div>
+              <div className="text-[11px] text-gray-600"><b>Applicant:</b> {submitterName}</div>
               <div><b>Created at:</b> {fmtDT((request as any).createdAt)}</div>
-              <div><b>Last updated by:</b> {(request as any).updatedBy || '—'}</div>
+              <div><b>Last updated by:</b> {updatedAccount}</div>
               <div><b>Updated at:</b> {(request as any).updatedAt ? fmtDT((request as any).updatedAt) : '—'}</div>
             </section>
 

@@ -52,6 +52,49 @@ const formatPrintValue = (value?: string | number | null) => {
   return escapeHtml(String(value));
 };
 
+/* ---- helpers for details ---- */
+const cleanPhone = (p?: string) =>
+  (p ?? '')
+    .replace(/[^\d+()\-\s./;]/g, '')
+    .replace(/^[;,\s-]+/, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+/** Strip any "Travelling Officer: ..." line(s) and trailing phone/tel fragments */
+function purposeWithoutOfficer(r: any): string {
+  const raw = String(r?.officialDescription ?? '');
+  let cleaned = raw
+    .split(/\r?\n/)
+    .filter((line) => !/travell?ing\s+officer\s*:/i.test(line))
+    .join('\n');
+  cleaned = cleaned.replace(/\b(?:Phone|Tel)\s*:\s*[\+\d()\-\s./;]+/gi, '');
+  cleaned = cleaned
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+(,|\.)/g, '$1')
+    .replace(/^[\s\-–,:]+/, '')
+    .trim();
+  return cleaned || '—';
+}
+
+/** Resolve officer from explicit fields or from the description text */
+function extractOfficer(r: any): { withOfficer: boolean; name?: string; id?: string; phone?: string } {
+  if (r.travelWithOfficer || r.officerName || r.officerId || r.officerPhone) {
+    return {
+      withOfficer: true,
+      name: r.officerName || undefined,
+      id: r.officerId || undefined,
+      phone: cleanPhone(r.officerPhone) || undefined,
+    };
+  }
+  const text = `${r?.officialDescription || ''}\n${r?.remarks || ''}`;
+  const m =
+    /Travelling Officer:\s*([^\(\n,]+)?(?:\s*\((?:Employee\s*ID|Emp\.?\s*ID|ID)\s*:\s*([^)]+)\))?(?:,\s*(?:Phone|Tel)\s*:\s*([^\n]+))?/i.exec(
+      text
+    );
+  if (m) return { withOfficer: true, name: m[1]?.trim() || undefined, id: m[2]?.trim() || undefined, phone: cleanPhone(m[3]) || undefined };
+  return { withOfficer: false };
+}
+
 const TRACK_PRINT_STYLES = `
   .track-table th {
     white-space: nowrap;
@@ -79,13 +122,15 @@ export default function TrackRequestPage() {
   React.useEffect(() => {
     const eid = (typeof window !== 'undefined' && (localStorage.getItem('employeeId') || '')) || '';
     const actor = (typeof window !== 'undefined' && (localStorage.getItem('actor') || '')) || '';
-    const uniqueIds = Array.from(new Set([eid, actor].filter(Boolean)));
+    const username = (typeof window !== 'undefined' && (localStorage.getItem('username') || '')) || '';
+    const uniqueIds = Array.from(new Set([eid, actor, username].filter(Boolean)));
     setIds(uniqueIds);
 
     (async () => {
       setLoading(true);
       let merged: UsageRequest[] = [];
 
+      // Primary: fetch "my" pages for each known id/actor
       for (const id of uniqueIds) {
         try {
           let page = 0, totalPages = 1;
@@ -98,12 +143,15 @@ export default function TrackRequestPage() {
         } catch {}
       }
 
-      if (merged.length === 0) {
-        try {
-          const all: any[] = await listAllRequests();
-          merged = all.filter((u: any) => uniqueIds.includes(u.employeeId) || uniqueIds.includes(u.createdBy || ''));
-        } catch {}
-      }
+      // Fallback + safety: also pull all and filter by matching employeeId/createdBy
+      try {
+        const all: any[] = await listAllRequests();
+        const filtered = all.filter((u: any) => {
+          const created = u?.createdBy ?? u?.created_by ?? '';
+          return uniqueIds.includes(u.employeeId) || uniqueIds.includes(created);
+        });
+        merged = merged.concat(filtered);
+      } catch {}
 
       const seen = new Set<string>();
       merged = merged.filter((r: any) => {
@@ -190,6 +238,7 @@ export default function TrackRequestPage() {
   }, [filtered]);
 
   const printOne = React.useCallback((r: any) => {
+    const off = extractOfficer(r);
     const assignment = [
       formatPrintValue(r.assignedVehicleNumber),
       '/',
@@ -206,11 +255,25 @@ export default function TrackRequestPage() {
           <tr><td>Request Code</td><td>${formatPrintValue(r.requestCode)}</td></tr>
           <tr><td>Status</td><td>${formatPrintValue(r.status)}</td></tr>
           <tr><td>Applied</td><td>${escapeHtml(appliedLabel(r))}</td></tr>
+          <tr><td>Applicant</td><td>${formatPrintValue(r.applicantName)} (${formatPrintValue(r.employeeId)})</td></tr>
+          <tr><td>Department</td><td>${formatPrintValue(r.department)}</td></tr>
         </table>
       </div>
       <div class="spc-section">
-        <p class="spc-section__title">Assignment & Schedule</p>
+        <p class="spc-section__title">Travel & Route</p>
         <table class="spc-definition">
+          <tr><td>Date of Travel</td><td>${formatPrintValue(r.dateOfTravel)}</td></tr>
+          <tr><td>Time</td><td>${formatPrintValue(r.timeFrom)} – ${formatPrintValue(r.timeTo)} ${r.overnight ? '(overnight)' : ''}</td></tr>
+          <tr><td>Route</td><td>${formatPrintValue(r.fromLocation)} → ${formatPrintValue(r.toLocation)}</td></tr>
+          <tr><td>Official Description</td><td>${escapeHtml(purposeWithoutOfficer(r))}</td></tr>
+          <tr><td>Goods</td><td>${formatPrintValue(r.goods)}</td></tr>
+        </table>
+      </div>
+      <div class="spc-section">
+        <p class="spc-section__title">Officer & Assignment</p>
+        <table class="spc-definition">
+          <tr><td>Travelling with Officer</td><td>${off.withOfficer ? 'Yes' : 'No'}</td></tr>
+          <tr><td>Officer</td><td>${off.withOfficer ? `${escapeHtml(off.name || '—')}${off.id ? ` (${escapeHtml(off.id)})` : ''}${off.phone ? `, ${escapeHtml(off.phone)}` : ''}` : '—'}</td></tr>
           <tr><td>Vehicle / Driver</td><td>${assignment}</td></tr>
           <tr><td>Pickup</td><td>${escapeHtml(fmtDT(r.scheduledPickupAt))}</td></tr>
           <tr><td>Return</td><td>${escapeHtml(fmtDT(r.scheduledReturnAt))}</td></tr>
@@ -347,6 +410,9 @@ export default function TrackRequestPage() {
 
 /* Details Modal (same structure as Requests) */
 function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: () => void }) {
+  const off = extractOfficer(request as any);
+  const yn = (b?: boolean) => (b ? 'Yes' : 'No');
+
   return (
     <div className="fixed inset-0 bg-black/40 grid place-items-center z-50 p-3" onClick={onClose}>
       <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
@@ -358,26 +424,60 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
         <div className="p-4 text-[12px] leading-tight space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <section>
-              <div className="text-orange-800 font-semibold mb-1">Status</div>
+              <div className="text-orange-800 font-semibold mb-1">Applicant & Status</div>
+              <div><b>Applicant:</b> {(request as any).applicantName || '—'} <span className="text-[11px] text-gray-600">({(request as any).employeeId || '—'})</span></div>
+              <div><b>Department:</b> {(request as any).department || '—'}</div>
               <div><b>Status:</b> {(request as any).status}</div>
-              <div><b>Applied:</b> {fmtDT((request as any).createdAt)}</div>
+              <div><b>Applied:</b> {appliedLabel(request as any)}</div>
             </section>
 
             <section>
-              <div className="text-orange-800 font-semibold mb-1">Assigned</div>
+              <div className="text-orange-800 font-semibold mb-1">Travel Plan</div>
+              <div><b>Date of Travel:</b> {(request as any).dateOfTravel || '—'}</div>
+              <div><b>Time:</b> {(request as any).timeFrom || '—'} – {(request as any).timeTo || '—'} {(request as any).overnight ? '(overnight)' : ''}</div>
+              <div><b>Route:</b> {(request as any).fromLocation || '—'} → {(request as any).toLocation || '—'}</div>
+            </section>
+
+            <section className="md:col-span-2 border border-orange-100 rounded-lg p-3">
+              <div className="text-orange-800 font-semibold mb-2">Official Description / Goods</div>
+              <div className="text-orange-900 break-words break-all mb-1">{purposeWithoutOfficer(request as any)}</div>
+              <div className="text-[11px] text-gray-700">Goods: {(request as any).goods || '—'}</div>
+            </section>
+
+            <section>
+              <div className="text-orange-800 font-semibold mb-1">Officer</div>
+              <div><b>Travelling with Officer:</b> {yn((request as any).travelWithOfficer || off.withOfficer)}</div>
+              <div className="break-words break-all">
+                <b>Officer:</b>{' '}
+                {off.withOfficer ? (
+                  <>
+                    {off.name || '—'} {off.id ? <span className="text-[11px] text-gray-600">({off.id})</span> : null}
+                    {off.phone ? `, ${off.phone}` : ''}
+                  </>
+                ) : '—'}
+              </div>
+            </section>
+
+            <section>
+              <div className="text-orange-800 font-semibold mb-1">Assignment & Schedule</div>
               <div><b>Vehicle:</b> {(request as any).assignedVehicleNumber || '—'}</div>
               <div><b>Driver:</b> {(request as any).assignedDriverName || '—'}{(request as any).assignedDriverPhone ? ` (${(request as any).assignedDriverPhone})` : ''}</div>
+              <div><b>Pickup:</b> {fmtDT((request as any).scheduledPickupAt)}</div>
+              <div><b>Return:</b> {fmtDT((request as any).scheduledReturnAt)}</div>
             </section>
 
             <section className="md:col-span-2">
-              <div className="text-orange-800 font-semibold mb-1">Schedule</div>
-              <div><b>Pickup:</b> {fmtDT((request as any).scheduledPickupAt)} • <b>Return:</b> {fmtDT((request as any).scheduledReturnAt)}</div>
-            </section>
-
-            <section className="md:col-span-2">
-              <div className="text-orange-800 font-semibold mb-1">Gate</div>
+              <div className="text-orange-800 font-semibold mb-1">Gate / Trip</div>
               <div><b>Exit:</b> {fmtDT((request as any).gateExitAt)} • <span className="text-[11px] text-gray-600">O {(request as any).exitOdometer ?? '—'}</span></div>
               <div><b>Entry:</b> {fmtDT((request as any).gateEntryAt)} • <span className="text-[11px] text-gray-600">O {(request as any).entryOdometer ?? '—'}</span></div>
+            </section>
+
+            <section className="md:col-span-2 border border-orange-100 rounded-lg p-3">
+              <div className="text-orange-800 font-semibold mb-1">Audit</div>
+              <div><b>Created by:</b> {(request as any).createdBy || '—'}</div>
+              <div><b>Created at:</b> {fmtDT((request as any).createdAt)}</div>
+              <div><b>Updated by:</b> {(request as any).updatedBy || '—'}</div>
+              <div><b>Updated at:</b> {(request as any).updatedAt ? fmtDT((request as any).updatedAt) : '—'}</div>
             </section>
           </div>
         </div>

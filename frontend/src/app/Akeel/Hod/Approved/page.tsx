@@ -5,7 +5,8 @@ import { createPortal } from 'react-dom';
 import type { UsageRequest } from '../../Transport/services/types';
 import { Th, Td } from '../../Transport/components/ThTd';
 import HODSearchBar from '../components/HODSearchBar';
-import { Printer, X } from 'lucide-react';
+import { Printer, X, RefreshCw } from 'lucide-react';
+import { listByStatus } from '../../Transport/services/usageService';
 
 /* ---------------- helpers ---------------- */
 const fmtDT = (s?: string | null) => (s ? new Date(s).toLocaleString() : '—');
@@ -108,41 +109,32 @@ const COLS = [
   '6%',  // Print
 ] as const;
 
-type HistItem = {
-  id: string | number;
-  requestCode?: string;
-  approvedAt?: string;
-  remarks?: string;
-  snapshot: UsageRequest;
-};
-
 /* ======================= Page ======================= */
 export default function HODApprovedHistoryPage() {
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<UsageRequest[]>([]);
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<UsageRequest | null>(null);
 
-  // Load local "My Approved" history saved when HOD approved in Pending page
-  useEffect(() => {
+  const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const raw = (typeof window !== 'undefined' && localStorage.getItem('hodApprovedHistory')) || '[]';
-      const arr: HistItem[] = JSON.parse(raw);
-      const rows = (Array.isArray(arr) ? arr : [])
-        .map((h) => ({
-          ...h.snapshot,
-          __approvedAt: h.approvedAt,
-          __remarks: h.remarks,
-        }))
-        .sort((a, b) => (Date.parse(b.__approvedAt || '') || 0) - (Date.parse(a.__approvedAt || '') || 0));
-      setItems(rows);
-    } catch {
+      const data = await listByStatus('PENDING_MANAGEMENT'); // items already approved by HOD
+      setItems(data || []);
+    } catch (err: any) {
+      console.warn('Failed to load HOD approved list', err);
+      setError(err?.message || 'Unable to load approved requests right now.');
       setItems([]);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -152,37 +144,11 @@ export default function HODApprovedHistoryPage() {
       return [
         r.requestCode, r.status, r.applicantName, r.employeeId, r.department,
         r.fromLocation, r.toLocation, r.dateOfTravel, r.timeFrom, r.timeTo,
-        r.officialDescription, r.goods,
+        r.officialDescription, r.goods, r.updatedBy,
         off.name, off.id, off.phone, appliedLabel(r)
       ].map(x => (x ?? '').toString().toLowerCase()).join(' ').includes(s);
     });
   }, [items, q]);
-
-  const monthlyRaw = useMemo(() => {
-    const map = new Map<number, { label: string; labelShort: string; count: number; order: number }>();
-    items.forEach((r: any) => {
-      const raw = r.__approvedAt || r.updatedAt || r.createdAt;
-      if (!raw) return;
-      const date = new Date(raw);
-      if (Number.isNaN(date.getTime())) return;
-      const order = date.getFullYear() * 12 + date.getMonth();
-      const label = date.toLocaleString('default', { month: 'short', year: 'numeric' });
-      const labelShort = date.toLocaleString('default', { month: 'short' });
-      const existing = map.get(order) ?? { label, labelShort, count: 0, order };
-      existing.count += 1;
-      map.set(order, existing);
-    });
-    return Array.from(map.values()).sort((a, b) => a.order - b.order).slice(-6);
-  }, [items]);
-
-  const monthlyStats = useMemo(() => {
-    if (!monthlyRaw.length) return [];
-    const max = Math.max(...monthlyRaw.map((m) => m.count), 1);
-    return monthlyRaw.map((m) => ({
-      ...m,
-      pct: Math.max(8, (m.count / max) * 100),
-    }));
-  }, [monthlyRaw]);
 
   /* -------------------- PRINT HELPERS -------------------- */
   const printPage = useCallback(() => {
@@ -192,7 +158,7 @@ export default function HODApprovedHistoryPage() {
 <tr>
   <td><div class="rq">${r.requestCode || ''}</div><div class="sub">${appliedLabel(r)}</div></td>
   <td>${r.applicantName || ''} <span class="sub">(${r.employeeId || ''})</span><div class="sub">${r.department || ''}</div></td>
-  <td class="center">${r.status || ''}</td>
+  <td class="center">${r.status || ''}${r.updatedBy ? `<div class="sub">By ${r.updatedBy}</div>` : ''}</td>
   <td><div>${r.dateOfTravel || ''}</div><div class="sub mono">${r.timeFrom || ''} – ${r.timeTo || ''} ${r.overnight ? '(overnight)' : ''}</div></td>
   <td>${r.fromLocation || ''} → ${r.toLocation || ''}</td>
   <td>${off.withOfficer ? `${off.name || '-'}${off.id ? ` <span class="sub">(${off.id})</span>` : ''}${off.phone ? `, ${off.phone}` : ''}` : '—'}</td>
@@ -268,8 +234,8 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
     <>
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-2">
         <div>
-          <h1 className="text-base md:text-lg font-bold text-orange-900">Approved — My History</h1>
-          <p className="text-xs text-gray-600">Requests you approved from the Pending queue (stored locally).</p>
+          <h1 className="text-base md:text-lg font-bold text-orange-900">Approved — Sent to Management</h1>
+          <p className="text-xs text-gray-600">Live list from the database of requests HOD already approved.</p>
         </div>
         <div className="flex flex-col gap-2 w-full md:w-auto md:flex-row md:items-center">
           <HODSearchBar
@@ -280,6 +246,15 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
           />
           <button
             type="button"
+            onClick={load}
+            disabled={loading}
+            className="inline-flex items-center justify-center gap-1 px-3 h-11 md:h-10 rounded-lg border border-orange-200 text-orange-800 hover:bg-orange-50 text-xs font-semibold disabled:opacity-60"
+            title="Refresh from server"
+          >
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
+          </button>
+          <button
+            type="button"
             onClick={printPage}
             className="inline-flex items-center justify-center gap-1 px-3 h-11 md:h-10 rounded-lg bg-orange-600 text-white hover:bg-orange-700 text-xs font-semibold"
             title="Print current list"
@@ -288,31 +263,6 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
           </button>
         </div>
       </div>
-
-      {monthlyStats.length > 0 && (
-        <section className="hod-card bg-white border border-orange-200 p-4 rounded-2xl">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-orange-600 font-semibold">Monthly insight</p>
-              <h2 className="text-lg font-bold text-orange-900">Approvals over the last {monthlyStats.length} months</h2>
-            </div>
-            <span className="text-xs text-gray-600">Total {items.length}</span>
-          </div>
-          <div className="flex items-end gap-2 h-36">
-            {monthlyStats.map((m) => (
-              <div key={m.label} className="flex-1 flex flex-col items-center gap-1">
-                <div
-                  className="w-full rounded-t-full bg-gradient-to-b from-orange-400 to-orange-600 transition-all duration-300"
-                  style={{ height: `${m.pct}%` }}
-                  aria-label={`${m.label} approvals ${m.count}`}
-                />
-                <span className="text-[11px] font-semibold text-orange-900">{m.labelShort}</span>
-                <span className="text-[10px] text-gray-600">{m.count}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
 
       <div className="bg-white rounded-lg border border-orange-200 overflow-auto">
         <table className="w-full table-fixed text-[10.5px] leading-[1.15]">
@@ -338,7 +288,7 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
               </tr>
             )}
 
-            {!loading && filtered.map((r: any) => {
+            {!loading && !error && filtered.map((r: any) => {
               const off = extractOfficer(r);
               const rowKey = r.id || r.requestCode || `${r.employeeId}-${r.dateOfTravel}-${r.timeFrom}`;
 
@@ -372,7 +322,10 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
                   </Td>
 
                   {/* Status */}
-                  <Td className="px-2 py-1 text-center">{chip(r.status)}</Td>
+                  <Td className="px-2 py-1 text-center">
+                    <div>{chip(r.status)}</div>
+                    {r.updatedBy ? <div className="text-[9px] text-gray-600">By {r.updatedBy}</div> : null}
+                  </Td>
 
                   {/* Travel */}
                   <Td className="px-2 py-1 whitespace-normal">
@@ -422,10 +375,17 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
               );
             })}
 
-            {!loading && !filtered.length && (
+            {!loading && !error && !filtered.length && (
               <tr>
                 <Td colSpan={8} className="px-2 py-6 text-center text-gray-500">
                   Nothing here yet — approvals you make in <b>Pending</b> will appear in this history.
+                </Td>
+              </tr>
+            )}
+            {!loading && error && (
+              <tr>
+                <Td colSpan={8} className="px-2 py-6 text-center text-red-600 text-[12px]">
+                  {error}
                 </Td>
               </tr>
             )}
@@ -477,6 +437,7 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
                 Created {fmtDT((request as any).createdAt)}
                 {(request as any).updatedAt ? ` • Updated ${fmtDT((request as any).updatedAt)}` : ''}
               </div>
+              <div className="text-[11px] text-gray-700 mt-1"><b>Approved by:</b> {(request as any).updatedBy || '—'}</div>
             </section>
 
             <section>

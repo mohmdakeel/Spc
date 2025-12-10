@@ -12,7 +12,6 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import ManagementSidebar from '../components/ManagementSidebar';
 import { listByStatus, mgmtApprove, mgmtReject } from '../../Transport/services/usageService';
 import type { UsageRequest } from '../../Transport/services/types';
 import { Th, Td } from '../../Transport/components/ThTd';
@@ -20,6 +19,7 @@ import SearchBar from '../../Transport/components/SearchBar';
 import ManagementReviewModal from '../components/ManagementReviewModal';
 import { toast } from 'react-toastify';
 import { Printer, X, ClipboardCheck } from 'lucide-react';
+import { login } from '../../../../../lib/auth';
 
 /* ---------------- helpers ---------------- */
 const fmtDT = (s?: string | null) => (s ? new Date(s).toLocaleString() : '—');
@@ -91,7 +91,7 @@ function extractHODApprover(r: any): { name?: string; id?: string; at?: string }
 }
 
 const chip = (s: string) => (
-  <span className="inline-block px-1.5 py-[2px] rounded bg-blue-100 text-blue-800 leading-none text-[10px] whitespace-nowrap">
+  <span className="inline-block px-1 py-[1px] rounded bg-blue-100 text-blue-800 leading-none text-[8px] whitespace-nowrap">
     {s}
   </span>
 );
@@ -132,12 +132,18 @@ export default function ManagementPendingPage() {
   const [selected, setSelected] = useState<UsageRequest | null>(null); // Review modal
   const [view, setView] = useState<UsageRequest | null>(null);         // Details modal
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const list = await listByStatus('PENDING_MANAGEMENT');
       setRows(list || []);
+    } catch (err: any) {
+      console.warn('Failed to load pending management list', err);
+      setError(err?.message || 'Unable to load pending management requests right now.');
+      setRows([]);
     } finally {
       setLoading(false);
     }
@@ -159,9 +165,22 @@ export default function ManagementPendingPage() {
     });
   }, [rows, q]);
 
-  const actApprove = async (remarks?: string) => {
+  const resolveUsername = () => {
+    if (typeof window === 'undefined') return '';
+    return (
+      localStorage.getItem('username') ||
+      localStorage.getItem('actor') ||
+      localStorage.getItem('employeeId') ||
+      ''
+    );
+  };
+
+  const actApprove = async (remarks: string, password: string) => {
     if (!selected) return;
     try {
+      const username = resolveUsername();
+      if (!username || !password.trim()) throw new Error('Missing credentials; please re-enter password.');
+      await login({ username, password });
       await mgmtApprove(selected.id, remarks);
       toast?.success?.('Approved');
       setSelected(null);
@@ -170,9 +189,13 @@ export default function ManagementPendingPage() {
       toast?.error?.(e?.message || 'Failed to approve');
     }
   };
-  const actReject = async (remarks?: string) => {
+
+  const actReject = async (remarks: string, password: string) => {
     if (!selected) return;
     try {
+      const username = resolveUsername();
+      if (!username || !password.trim()) throw new Error('Missing credentials; please re-enter password.');
+      await login({ username, password });
       await mgmtReject(selected.id, remarks);
       toast?.success?.('Request rejected');
       setSelected(null);
@@ -275,48 +298,56 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
 
   /* ---------- UI ---------- */
   return (
-    <div className="flex min-h-screen bg-orange-50">
-      <ManagementSidebar />
-
-      <main className="p-3 md:p-4 flex-1">
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="text-[14px] md:text-lg font-bold text-orange-900">Pending Approvals</h1>
-          <div className="flex items-center gap-2">
-            <SearchBar
-              value={q}
-              onChange={setQ}
-              placeholder="Search code, applicant, dept, HOD, route, officer, purpose…"
-              className="h-8"
-            />
-            <button
-              type="button"
-              onClick={printPage}
-              className="inline-flex items-center gap-1 px-2.5 h-8 rounded bg-orange-600 text-white hover:bg-orange-700 text-[12px]"
-              title="Print current list"
-            >
-              <Printer size={14} /> Print Page
-            </button>
-          </div>
+    <div className="space-y-4 p-3 md:p-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+        <h1 className="text-[14px] md:text-lg font-bold text-orange-900">Pending Approvals</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <SearchBar
+            value={q}
+            onChange={setQ}
+            placeholder="Search code, applicant, dept, HOD, route, officer, purpose…"
+            className="h-10 min-w-[240px]"
+          />
+          <button
+            type="button"
+            onClick={load}
+            disabled={loading}
+            className="inline-flex items-center gap-2 px-4 h-10 rounded-lg border border-orange-200 text-orange-800 hover:bg-orange-50 text-sm font-semibold disabled:opacity-60"
+            title="Refresh from server"
+          >
+            <ClipboardCheck size={14} className={loading ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+          <button
+            type="button"
+            onClick={printPage}
+            className="inline-flex items-center gap-2 px-4 h-10 rounded-lg bg-orange-600 text-white hover:bg-orange-700 text-sm font-semibold shadow-sm"
+            title="Print current list"
+          >
+            <Printer size={16} />
+            Print Page
+          </button>
         </div>
+      </div>
 
-        <div className="bg-white rounded-lg border border-orange-200 overflow-auto">
-          {/* Hydration-safe colgroup */}
-          <table className="w-full table-fixed text-[10.5px] leading-[1.15]">
-            <colgroup>{COLS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
+      <div className="bg-white rounded-lg border border-orange-200 overflow-auto">
+        {/* Hydration-safe colgroup */}
+        <table className="w-full table-fixed text-[8px] leading-tight">
+          <colgroup>{COLS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
 
-            <thead className="bg-orange-50">
-              <tr className="text-[9.5px]">
-                <Th className="px-2 py-1 text-left">RQ ID / Applied</Th>
-                <Th className="px-2 py-1 text-left">Applicant / Dept</Th>
-                <Th className="px-2 py-1 text-center">Status</Th>
-                <Th className="px-2 py-1 text-left">HOD Approved By</Th>
-                <Th className="px-2 py-1 text-left">Travel</Th>
-                <Th className="px-2 py-1 text-left">Route</Th>
-                <Th className="px-2 py-1 text-left">Officer</Th>
-                <Th className="px-2 py-1 text-left">Purpose / Goods</Th>
-                <Th className="px-2 py-1 text-center">Actions</Th>
-              </tr>
-            </thead>
+          <thead className="bg-orange-50 text-[9px] uppercase tracking-wide">
+            <tr>
+              <Th className="px-2 py-1 text-left">RQ ID / Applied</Th>
+              <Th className="px-2 py-1 text-left">Applicant / Dept</Th>
+              <Th className="px-2 py-1 text-center">Status</Th>
+              <Th className="px-2 py-1 text-left">HOD Approved By</Th>
+              <Th className="px-2 py-1 text-left">Travel</Th>
+              <Th className="px-2 py-1 text-left">Route</Th>
+              <Th className="px-2 py-1 text-left">Officer</Th>
+              <Th className="px-2 py-1 text-left">Purpose / Goods</Th>
+              <Th className="px-2 py-1 text-center">Actions</Th>
+            </tr>
+          </thead>
 
             <tbody className="divide-y">
               {loading && (
@@ -345,16 +376,16 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
                     {/* RQ / Applied */}
                     <Td className="px-2 py-1">
                       <div className="font-semibold text-orange-900 truncate">{r.requestCode || '—'}</div>
-                      <div className="text-[9px] text-gray-600 truncate">{appliedLabel(r)}</div>
+                      <div className="text-xs text-gray-600 truncate">{appliedLabel(r)}</div>
                     </Td>
 
                     {/* Applicant / Dept */}
                     <Td className="px-2 py-1">
                       <div className="truncate">
                         <span className="font-medium text-orange-900">{r.applicantName || '—'}</span>{' '}
-                        <span className="text-gray-600 text-[9px]">({r.employeeId || '—'})</span>
+                        <span className="text-gray-600 text-xs">({r.employeeId || '—'})</span>
                       </div>
-                      <div className="text-[9px] text-gray-700 truncate">{r.department || '—'}</div>
+                      <div className="text-xs text-gray-700 truncate">{r.department || '—'}</div>
                     </Td>
 
                     {/* Status (no wrap to avoid overlap) */}
@@ -366,7 +397,7 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
                     <Td className="px-2 py-1">
                       {(hod.name || hod.id) ? (
                         <div className="truncate">
-                          {hod.name ?? '—'}{hod.id ? <span className="text-[9px] text-gray-600"> ({hod.id})</span> : null}
+                          {hod.name ?? '—'}{hod.id ? <span className="text-xs text-gray-600"> ({hod.id})</span> : null}
                         </div>
                       ) : '—'}
                     </Td>
@@ -374,7 +405,7 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
                     {/* Travel (split lines; prevent overflow) */}
                     <Td className="px-2 py-1">
                       <div className="truncate">{r.dateOfTravel || '—'}</div>
-                      <div className="text-[9px] text-gray-600">
+                      <div className="text-xs text-gray-600">
                         <span className="font-mono">{r.timeFrom || '—'}</span>–<span className="font-mono">{r.timeTo || '—'}</span> {r.overnight ? '(overnight)' : ''}
                       </div>
                     </Td>
@@ -389,9 +420,9 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
                       {off.withOfficer ? (
                         <>
                           <div className="truncate">
-                            {off.name ?? '—'}{off.id ? <span className="text-[9px] text-gray-600"> ({off.id})</span> : null}
+                            {off.name ?? '—'}{off.id ? <span className="text-xs text-gray-600"> ({off.id})</span> : null}
                           </div>
-                          {off.phone ? <div className="text-[9px] text-gray-700 break-all">{off.phone}</div> : null}
+                          {off.phone ? <div className="text-xs text-gray-700 break-all">{off.phone}</div> : null}
                         </>
                       ) : '—'}
                     </Td>
@@ -399,7 +430,7 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
                     {/* Purpose / Goods */}
                     <Td className="px-2 py-1">
                       <div className="break-words break-all">{purposeWithoutOfficer(r)}</div>
-                      <div className="text-[9px] text-gray-700">{r.goods || '—'}</div>
+                      <div className="text-xs text-gray-700">{r.goods || '—'}</div>
                     </Td>
 
                     {/* Actions */}
@@ -407,7 +438,7 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
                       <div className="flex items-center justify-center gap-1.5">
                         <button
                           type="button"
-                          className="inline-flex items-center gap-1 px-2 py-[4px] rounded bg-blue-600 text-white hover:bg-blue-700 text-[10px]"
+                          className="inline-flex items-center gap-1 px-2 py-[4px] rounded bg-blue-600 text-white hover:bg-blue-700 text-xs"
                           onClick={() => setSelected(r)}
                           title="Review / Approve / Reject"
                         >
@@ -415,7 +446,7 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
                         </button>
                         <button
                           type="button"
-                          className="inline-flex items-center justify-center px-2 py-[4px] rounded bg-orange-600 text-white hover:bg-orange-700 text-[10px]"
+                          className="inline-flex items-center justify-center px-2 py-[4px] rounded bg-orange-600 text-white hover:bg-orange-700 text-xs"
                           onClick={() => printOne(r)}
                           title="Print this request"
                         >
@@ -437,7 +468,6 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
             </tbody>
           </table>
         </div>
-      </main>
 
       {/* Review modal */}
       <ManagementReviewModal
@@ -478,7 +508,7 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
               <div className="text-orange-800 font-semibold mb-1">Applicant & Department</div>
               <div className="truncate">
                 <span className="font-medium text-orange-900">Applicant Name:</span> {(request as any).applicantName}
-                <span className="text-gray-600 text-[11px]"> ({(request as any).employeeId})</span>
+                <span className="text-gray-600 text-xs"> ({(request as any).employeeId})</span>
               </div>
               <div className="truncate"><span className="font-medium">Department:</span> {(request as any).department || '—'}</div>
             </section>
@@ -487,7 +517,7 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
               <div className="text-orange-800 font-semibold mb-1">Status</div>
               <div><b>Status:</b> {(request as any).status || 'PENDING MANAGEMENT'}</div>
               <div><b>Applied:</b> {appliedLabel(request as any)}</div>
-              <div className="text-[11px] text-gray-600 mt-1">
+              <div className="text-xs text-gray-600 mt-1">
                 Created {fmtDT((request as any).createdAt)}
                 {(request as any).updatedAt ? ` • Updated ${fmtDT((request as any).updatedAt)}` : ''}
               </div>
@@ -524,7 +554,7 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
                   <div>
                     <div className="text-gray-600">Officer</div>
                     <div className="break-words break-all">
-                      {off.withOfficer ? (<>{off.name || '—'} {off.id ? <span className="text-[11px] text-gray-600">({off.id})</span> : null}{off.phone ? `, ${off.phone}` : ''}</>) : '—'}
+                      {off.withOfficer ? (<>{off.name || '—'} {off.id ? <span className="text-xs text-gray-600">({off.id})</span> : null}{off.phone ? `, ${off.phone}` : ''}</>) : '—'}
                     </div>
                   </div>
                 </div>
@@ -541,11 +571,11 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
                 </div>
                 <div>
                   <div>
-                    <b>Gate Exit:</b> {fmtDT((request as any).gateExitAt)} • <span className="text-[11px] text-gray-600">O {(request as any).exitOdometer ?? '—'}</span>
+                    <b>Gate Exit:</b> {fmtDT((request as any).gateExitAt)} • <span className="text-xs text-gray-600">O {(request as any).exitOdometer ?? '—'}</span>
                     {(request as any).gateExitByName ? <> • <span>By {(request as any).gateExitByName}{(request as any).gateExitById ? ` (${(request as any).gateExitById})` : ''}</span></> : null}
                   </div>
                   <div>
-                    <b>Gate Entry:</b> {fmtDT((request as any).gateEntryAt)} • <span className="text-[11px] text-gray-600">O {(request as any).entryOdometer ?? '—'}</span>
+                    <b>Gate Entry:</b> {fmtDT((request as any).gateEntryAt)} • <span className="text-xs text-gray-600">O {(request as any).entryOdometer ?? '—'}</span>
                     {(request as any).gateEntryByName ? <> • <span>By {(request as any).gateEntryByName}{(request as any).gateEntryById ? ` (${(request as any).gateEntryById})` : ''}</span></> : null}
                   </div>
                 </div>
@@ -558,7 +588,7 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
               <div>
                 {(hod.name || hod.id || hod.at)
                   ? (<>
-                      <b>Approved By:</b> {hod.name ?? '—'}{hod.id ? <> <span className="text-[11px] text-gray-600">({hod.id})</span></> : null}
+                      <b>Approved By:</b> {hod.name ?? '—'}{hod.id ? <> <span className="text-xs text-gray-600">({hod.id})</span></> : null}
                       {hod.at ? <> • <b>At:</b> {fmtDT(hod.at)}</> : null}
                     </>)
                   : '—'}
@@ -675,7 +705,7 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
 // }
 
 // const chip = (s: string) => (
-//   <span className="inline-block px-1.5 py-[2px] rounded bg-blue-100 text-blue-800 leading-none text-[10px] whitespace-nowrap">
+//   <span className="inline-block px-1 py-[1px] rounded bg-blue-100 text-blue-800 leading-none text-[8px] whitespace-nowrap">
 //     {s}
 //   </span>
 // );
@@ -886,7 +916,7 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
 //         {/* overflow-x-hidden ensures no horizontal scrollbar in the container */}
 //         <div className="bg-white rounded-lg border border-orange-200 overflow-x-hidden overflow-y-auto">
 //           {/* Hydration-safe colgroup */}
-//           <table className="w-full table-fixed text-[10.5px] leading-[1.15]">
+//           <table className="w-full table-fixed text-[8px] leading-tight">
 //             <colgroup>{COLS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
 
 //             <thead className="bg-orange-50">
@@ -932,7 +962,7 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
 //                       <div className="font-semibold text-orange-900 truncate" title={r.requestCode || '—'}>
 //                         {r.requestCode || '—'}
 //                       </div>
-//                       <div className="text-[9px] text-gray-600 truncate" title={appliedLabel(r)}>
+//                       <div className="text-xs text-gray-600 truncate" title={appliedLabel(r)}>
 //                         {appliedLabel(r)}
 //                       </div>
 //                     </Td>
@@ -941,9 +971,9 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
 //                     <Td className="px-2 py-1">
 //                       <div className="truncate" title={`${r.applicantName || '—'} (${r.employeeId || '—'})`}>
 //                         <span className="font-medium text-orange-900">{r.applicantName || '—'}</span>{' '}
-//                         <span className="text-gray-600 text-[9px]">({r.employeeId || '—'})</span>
+//                         <span className="text-gray-600 text-xs">({r.employeeId || '—'})</span>
 //                       </div>
-//                       <div className="text-[9px] text-gray-700 truncate" title={r.department || '—'}>
+//                       <div className="text-xs text-gray-700 truncate" title={r.department || '—'}>
 //                         {r.department || '—'}
 //                       </div>
 //                     </Td>
@@ -959,7 +989,7 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
 //                     <Td className="px-2 py-1">
 //                       {(hod.name || hod.id) ? (
 //                         <div className="truncate max-w-[150px]" title={`${hod.name ?? ''}${hod.id ? ` (${hod.id})` : ''}`}>
-//                           {hod.name ?? '—'}{hod.id ? <span className="text-[9px] text-gray-600"> ({hod.id})</span> : null}
+//                           {hod.name ?? '—'}{hod.id ? <span className="text-xs text-gray-600"> ({hod.id})</span> : null}
 //                         </div>
 //                       ) : '—'}
 //                     </Td>
@@ -967,7 +997,7 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
 //                     {/* Travel */}
 //                     <Td className="px-2 py-1">
 //                       <div className="truncate" title={r.dateOfTravel || '—'}>{r.dateOfTravel || '—'}</div>
-//                       <div className="text-[9px] text-gray-600 truncate" title={`${r.timeFrom || '—'} – ${r.timeTo || '—'} ${r.overnight ? '(overnight)' : ''}`}>
+//                       <div className="text-xs text-gray-600 truncate" title={`${r.timeFrom || '—'} – ${r.timeTo || '—'} ${r.overnight ? '(overnight)' : ''}`}>
 //                         <span className="font-mono">{r.timeFrom || '—'}</span>–<span className="font-mono">{r.timeTo || '—'}</span> {r.overnight ? '(overnight)' : ''}
 //                       </div>
 //                     </Td>
@@ -984,10 +1014,10 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
 //                       {off.withOfficer ? (
 //                         <>
 //                           <div className="truncate" title={`${off.name ?? '—'}${off.id ? ` (${off.id})` : ''}`}>
-//                             {off.name ?? '—'}{off.id ? <span className="text-[9px] text-gray-600"> ({off.id})</span> : null}
+//                             {off.name ?? '—'}{off.id ? <span className="text-xs text-gray-600"> ({off.id})</span> : null}
 //                           </div>
 //                           {off.phone ? (
-//                             <div className="text-[9px] text-gray-700 truncate" title={off.phone}>
+//                             <div className="text-xs text-gray-700 truncate" title={off.phone}>
 //                               {off.phone}
 //                             </div>
 //                           ) : null}
@@ -998,7 +1028,7 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
 //                     {/* Purpose / Goods */}
 //                     <Td className="px-2 py-1">
 //                       <div className="truncate" title={purposeWithoutOfficer(r)}>{purposeWithoutOfficer(r)}</div>
-//                       <div className="text-[9px] text-gray-700 truncate" title={r.goods || '—'}>{r.goods || '—'}</div>
+//                       <div className="text-xs text-gray-700 truncate" title={r.goods || '—'}>{r.goods || '—'}</div>
 //                     </Td>
 
 //                     {/* Actions */}
@@ -1006,7 +1036,7 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
 //                       <div className="flex items-center justify-center gap-1.5">
 //                         <button
 //                           type="button"
-//                           className="inline-flex items-center gap-1 px-2 py-[4px] rounded bg-blue-600 text-white hover:bg-blue-700 text-[10px]"
+//                           className="inline-flex items-center gap-1 px-2 py-[4px] rounded bg-blue-600 text-white hover:bg-blue-700 text-xs"
 //                           onClick={() => setSelected(r)}
 //                           title="Review / Approve / Reject"
 //                         >
@@ -1014,7 +1044,7 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
 //                         </button>
 //                         <button
 //                           type="button"
-//                           className="inline-flex items-center justify-center px-2 py-[4px] rounded bg-orange-600 text-white hover:bg-orange-700 text-[10px]"
+//                           className="inline-flex items-center justify-center px-2 py-[4px] rounded bg-orange-600 text-white hover:bg-orange-700 text-xs"
 //                           onClick={() => printOne(r)}
 //                           title="Print this request"
 //                         >
@@ -1077,7 +1107,7 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
 //               <div className="text-orange-800 font-semibold mb-1">Applicant & Department</div>
 //               <div className="truncate">
 //                 <span className="font-medium text-orange-900">Applicant Name:</span> {(request as any).applicantName}
-//                 <span className="text-gray-600 text-[11px]"> ({(request as any).employeeId})</span>
+//                 <span className="text-gray-600 text-xs"> ({(request as any).employeeId})</span>
 //               </div>
 //               <div className="truncate"><span className="font-medium">Department:</span> {(request as any).department || '—'}</div>
 //             </section>
@@ -1086,7 +1116,7 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
 //               <div className="text-orange-800 font-semibold mb-1">Status</div>
 //               <div><b>Status:</b> {(request as any).status || 'PENDING MANAGEMENT'}</div>
 //               <div><b>Applied:</b> {appliedLabel(request as any)}</div>
-//               <div className="text-[11px] text-gray-600 mt-1">
+//               <div className="text-xs text-gray-600 mt-1">
 //                 Created {fmtDT((request as any).createdAt)}
 //                 {(request as any).updatedAt ? ` • Updated ${fmtDT((request as any).updatedAt)}` : ''}
 //               </div>
@@ -1123,7 +1153,7 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
 //                   <div>
 //                     <div className="text-gray-600">Officer</div>
 //                     <div className="break-words break-all">
-//                       {off.withOfficer ? (<>{off.name || '—'} {off.id ? <span className="text-[11px] text-gray-600">({off.id})</span> : null}{off.phone ? `, ${off.phone}` : ''}</>) : '—'}
+//                       {off.withOfficer ? (<>{off.name || '—'} {off.id ? <span className="text-xs text-gray-600">({off.id})</span> : null}{off.phone ? `, ${off.phone}` : ''}</>) : '—'}
 //                     </div>
 //                   </div>
 //                 </div>
@@ -1140,11 +1170,11 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
 //                 </div>
 //                 <div>
 //                   <div>
-//                     <b>Gate Exit:</b> {fmtDT((request as any).gateExitAt)} • <span className="text-[11px] text-gray-600">O {(request as any).exitOdometer ?? '—'}</span>
+//                     <b>Gate Exit:</b> {fmtDT((request as any).gateExitAt)} • <span className="text-xs text-gray-600">O {(request as any).exitOdometer ?? '—'}</span>
 //                     {(request as any).gateExitByName ? <> • <span>By {(request as any).gateExitByName}{(request as any).gateExitById ? ` (${(request as any).gateExitById})` : ''}</span></> : null}
 //                   </div>
 //                   <div>
-//                     <b>Gate Entry:</b> {fmtDT((request as any).gateEntryAt)} • <span className="text-[11px] text-gray-600">O {(request as any).entryOdometer ?? '—'}</span>
+//                     <b>Gate Entry:</b> {fmtDT((request as any).gateEntryAt)} • <span className="text-xs text-gray-600">O {(request as any).entryOdometer ?? '—'}</span>
 //                     {(request as any).gateEntryByName ? <> • <span>By {(request as any).gateEntryByName}{(request as any).gateEntryById ? ` (${(request as any).gateEntryById})` : ''}</span></> : null}
 //                   </div>
 //                 </div>
@@ -1157,7 +1187,7 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
 //               <div>
 //                 {(hod.name || hod.id || hod.at)
 //                   ? (<>
-//                       <b>Approved By:</b> {hod.name ?? '—'}{hod.id ? <> <span className="text-[11px] text-gray-600">({hod.id})</span></> : null}
+//                       <b>Approved By:</b> {hod.name ?? '—'}{hod.id ? <> <span className="text-xs text-gray-600">({hod.id})</span></> : null}
 //                       {hod.at ? <> • <b>At:</b> {fmtDT(hod.at)}</> : null}
 //                     </>)
 //                   : '—'}

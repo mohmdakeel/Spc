@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { Search as SearchIcon, Filter, Download, RefreshCcw, CalendarDays } from 'lucide-react';
-import { listMyRequests } from '../../Transport/services/usageService';
+import { listMyRequests, listAllRequests } from '../../Transport/services/usageService';
 import type { UsageRequest } from '../../Transport/services/types';
 import { Th, Td } from '../../Transport/components/ThTd';
 
@@ -94,6 +94,7 @@ const StatusPill = ({ status }: { status?: string | null }) => {
 export default function ApplicantReportsPage() {
   const [items, setItems] = React.useState<UsageRequest[]>([]);
   const [employeeId, setEmployeeId] = React.useState('');
+  const [ids, setIds] = React.useState<string[]>([]);
   const [initialized, setInitialized] = React.useState(false);
   const [loading, setLoading] = React.useState(true);
   const [searchTerm, setSearchTerm] = React.useState('');
@@ -101,11 +102,15 @@ export default function ApplicantReportsPage() {
   const [statusFilter, setStatusFilter] = React.useState<StatusSegmentKey[]>([]);
 
   React.useEffect(() => {
-    const id = localStorage.getItem('employeeId') || localStorage.getItem('actor') || '';
-    setEmployeeId(id);
+    const eid = localStorage.getItem('employeeId') || '';
+    const actor = localStorage.getItem('actor') || '';
+    const username = localStorage.getItem('username') || '';
+    const uniqueIds = Array.from(new Set([eid, actor, username].filter(Boolean)));
+    setEmployeeId(eid || actor || username || '');
+    setIds(uniqueIds);
     setInitialized(true);
 
-    if (!id) {
+    if (!uniqueIds.length) {
       setItems([]);
       setLoading(false);
       return;
@@ -114,15 +119,38 @@ export default function ApplicantReportsPage() {
     (async () => {
       setLoading(true);
       let all: UsageRequest[] = [];
-      let page = 0;
-      let totalPages = 1;
       try {
-        while (page < totalPages) {
-          const result = await listMyRequests(id, page, 100);
-          all = all.concat(result?.content || []);
-          totalPages = (result?.totalPages as number) ?? 1;
-          page = ((result?.number as number) ?? page) + 1;
+        // Primary: per-id "my requests"
+        for (const uid of uniqueIds) {
+          let page = 0;
+          let totalPages = 1;
+          while (page < totalPages) {
+            const result = await listMyRequests(uid, page, 100);
+            all = all.concat(result?.content || []);
+            totalPages = (result?.totalPages as number) ?? 1;
+            page = ((result?.number as number) ?? page) + 1;
+          }
         }
+
+        // Safety: also pull all and filter by employee/creator matches
+        try {
+          const everything = await listAllRequests();
+          const filtered = (everything || []).filter((r: any) => {
+            const created = r?.createdBy ?? r?.created_by ?? '';
+            return uniqueIds.includes(r?.employeeId) || uniqueIds.includes(created);
+          });
+          all = all.concat(filtered);
+        } catch {}
+
+        // De-duplicate (prefer unique id/requestCode)
+        const seen = new Set<string>();
+        all = all.filter((r: any) => {
+          const key = String(r?.id ?? r?.requestCode ?? `${r?.employeeId || ''}|${r?.dateOfTravel || ''}|${r?.timeFrom || ''}`);
+          if (!key || seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
         all.sort((a, b) => {
           const ta = a?.createdAt ? Date.parse(a.createdAt) : 0;
           const tb = b?.createdAt ? Date.parse(b.createdAt) : 0;
@@ -273,7 +301,7 @@ export default function ApplicantReportsPage() {
     );
   }
 
-  if (!employeeId) {
+  if (!ids.length) {
     return (
       <div className="bg-white rounded-2xl border border-orange-200 shadow-sm p-6">
         <p className="text-sm text-orange-900 font-semibold">Save your first request to unlock reporting</p>

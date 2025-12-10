@@ -10,16 +10,48 @@ export default function ManagementReviewModal({
   open: boolean;
   request: UsageRequest | null;
   onClose: () => void;
-  onApprove: (remarks?: string) => void;
-  onReject: (remarks?: string) => void;
+  onApprove: (remarks: string, password: string) => void | Promise<void>;
+  onReject: (remarks: string, password: string) => void | Promise<void>;
 }) {
   const [remarks, setRemarks] = useState('');
+  const [password, setPassword] = useState('');
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   if (!open || !request) return null;
 
-  const submitApprove = () => onApprove(remarks.trim() || undefined);
-  const submitReject  = () => onReject(remarks.trim() || undefined);
-  const disabled = !remarks.trim(); // backend requires remarks
+  const canSubmit = remarks.trim().length > 0 && password.trim().length > 0 && !busy;
+
+  const submitApprove = async () => {
+    if (!canSubmit) {
+      setErr('Remarks and password are required.');
+      return;
+    }
+    setErr(null);
+    setBusy(true);
+    try {
+      await Promise.resolve(onApprove(remarks.trim(), password));
+    } catch (e: any) {
+      setErr(e?.message || 'Approve failed, try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const submitReject  = async () => {
+    if (!canSubmit) {
+      setErr('Remarks and password are required.');
+      return;
+    }
+    setErr(null);
+    setBusy(true);
+    try {
+      await Promise.resolve(onReject(remarks.trim(), password));
+    } catch (e: any) {
+      setErr(e?.message || 'Reject failed, try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black/40 grid place-items-center z-50 p-4" onClick={onClose}>
@@ -81,24 +113,36 @@ export default function ManagementReviewModal({
               placeholder="Short note for your approval/rejection"
             />
           </div>
+
+          <div>
+            <label className="block text-sm font-medium text-orange-800 mb-1">Account password (required)</label>
+            <input
+              type="password"
+              className="w-full border border-orange-200 rounded px-3 py-2"
+              value={password}
+              onChange={(e)=>setPassword(e.target.value)}
+              placeholder="Re-enter your password to confirm"
+            />
+            {err ? <div className="text-[12px] text-red-600 mt-1">{err}</div> : null}
+          </div>
         </div>
 
         {/* Footer */}
         <div className="px-5 py-3 border-t bg-orange-50 flex justify-end gap-2">
-          <button className="px-4 py-2 rounded border" onClick={onClose}>Cancel</button>
+          <button className="px-4 py-2 rounded border" onClick={onClose} disabled={busy}>Cancel</button>
           <button
             className="px-4 py-2 rounded bg-red-600 text-white disabled:opacity-60"
-            disabled={disabled}
+            disabled={!canSubmit}
             onClick={submitReject}
           >
-            <span className="inline-flex items-center gap-2"><XCircle size={16}/>Reject</span>
+            <span className="inline-flex items-center gap-2"><XCircle size={16}/>{busy ? 'Working…' : 'Reject'}</span>
           </button>
           <button
             className="px-4 py-2 rounded bg-green-600 text-white disabled:opacity-60"
-            disabled={disabled}
+            disabled={!canSubmit}
             onClick={submitApprove}
           >
-            <span className="inline-flex items-center gap-2"><CheckCircle2 size={16}/>Approve</span>
+            <span className="inline-flex items-center gap-2"><CheckCircle2 size={16}/>{busy ? 'Working…' : 'Approve'}</span>
           </button>
         </div>
       </div>

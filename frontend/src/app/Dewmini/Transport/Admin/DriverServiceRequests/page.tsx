@@ -201,7 +201,7 @@ export default function DriverServiceRequestsPage() {
               </Link>
 
               <button
-                className="flex items-center gap-2 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 shadow-sm transition-colors text-xs sm:text-sm"
+                className="flex items-center gap-2 bg-orange-100 text-orange-700 border border-orange-200 px-3 py-2 rounded-lg hover:bg-orange-200 shadow-sm transition-colors text-xs sm:text-sm"
                 onClick={() => window.print()}
               >
                 <Printer size={16} />

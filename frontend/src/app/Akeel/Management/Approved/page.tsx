@@ -24,7 +24,7 @@ const appliedLabel = (r: any) => {
 };
 
 const chip = (s: string) => (
-  <span className="inline-block text-[10px] px-1.5 py-[2px] rounded bg-green-100 text-green-800 leading-none">
+  <span className="inline-block text-[7px] px-1 py-px rounded bg-green-100 text-green-800 leading-none">
     {s}
   </span>
 );
@@ -221,24 +221,24 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
               value={q}
               onChange={setQ}
               placeholder="Search code, applicant, dept, route, officer, purpose…"
-              className="w-full lg:w-72"
+              className="w-full lg:w-72 h-10"
             />
             <button
               type="button"
               onClick={printPage}
-              className="inline-flex items-center gap-1 px-3 h-10 rounded-xl bg-orange-600 text-white hover:bg-orange-700 text-sm"
+              className="inline-flex items-center gap-2 px-4 h-10 rounded-lg bg-orange-600 text-white hover:bg-orange-700 text-sm font-semibold shadow-sm"
               title="Print current list"
             >
-              <Printer size={14} /> Print
+              <Printer size={16} /> Print Page
             </button>
           </div>
         </div>
 
         <div className="bg-white rounded-lg border border-orange-200 overflow-x-hidden overflow-y-auto mt-4">
-          <table className="w-full table-fixed text-[10.5px] leading-[1.15]">
+          <table className="w-full table-fixed text-[8px] leading-tight">
             <colgroup>{COLS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
-            <thead className="bg-orange-50">
-              <tr className="text-[9.5px]">
+            <thead className="bg-orange-50 text-[9px] uppercase tracking-wide">
+              <tr>
                 <Th className="px-2 py-1 text-left">RQ ID / Applied</Th>
                 <Th className="px-2 py-1 text-left">Applicant / Dept</Th>
                 <Th className="px-2 py-1 text-center">Status</Th>
@@ -274,16 +274,16 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
                       {/* RQ / Applied */}
                       <Td className="px-2 py-1">
                         <div className="font-semibold text-orange-900 truncate" title={r.requestCode || '—'}>{r.requestCode || '—'}</div>
-                        <div className="text-[9px] text-gray-600 truncate" title={appliedLabel(r)}>{appliedLabel(r)}</div>
+                        <div className="text-xs text-gray-600 truncate" title={appliedLabel(r)}>{appliedLabel(r)}</div>
                       </Td>
 
                       {/* Applicant / Dept */}
                       <Td className="px-2 py-1">
                         <div className="truncate" title={`${r.applicantName || '—'} (${r.employeeId || '—'})`}>
                           <span className="font-medium text-orange-900">{r.applicantName || '—'}</span>{' '}
-                          <span className="text-gray-600 text-[9px]">({r.employeeId || '—'})</span>
+                          <span className="text-gray-600 text-xs">({r.employeeId || '—'})</span>
                         </div>
-                        <div className="text-[9px] text-gray-700 truncate" title={r.department || '—'}>
+                        <div className="text-xs text-gray-700 truncate" title={r.department || '—'}>
                           {r.department || '—'}
                         </div>
                       </Td>
@@ -294,7 +294,7 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
                       {/* Travel */}
                       <Td className="px-2 py-1">
                         <div className="truncate" title={r.dateOfTravel || '—'}>{r.dateOfTravel || '—'}</div>
-                        <div className="text-[9px] text-gray-600 truncate" title={`${r.timeFrom || '—'} – ${r.timeTo || '—'} ${r.overnight ? '(overnight)' : ''}`}>
+                        <div className="text-xs text-gray-600 truncate" title={`${r.timeFrom || '—'} – ${r.timeTo || '—'} ${r.overnight ? '(overnight)' : ''}`}>
                           <span className="font-mono">{r.timeFrom || '—'}</span>–<span className="font-mono">{r.timeTo || '—'}</span> {r.overnight ? '(overnight)' : ''}
                         </div>
                       </Td>
@@ -311,9 +311,9 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
                         {off.withOfficer ? (
                           <>
                             <div className="truncate" title={`${off.name ?? '—'}${off.id ? ` (${off.id})` : ''}`}>
-                              {off.name ?? '—'}{off.id ? <span className="text-[9px] text-gray-600"> ({off.id})</span> : null}
+                              {off.name ?? '—'}{off.id ? <span className="text-xs text-gray-600"> ({off.id})</span> : null}
                             </div>
-                            {off.phone ? <div className="text-[9px] text-gray-700 truncate" title={off.phone}>{off.phone}</div> : null}
+                            {off.phone ? <div className="text-xs text-gray-700 truncate" title={off.phone}>{off.phone}</div> : null}
                           </>
                         ) : '—'}
                       </Td>
@@ -321,14 +321,14 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
                       {/* Purpose / Goods */}
                       <Td className="px-2 py-1">
                         <div className="truncate" title={purposeWithoutOfficer(r)}>{purposeWithoutOfficer(r)}</div>
-                        <div className="text-[9px] text-gray-700 truncate" title={r.goods || '—'}>{r.goods || '—'}</div>
+                        <div className="text-xs text-gray-700 truncate" title={r.goods || '—'}>{r.goods || '—'}</div>
                       </Td>
 
                       {/* Actions */}
                       <Td className="px-2 py-1 text-center" onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
-                          className="inline-flex items-center justify-center px-2 py-[4px] rounded bg-orange-600 text-white hover:bg-orange-700 text-[10px]"
+                          className="inline-flex items-center justify-center px-2 py-[4px] rounded bg-orange-600 text-white hover:bg-orange-700 text-xs"
                           title="Print this request"
                           onClick={() => printOne(r)}
                         >
@@ -378,7 +378,7 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
               <div className="text-orange-800 font-semibold mb-1">Applicant & Department</div>
               <div className="truncate">
                 <span className="font-medium text-orange-900">Applicant Name:</span> {(request as any).applicantName}
-                <span className="text-gray-600 text-[11px]"> ({(request as any).employeeId})</span>
+                <span className="text-gray-600 text-xs"> ({(request as any).employeeId})</span>
               </div>
               <div className="truncate"><span className="font-medium">Department:</span> {(request as any).department || '—'}</div>
             </section>
@@ -387,7 +387,7 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
               <div className="text-orange-800 font-semibold mb-1">Status</div>
               <div><b>Status:</b> {(request as any).status || 'APPROVED'}</div>
               <div><b>Applied:</b> {appliedLabel(request as any)}</div>
-              <div className="text-[11px] text-gray-600 mt-1">
+              <div className="text-xs text-gray-600 mt-1">
                 Created {fmtDT((request as any).createdAt)}
                 {(request as any).updatedAt ? ` • Updated ${fmtDT((request as any).updatedAt)}` : ''}
               </div>
@@ -424,7 +424,7 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
                   <div>
                     <div className="text-gray-600">Officer</div>
                     <div className="break-words break-all">
-                      {off.withOfficer ? (<>{off.name || '—'} {off.id ? <span className="text-[11px] text-gray-600">({off.id})</span> : null}{off.phone ? `, ${off.phone}` : ''}</>) : '—'}
+                      {off.withOfficer ? (<>{off.name || '—'} {off.id ? <span className="text-xs text-gray-600">({off.id})</span> : null}{off.phone ? `, ${off.phone}` : ''}</>) : '—'}
                     </div>
                   </div>
                 </div>

@@ -1,11 +1,10 @@
 'use client';
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import GateSidebar from '../components/GateSidebar';
 import { Th, Td } from '../../Transport/components/ThTd';
 import { listByStatus } from '../../Transport/services/usageService';
 import type { UsageRequest } from '../../Transport/services/types';
-import SearchBar from '../../Transport/components/SearchBar';
+import GateSearchBar from '../components/GateSearchBar';
 import { Printer, X } from 'lucide-react';
 
 /* ------------ helpers ------------ */
@@ -40,7 +39,7 @@ const chip = (s: 'Scheduled' | 'Departed' | 'Returned') => {
       : s === 'Departed'
       ? 'bg-blue-600 text-white ring-1 ring-blue-700/60'
       : 'bg-green-500 text-white ring-1 ring-green-600/60';
-  return <span className={`inline-block text-[11px] px-2.5 py-[4px] rounded-full ${cls}`}>{s}</span>;
+  return <span className={`inline-block text-[10px] px-2.5 py-[4px] rounded-full ${cls}`}>{s}</span>;
 };
 
 /* print via hidden iframe */
@@ -175,118 +174,113 @@ col.c1{width:12%}col.c2{width:28%}col.c3{width:22%}col.c4{width:18%}col.c5{width
   }, [filtered]);
 
   return (
-    <div className="flex min-h-screen bg-orange-50">
-      <GateSidebar />
-
-      <main className="p-3 md:p-4 flex-1">
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="text-[14px] md:text-lg font-bold text-orange-900">Trips History</h1>
-          <div className="flex items-center gap-2">
-            <SearchBar
-              value={q}
-              onChange={setQ}
-              placeholder="Search request, vehicle, driver, officer, route…"
-              className="h-8"
-            />
-            <button
-              type="button"
-              onClick={printPage}
-              className="inline-flex items-center gap-1 px-2.5 h-8 rounded bg-orange-600 text-white hover:bg-orange-700 text-[12px]"
-              title="Print current list"
-            >
-              <Printer size={14} /> Print Page
-            </button>
-          </div>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between mb-1">
+        <h1 className="text-[14px] md:text-lg font-bold text-orange-900">Trips History</h1>
+        <div className="flex items-center gap-2">
+          <GateSearchBar
+            value={q}
+            onChange={setQ}
+            placeholder="Search request, vehicle, driver, officer, route…"
+          />
+          <button
+            type="button"
+            onClick={printPage}
+            className="inline-flex items-center gap-1 px-2.5 h-8 rounded bg-orange-600 text-white hover:bg-orange-700 text-[12px]"
+            title="Print current list"
+          >
+            <Printer size={14} /> Print Page
+          </button>
         </div>
+      </div>
 
-        <div className="bg-white rounded-lg border border-orange-200 overflow-auto">
-          <table className="min-w-full table-fixed text-[12px] leading-[1.25]">
-            {/* keep colgroup on one line to avoid whitespace text nodes */}
-            <colgroup><col className="w-[12%]"/><col className="w-[28%]"/><col className="w-[22%]"/><col className="w-[18%]"/><col className="w-[20%]"/></colgroup>
-            <thead className="bg-orange-50">
+      <div className="bg-white rounded-lg border border-orange-200 overflow-auto">
+        <table className="min-w-[980px] w-full table-fixed text-[10px] leading-tight">
+          {/* keep colgroup on one line to avoid whitespace text nodes */}
+          <colgroup><col className="w-[12%]"/><col className="w-[26%]"/><col className="w-[20%]"/><col className="w-[18%]"/><col className="w-[24%]"/></colgroup>
+          <thead className="bg-orange-50 text-[9px] uppercase tracking-wide">
+            <tr>
+              <Th className="px-3 py-2 text-left">Request</Th>
+              <Th className="px-3 py-2 text-left">Schedule</Th>
+              <Th className="px-3 py-2 text-left">Vehicle / Driver</Th>
+              <Th className="px-3 py-2 text-left">Officer</Th>
+              <Th className="px-3 py-2 text-left">Route</Th>
+            </tr>
+          </thead>
+
+          <tbody className="divide-y">
+            {loading && (
               <tr>
-                <Th className="px-3 py-2 text-left">Request</Th>
-                <Th className="px-3 py-2 text-left">Schedule</Th>
-                <Th className="px-3 py-2 text-left">Vehicle / Driver</Th>
-                <Th className="px-3 py-2 text-left">Officer</Th>
-                <Th className="px-3 py-2 text-left">Route</Th>
+                <Td colSpan={5} className="px-3 py-6 text-center text-gray-500">Loading…</Td>
               </tr>
-            </thead>
+            )}
 
-            <tbody className="divide-y">
-              {loading && (
-                <tr>
-                  <Td colSpan={5} className="px-3 py-6 text-center text-gray-500">Loading…</Td>
+            {!loading && filtered.map((r) => {
+              const isDeparted = !!r.gateExitAt && !r.gateEntryAt;
+              const isReturned = !!r.gateEntryAt;
+              const statusLabel: 'Scheduled' | 'Departed' | 'Returned' =
+                isReturned ? 'Returned' : isDeparted ? 'Departed' : 'Scheduled';
+
+              const driverPhone = cleanPhone(r.assignedDriverPhone);
+              const driverId = (r as any).assignedDriverId || (r as any).driverEmployeeId || '';
+              const { name: offName, id: offId, phone: offPhone } = resolveOfficerBits(r);
+
+              return (
+                <tr
+                  key={r.id}
+                  className="align-top hover:bg-orange-50/40 cursor-pointer"
+                  onClick={() => setView(r)}
+                  title="Click for full details"
+                >
+                  {/* Request */}
+                  <Td className="px-3 py-2">
+                    <div className="font-semibold text-orange-900 text-[11px]">{r.requestCode || '—'}</div>
+                    <div className="text-[9px] text-gray-600">{r.department || '—'}</div>
+                  </Td>
+
+                  {/* Schedule (4 lines) */}
+                  <Td className="px-3 py-2">
+                    <div className="font-medium">Pickup (Sched.): {fmtTime(r.scheduledPickupAt)}</div>
+                    <div>Return (Sched.): {fmtTime(r.scheduledReturnAt)}</div>
+                    <div className="text-blue-700">Departed: {fmtTime(r.gateExitAt)}</div>
+                    <div className="text-green-600">Returned: {fmtTime(r.gateEntryAt)}</div>
+                  </Td>
+
+                  {/* Vehicle / Driver */}
+                  <Td className="px-3 py-2">
+                    <div className="font-medium">{r.assignedVehicleNumber || '—'}</div>
+                    <div className="text-[10px] text-gray-800">
+                      {r.assignedDriverName || '—'}
+                      {driverId ? <span className="text-gray-600"> ({driverId})</span> : null}
+                    </div>
+                    <div className="text-[9px] text-gray-700">{driverPhone || '—'}</div>
+                  </Td>
+
+                  {/* Officer */}
+                  <Td className="px-3 py-2">
+                    <div className="text-[10px] text-gray-800">
+                      {offName || '—'}{offId ? <span className="text-gray-600"> ({offId})</span> : null}
+                    </div>
+                    <div className="text-[9px] text-gray-700">{offPhone || ''}</div>
+                  </Td>
+
+                  {/* Route */}
+                  <Td className="px-3 py-2">
+                    <div>{r.fromLocation || '—'} → {r.toLocation || '—'}</div>
+                    <div className="mt-1">{chip(statusLabel)}</div>
+                  </Td>
                 </tr>
-              )}
+              );
+            })}
 
-              {!loading && filtered.map((r) => {
-                const isDeparted = !!r.gateExitAt && !r.gateEntryAt;
-                const isReturned = !!r.gateEntryAt;
-                const statusLabel: 'Scheduled' | 'Departed' | 'Returned' =
-                  isReturned ? 'Returned' : isDeparted ? 'Departed' : 'Scheduled';
-
-                const driverPhone = cleanPhone(r.assignedDriverPhone);
-                const driverId = (r as any).assignedDriverId || (r as any).driverEmployeeId || '';
-                const { name: offName, id: offId, phone: offPhone } = resolveOfficerBits(r);
-
-                return (
-                  <tr
-                    key={r.id}
-                    className="align-top hover:bg-orange-50/40 cursor-pointer"
-                    onClick={() => setView(r)}
-                    title="Click for full details"
-                  >
-                    {/* Request */}
-                    <Td className="px-3 py-2">
-                      <div className="font-semibold text-orange-900">{r.requestCode || '—'}</div>
-                      <div className="text-[11px] text-gray-600">{r.department || '—'}</div>
-                    </Td>
-
-                    {/* Schedule (4 lines) */}
-                    <Td className="px-3 py-2">
-                      <div className="font-medium">Pickup (Sched.): {fmtTime(r.scheduledPickupAt)}</div>
-                      <div>Return (Sched.): {fmtTime(r.scheduledReturnAt)}</div>
-                      <div className="text-blue-700">Departed: {fmtTime(r.gateExitAt)}</div>
-                      <div className="text-green-600">Returned: {fmtTime(r.gateEntryAt)}</div>
-                    </Td>
-
-                    {/* Vehicle / Driver */}
-                    <Td className="px-3 py-2">
-                      <div className="font-medium">{r.assignedVehicleNumber || '—'}</div>
-                      <div className="text-[12px] text-gray-800">
-                        {r.assignedDriverName || '—'}
-                        {driverId ? <span className="text-gray-600"> ({driverId})</span> : null}
-                      </div>
-                      <div className="text-[12px] text-gray-700">{driverPhone || '—'}</div>
-                    </Td>
-
-                    {/* Officer */}
-                    <Td className="px-3 py-2">
-                      <div className="text-[12px] text-gray-800">
-                        {offName || '—'}{offId ? <span className="text-gray-600"> ({offId})</span> : null}
-                      </div>
-                      <div className="text-[12px] text-gray-700">{offPhone || ''}</div>
-                    </Td>
-
-                    {/* Route */}
-                    <Td className="px-3 py-2">
-                      <div>{r.fromLocation || '—'} → {r.toLocation || '—'}</div>
-                      <div className="mt-1">{chip(statusLabel)}</div>
-                    </Td>
-                  </tr>
-                );
-              })}
-
-              {!loading && !filtered.length && (
-                <tr>
-                  <Td colSpan={5} className="px-3 py-6 text-center text-gray-500">No trip history</Td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </main>
+            {!loading && !filtered.length && (
+              <tr>
+                <Td colSpan={5} className="px-3 py-6 text-center text-gray-500">No trip history</Td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {view && <DetailsModal request={view} onClose={() => setView(null)} />}
     </div>

@@ -53,8 +53,13 @@ export async function listAllRequests() {
 }
 
 export async function listByStatus(status: RequestStatus) {
-  const { data } = await http.get(`/usage-requests/status/${status}`);
-  return unwrapApi<UsageRequest[]>(data);
+  try {
+    const { data } = await http.get(`/usage-requests/status/${status}`);
+    return unwrapApi<UsageRequest[]>(data);
+  } catch (err) {
+    console.warn('Failed to load usage requests by status', status, err);
+    return [];
+  }
 }
 
 export async function getRequest(id: number) {

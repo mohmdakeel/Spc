@@ -136,9 +136,9 @@ export default function SettingsPage() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+          <div className="space-y-8">
             {/* MAIN CONTENT */}
-            <div className="xl:col-span-2 space-y-6">
+            <div className="w-full space-y-6">
               {/* MY ACCOUNT CARD */}
               <div className="bg-white rounded-2xl shadow-lg border border-orange-200 overflow-hidden">
                 <div className="p-6 border-b border-orange-200 bg-orange-50">

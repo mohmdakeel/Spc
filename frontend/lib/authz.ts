@@ -1,7 +1,11 @@
 // lib/authz.ts
 
+type UserWithRoles = {
+  roles?: string[];
+};
+
 // figure out which page user should land on after login
-export function pickHomeFor(user: any): string {
+export function pickHomeFor(user: UserWithRoles | null | undefined): string {
   if (!user || !user.roles) {
     return '/login';
   }
@@ -58,7 +62,7 @@ export function pickHomeFor(user: any): string {
 }
 
 // check if user can access a service area
-export function hasServiceAccess(user: any, service: 'auth' | 'transport'): boolean {
+export function hasServiceAccess(user: UserWithRoles | null | undefined, service: 'auth' | 'transport'): boolean {
   if (!user?.roles) return false;
   
   const roles = user.roles.map((r: string) => r.toUpperCase());
@@ -83,7 +87,7 @@ export function hasServiceAccess(user: any, service: 'auth' | 'transport'): bool
 }
 
 // ("Where does this user mainly belong?")
-export function getUserPrimaryService(user: any): 'auth' | 'transport' | 'both' | 'none' {
+export function getUserPrimaryService(user: UserWithRoles | null | undefined): 'auth' | 'transport' | 'both' | 'none' {
   if (!user?.roles) return 'none';
 
   const hasAuth = hasServiceAccess(user, 'auth');

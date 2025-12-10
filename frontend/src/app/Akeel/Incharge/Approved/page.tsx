@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import InchargeSidebar from '../components/InchargeSidebar';
 import { listByStatus } from '../../Transport/services/usageService';
 import type { UsageRequest } from '../../Transport/services/types';
 import { Th, Td } from '../../Transport/components/ThTd';
@@ -118,95 +117,92 @@ export default function InchargeApprovedPage() {
   }, [rows, q]);
 
   return (
-    <div className="flex min-h-screen bg-orange-50">
-      <InchargeSidebar />
-      <main className="p-3 md:p-4 flex-1">
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="text-[14px] md:text-lg font-bold text-orange-900">Approved (Awaiting Assignment)</h1>
-          <SearchBar value={q} onChange={setQ} placeholder="Search code, applicant, dept, route…" className="h-8" />
-        </div>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between mb-2">
+        <h1 className="text-[14px] md:text-lg font-bold text-orange-900">Approved (Awaiting Assignment)</h1>
+        <SearchBar value={q} onChange={setQ} placeholder="Search code, applicant, dept, route…" className="h-8" />
+      </div>
 
-        <div className="bg-white rounded-lg border border-orange-200 overflow-auto">
-          <table className="w-full table-fixed text-[10.5px] leading-[1.15]">
-            <colgroup>{COLS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
-            <thead className="bg-orange-50">
-              <tr className="text-[9.5px]">
-                <Th className="px-2 py-1 text-left">RQ ID / Applied</Th>
-                <Th className="px-2 py-1 text-left">Applicant / Dept</Th>
-                <Th className="px-2 py-1 text-center">Status</Th>
-                <Th className="px-2 py-1 text-left">Travel</Th>
-                <Th className="px-2 py-1 text-left">Route</Th>
-                <Th className="px-2 py-1 text-left">Officer</Th>
-                <Th className="px-2 py-1 text-left">Purpose / Goods</Th>
-                <Th className="px-2 py-1 text-center">Actions</Th>
+      <div className="bg-white rounded-lg border border-orange-200 overflow-auto">
+        <table className="w-full table-fixed text-[10.5px] leading-[1.15]">
+          <colgroup>{COLS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
+          <thead className="bg-orange-50">
+            <tr className="text-[9.5px]">
+              <Th className="px-2 py-1 text-left">RQ ID / Applied</Th>
+              <Th className="px-2 py-1 text-left">Applicant / Dept</Th>
+              <Th className="px-2 py-1 text-center">Status</Th>
+              <Th className="px-2 py-1 text-left">Travel</Th>
+              <Th className="px-2 py-1 text-left">Route</Th>
+              <Th className="px-2 py-1 text-left">Officer</Th>
+              <Th className="px-2 py-1 text-left">Purpose / Goods</Th>
+              <Th className="px-2 py-1 text-center">Actions</Th>
+            </tr>
+          </thead>
+
+          <tbody className="divide-y">
+            {loading && (
+              <tr>
+                <Td colSpan={8} className="px-2 py-6 text-center text-gray-500">Loading…</Td>
               </tr>
-            </thead>
+            )}
 
-            <tbody className="divide-y">
-              {loading && (
-                <tr>
-                  <Td colSpan={8} className="px-2 py-6 text-center text-gray-500">Loading…</Td>
+            {!loading && filtered.map((r: any) => {
+              const off = extractOfficer(r);
+              return (
+                <tr
+                  key={r.id}
+                  className="align-top hover:bg-orange-50/40 cursor-pointer"
+                  onClick={() => setView(r)}
+                >
+                  <Td className="px-2 py-1">
+                    <div className="font-semibold text-orange-900 truncate">{r.requestCode}</div>
+                    <div className="text-[9px] text-gray-600 truncate">{appliedLabel(r)}</div>
+                  </Td>
+                  <Td className="px-2 py-1">
+                    <div className="truncate">
+                      <span className="font-medium text-orange-900">{r.applicantName}</span>
+                      <span className="text-gray-600 text-[9px]"> ({r.employeeId})</span>
+                    </div>
+                    <div className="text-[9px] text-gray-700 truncate">{r.department || '—'}</div>
+                  </Td>
+                  <Td className="px-2 py-1 text-center">{chipApproved()}</Td>
+                  <Td className="px-2 py-1">
+                    <div>{r.dateOfTravel}</div>
+                    <div className="text-[9px] text-gray-600">{r.timeFrom} – {r.timeTo}</div>
+                  </Td>
+                  <Td className="px-2 py-1">{r.fromLocation} → {r.toLocation}</Td>
+                  <Td className="px-2 py-1">
+                    {off.withOfficer ? (
+                      <>
+                        <div>{off.name || '—'}{off.id ? <span className="text-[9px] text-gray-600"> ({off.id})</span> : null}</div>
+                        {off.phone ? <div className="text-[9px] text-gray-700">{off.phone}</div> : null}
+                      </>
+                    ) : '—'}
+                  </Td>
+                  <Td className="px-2 py-1">
+                    <div className="text-orange-900 whitespace-pre-wrap break-words">{purposeWithoutOfficer(r)}</div>
+                    <div className="text-[9px] text-orange-700/80">{r.goods || '—'}</div>
+                  </Td>
+                  <Td className="px-2 py-1 text-center" onClick={e => e.stopPropagation()}>
+                    <button
+                      className="px-2.5 py-[6px] rounded bg-orange-600 text-white text-[10px]"
+                      onClick={() => { setAssignFor(r); setOpenAssign(true); }}
+                    >
+                      Assign
+                    </button>
+                  </Td>
                 </tr>
-              )}
+              );
+            })}
 
-              {!loading && filtered.map((r: any) => {
-                const off = extractOfficer(r);
-                return (
-                  <tr
-                    key={r.id}
-                    className="align-top hover:bg-orange-50/40 cursor-pointer"
-                    onClick={() => setView(r)}
-                  >
-                    <Td className="px-2 py-1">
-                      <div className="font-semibold text-orange-900 truncate">{r.requestCode}</div>
-                      <div className="text-[9px] text-gray-600 truncate">{appliedLabel(r)}</div>
-                    </Td>
-                    <Td className="px-2 py-1">
-                      <div className="truncate">
-                        <span className="font-medium text-orange-900">{r.applicantName}</span>
-                        <span className="text-gray-600 text-[9px]"> ({r.employeeId})</span>
-                      </div>
-                      <div className="text-[9px] text-gray-700 truncate">{r.department || '—'}</div>
-                    </Td>
-                    <Td className="px-2 py-1 text-center">{chipApproved()}</Td>
-                    <Td className="px-2 py-1">
-                      <div>{r.dateOfTravel}</div>
-                      <div className="text-[9px] text-gray-600">{r.timeFrom} – {r.timeTo}</div>
-                    </Td>
-                    <Td className="px-2 py-1">{r.fromLocation} → {r.toLocation}</Td>
-                    <Td className="px-2 py-1">
-                      {off.withOfficer ? (
-                        <>
-                          <div>{off.name || '—'}{off.id ? <span className="text-[9px] text-gray-600"> ({off.id})</span> : null}</div>
-                          {off.phone ? <div className="text-[9px] text-gray-700">{off.phone}</div> : null}
-                        </>
-                      ) : '—'}
-                    </Td>
-                    <Td className="px-2 py-1">
-                      <div className="text-orange-900 whitespace-pre-wrap break-words">{purposeWithoutOfficer(r)}</div>
-                      <div className="text-[9px] text-orange-700/80">{r.goods || '—'}</div>
-                    </Td>
-                    <Td className="px-2 py-1 text-center" onClick={e => e.stopPropagation()}>
-                      <button
-                        className="px-2.5 py-[6px] rounded bg-orange-600 text-white text-[10px]"
-                        onClick={() => { setAssignFor(r); setOpenAssign(true); }}
-                      >
-                        Assign
-                      </button>
-                    </Td>
-                  </tr>
-                );
-              })}
-
-              {!loading && !filtered.length && (
-                <tr>
-                  <Td colSpan={8} className="px-2 py-6 text-center text-gray-500">No approved requests</Td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </main>
+            {!loading && !filtered.length && (
+              <tr>
+                <Td colSpan={8} className="px-2 py-6 text-center text-gray-500">No approved requests</Td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {/* Details modal → just view */}
       {view && (

@@ -2,7 +2,8 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { listMyRequests } from '../Transport/services/usageService';
+import { listMyRequests, hodApprove, hodReject } from '../Transport/services/usageService';
+import { login } from '../../../../lib/auth';
 import type { UsageRequest } from '../Transport/services/types';
 import { Th, Td } from '../Transport/components/ThTd';
 import {
@@ -14,11 +15,12 @@ import {
   Navigation2,
   CheckCircle2,
   BellRing,
+  X,
 } from 'lucide-react';
 
 /* ---------- helpers ---------- */
 const chip = (s: string) => (
-  <span className="inline-block text-[10px] px-1.5 py-[2px] rounded bg-orange-100 text-orange-800 leading-none">
+  <span className="inline-block whitespace-nowrap text-[10px] px-1.5 py-[2px] rounded bg-orange-100 text-orange-800 leading-none">
     {s}
   </span>
 );
@@ -89,13 +91,30 @@ const getRequestDate = (r?: Partial<UsageRequest> | null) => {
   return parseDate(`${appliedDate}T${appliedTime}`);
 };
 
+/** Resolve account username from record */
+const resolveAccountUser = (r: any): string => {
+  const cleaned = [r?.createdBy, r?.created_by, r?.actor]
+    .map((v) => (v === undefined || v === null ? '' : String(v).trim()))
+    .find((v) => v && !['system', 'null', 'undefined', '-'].includes(v.toLowerCase()));
+  return cleaned || '—';
+};
+
+/** Resolve who last updated the record */
+const resolveUpdatedBy = (r: any, submitter: string): string => {
+  const raw = r?.updatedBy ?? r?.updated_by;
+  const val = raw === undefined || raw === null ? '' : String(raw).trim();
+  if (val && !['system', 'null', 'undefined', '-'].includes(val.toLowerCase())) return val;
+  return submitter || '—';
+};
+
 export default function ClientDashboard() {
   const [items, setItems] = React.useState<UsageRequest[]>([]);
   const [employeeId, setEmployeeId] = React.useState('');
   const [loading, setLoading] = React.useState(true);
   const [searchTerm, setSearchTerm] = React.useState('');
+  const [view, setView] = React.useState<UsageRequest | null>(null);
 
-  React.useEffect(() => {
+  const loadAll = React.useCallback(async () => {
     const id = localStorage.getItem('employeeId') || localStorage.getItem('actor') || '';
     setEmployeeId(id);
 
@@ -105,31 +124,32 @@ export default function ClientDashboard() {
       return;
     }
 
-    // Load ALL pages so counts & recent table cover full history
-    (async () => {
-      setLoading(true);
-      let all: UsageRequest[] = [];
-      let page = 0;
-      let totalPages = 1;
-      try {
-        while (page < totalPages) {
-          const p = await listMyRequests(id, page, 100);
-          all = all.concat(p?.content || []);
-          totalPages = (p?.totalPages as number) ?? 1;
-          page = ((p?.number as number) ?? page) + 1;
-        }
-        // newest first
-        all.sort((a: any, b: any) => {
-          const ta = a?.createdAt ? Date.parse(a.createdAt) : 0;
-          const tb = b?.createdAt ? Date.parse(b.createdAt) : 0;
-          return tb - ta;
-        });
-      } finally {
-        setItems(all);
-        setLoading(false);
+    setLoading(true);
+    let all: UsageRequest[] = [];
+    let page = 0;
+    let totalPages = 1;
+    try {
+      while (page < totalPages) {
+        const p = await listMyRequests(id, page, 100);
+        all = all.concat(p?.content || []);
+        totalPages = (p?.totalPages as number) ?? 1;
+        page = ((p?.number as number) ?? page) + 1;
       }
-    })();
+      // newest first
+      all.sort((a: any, b: any) => {
+        const ta = a?.createdAt ? Date.parse(a.createdAt) : 0;
+        const tb = b?.createdAt ? Date.parse(b.createdAt) : 0;
+        return tb - ta;
+      });
+    } finally {
+      setItems(all);
+      setLoading(false);
+    }
   }, []);
+
+  React.useEffect(() => {
+    loadAll();
+  }, [loadAll]);
 
   const statusCounts = React.useMemo(() => {
     return items.reduce((acc, item) => {
@@ -422,7 +442,7 @@ export default function ClientDashboard() {
           <div className="bg-white rounded-lg border border-orange-200 overflow-auto">
             <table className="w-full table-fixed text-[10px] leading-[1.15]">
             {/* keep on one line to avoid whitespace text nodes in colgroup */}
-            <colgroup><col className="w-28"/><col className="w-52"/><col className="w-40"/><col className="w-36"/><col className="w-20"/></colgroup>
+            <colgroup><col className="w-28"/><col className="w-52"/><col className="w-40"/><col className="w-36"/><col className="w-24"/></colgroup>
             <thead className="bg-orange-50">
               <tr className="text-[9.5px]">
                 <Th className="px-2 py-1 text-left">Code</Th>
@@ -442,7 +462,11 @@ export default function ClientDashboard() {
               {!loading && tableRows.map((r: any, i: number) => {
                 const off = extractOfficer(r);
                 return (
-                  <tr key={rowKey(r, i)} className="align-top hover:bg-orange-50/40">
+                  <tr
+                    key={rowKey(r, i)}
+                    className="align-top hover:bg-orange-50/40 cursor-pointer"
+                    onClick={() => setView(r)}
+                  >
                     <Td className="px-2 py-1">
                       <div className="font-semibold text-orange-900 truncate" title={r?.requestCode || ''}>
                         {r?.requestCode || '—'}
@@ -504,6 +528,172 @@ export default function ClientDashboard() {
             </tbody>
           </table>
           </div>
+          {view ? <DetailsModal request={view} onClose={() => setView(null)} onRefresh={loadAll} /> : null}
+    </div>
+  );
+}
+
+/* ------------ Details modal ------------ */
+function DetailsModal({ request, onClose, onRefresh }: { request: UsageRequest; onClose: () => void; onRefresh: () => Promise<void> | void }) {
+  const off = extractOfficer(request as any);
+  const submitterAccount = resolveAccountUser(request as any);
+  const updatedAccount = resolveUpdatedBy(request as any, submitterAccount);
+  const yn = (b?: boolean) => (b ? 'Yes' : 'No');
+  const [remarks, setRemarks] = React.useState('');
+  const [password, setPassword] = React.useState('');
+  const [actionError, setActionError] = React.useState<string | null>(null);
+  const [busy, setBusy] = React.useState(false);
+  const allowAction = ['PENDING_HOD', 'PENDING_MANAGEMENT'].includes((request as any)?.status || '');
+
+  const perform = async (kind: 'approve' | 'reject') => {
+    setActionError(null);
+    const username = (typeof window !== 'undefined' && (localStorage.getItem('username') || localStorage.getItem('actor') || localStorage.getItem('employeeId'))) || '';
+    if (!username) {
+      setActionError('No username/actor found. Please log in again.');
+      return;
+    }
+    if (!password.trim()) {
+      setActionError('Enter your account password to continue.');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      await login({ username, password });
+      if (kind === 'approve') {
+        await hodApprove((request as any).id, remarks || 'Approved via dashboard');
+      } else {
+        await hodReject((request as any).id, remarks || 'Rejected via dashboard');
+      }
+      await onRefresh();
+      onClose();
+    } catch (err: any) {
+      setActionError(err?.message || 'Action failed. Check your password and try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 grid place-items-center z-50 p-3" onClick={onClose} aria-modal role="dialog">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-2 border-b bg-orange-50">
+          <h3 className="font-bold text-orange-900 text-[13px]">Request • {(request as any).requestCode}</h3>
+          <button className="p-1 rounded hover:bg-orange-100" onClick={onClose} aria-label="Close">
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="p-4 text-[12px] leading-tight space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <section>
+              <div className="text-orange-800 font-semibold mb-1">Applicant & Department</div>
+              <div className="truncate">
+                <span className="font-medium text-orange-900">Applicant:</span> {(request as any).applicantName || '—'}
+                <span className="text-gray-600 text-[11px]"> ({(request as any).employeeId || '—'})</span>
+              </div>
+              <div className="truncate"><span className="font-medium">Department:</span> {(request as any).department || '—'}</div>
+              <div><span className="font-medium">Status:</span> {(request as any).status || '—'}</div>
+              <div><span className="font-medium">Applied:</span> {appliedLabel(request as any)}</div>
+            </section>
+
+            <section>
+              <div className="text-orange-800 font-semibold mb-1">Travel Plan</div>
+              <div><b>Date of Travel:</b> {(request as any).dateOfTravel || '—'}</div>
+              <div><b>Time:</b> {(request as any).timeFrom || '—'} – {(request as any).timeTo || '—'} {(request as any).overnight ? '(overnight)' : ''}</div>
+              <div><b>Route:</b> {(request as any).fromLocation || '—'} → {(request as any).toLocation || '—'}</div>
+              <div><b>Assigned Vehicle:</b> {(request as any).assignedVehicleNumber || '—'}</div>
+              <div><b>Driver:</b> {(request as any).assignedDriverName || '—'}{(request as any).assignedDriverPhone ? ` (${(request as any).assignedDriverPhone})` : ''}</div>
+            </section>
+
+            <section className="md:col-span-2 border border-orange-100 rounded-lg p-3">
+              <div className="text-orange-800 font-semibold mb-2">Official Description / Goods</div>
+              <div className="text-orange-900 break-words break-all mb-1">{(request as any).officialDescription || '—'}</div>
+              <div className="text-[11px] text-gray-700">Goods: {(request as any).goods || '—'}</div>
+            </section>
+
+            <section>
+              <div className="text-orange-800 font-semibold mb-1">Officer</div>
+              <div><b>Travelling with Officer:</b> {yn((request as any).travelWithOfficer || off.withOfficer)}</div>
+              <div className="break-words break-all">
+                <b>Officer:</b>{' '}
+                {off.withOfficer ? (
+                  <>
+                    {off.name || '—'} {off.id ? <span className="text-[11px] text-gray-600">({off.id})</span> : null}
+                    {off.phone ? `, ${off.phone}` : ''}
+                  </>
+                ) : '—'}
+              </div>
+            </section>
+
+            <section>
+              <div className="text-orange-800 font-semibold mb-1">Schedule & Gate</div>
+              <div><b>Pickup:</b> {fmtDT((request as any).scheduledPickupAt)}</div>
+              <div><b>Return:</b> {fmtDT((request as any).scheduledReturnAt)}</div>
+              <div><b>Exit:</b> {fmtDT((request as any).gateExitAt)} • <span className="text-[11px] text-gray-600">O {(request as any).exitOdometer ?? '—'}</span></div>
+              <div><b>Entry:</b> {fmtDT((request as any).gateEntryAt)} • <span className="text-[11px] text-gray-600">O {(request as any).entryOdometer ?? '—'}</span></div>
+            </section>
+
+            <section className="md:col-span-2 border border-orange-100 rounded-lg p-3">
+              <div className="text-orange-800 font-semibold mb-1">Account Trail</div>
+              <div><b>Submitted by account:</b> {submitterAccount}</div>
+              <div><b>Created at:</b> {fmtDT((request as any).createdAt)}</div>
+              <div><b>Last updated by:</b> {updatedAccount}</div>
+              <div><b>Updated at:</b> {(request as any).updatedAt ? fmtDT((request as any).updatedAt) : '—'}</div>
+            </section>
+
+            {allowAction && (
+              <section className="md:col-span-2 border border-orange-100 rounded-lg p-3 space-y-3">
+                <div className="text-orange-800 font-semibold mb-1">Approval</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <label className="text-sm text-gray-700">
+                    Remarks (optional)
+                    <textarea
+                      className="w-full mt-1 border border-orange-200 rounded px-2 py-1 text-[12px]"
+                      rows={2}
+                      value={remarks}
+                      onChange={(e) => setRemarks(e.target.value)}
+                    />
+                  </label>
+                  <label className="text-sm text-gray-700">
+                    Account password
+                    <input
+                      type="password"
+                      className="w-full mt-1 border border-orange-200 rounded px-2 py-1 text-[12px]"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Re-enter password"
+                    />
+                  </label>
+                </div>
+                {actionError ? <div className="text-[11px] text-red-600">{actionError}</div> : null}
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 rounded bg-emerald-600 text-white px-3 py-2 text-[12px] font-semibold hover:bg-emerald-700 disabled:opacity-60"
+                    onClick={() => perform('approve')}
+                    disabled={busy}
+                    title="Approve & send forward"
+                  >
+                    <CheckCircle2 size={14} />
+                    {busy ? 'Working…' : 'Approve'}
+                  </button>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-2 rounded bg-rose-600 text-white px-3 py-2 text-[12px] font-semibold hover:bg-rose-700 disabled:opacity-60"
+                    onClick={() => perform('reject')}
+                    disabled={busy}
+                    title="Reject"
+                  >
+                    <X size={14} />
+                    {busy ? 'Working…' : 'Reject'}
+                  </button>
+                </div>
+              </section>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

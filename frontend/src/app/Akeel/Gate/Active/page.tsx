@@ -1,11 +1,10 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import GateSidebar from '../components/GateSidebar';
 import { Th, Td } from '../../Transport/components/ThTd';
 import { listByStatus, gateExit, gateEntry } from '../../Transport/services/usageService';
 import type { UsageRequest } from '../../Transport/services/types';
-import SearchBar from '../../Transport/components/SearchBar';
+import GateSearchBar from '../components/GateSearchBar';
 import GateExitEntryModal from '../../Transport/components/GateExitEntryModal';
 import { toast } from 'react-toastify';
 
@@ -61,7 +60,7 @@ function resolveOfficerBits(r: any): { name?: string; id?: string; phone?: strin
   return { name, id, phone };
 }
 
-export default function InchargeActiveVehiclesPage() {
+export default function GateActiveVehiclesPage() {
   const [rows, setRows] = useState<UsageRequest[]>([]);
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(true);
@@ -137,34 +136,32 @@ export default function InchargeActiveVehiclesPage() {
   }, [rows, q]);
 
   return (
-    <div className="flex min-h-screen bg-orange-50">
-      <GateSidebar />
+    <div className="space-y-3">
+      <div className="flex items-center justify-between mb-2">
+        <h1 className="text-[14px] md:text-lg font-bold text-orange-900">Active Vehicles</h1>
+        <GateSearchBar value={q} onChange={setQ} placeholder="Search code, vehicle, driver, route, officer…" />
+      </div>
 
-      <main className="p-3 md:p-4 flex-1">
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="text-[14px] md:text-lg font-bold text-orange-900">Active Vehicles</h1>
-          <SearchBar value={q} onChange={setQ} placeholder="Search code, vehicle, driver, route, officer…" className="h-8" />
-        </div>
-
-        <div className="bg-white rounded-lg border border-orange-200 overflow-auto">
-          <table className="min-w-full table-fixed text-[12px] leading-[1.25]">
-            {/* keep colgroup on one line to avoid whitespace text nodes */}
-            <colgroup><col className="w-[14%]"/><col className="w-[26%]"/><col className="w-[24%]"/><col className="w-[18%]"/><col className="w-[8%]"/><col className="w-[10%]"/></colgroup>
-            <thead className="bg-orange-50">
-              <tr>
-                <Th className="px-3 py-2 text-left">Request</Th>
-                <Th className="px-3 py-2 text-left">Schedule</Th>
-                <Th className="px-3 py-2 text-left">Vehicle / Driver / Officer</Th>
-                <Th className="px-3 py-2 text-left">Route</Th>
-                <Th className="px-3 py-2 text-center">Status</Th>
-                <Th className="px-3 py-2 text-center">Action</Th>
-              </tr>
-            </thead>
+      <div className="bg-white rounded-lg border border-orange-200 overflow-auto">
+        <table className="min-w-[980px] w-full table-fixed text-[10px] leading-tight">
+          {/* keep colgroup on one line to avoid whitespace text nodes */}
+          <colgroup><col className="w-[12%]"/><col className="w-[22%]"/><col className="w-[20%]"/><col className="w-[14%]"/><col className="w-[12%]"/><col className="w-[10%]"/><col className="w-[10%]"/></colgroup>
+          <thead className="bg-orange-50 text-[9px] uppercase tracking-wide">
+            <tr>
+              <Th className="px-3 py-2 text-left">Request</Th>
+              <Th className="px-3 py-2 text-left">Schedule</Th>
+              <Th className="px-3 py-2 text-left">Vehicle / Driver / Officer</Th>
+              <Th className="px-3 py-2 text-left">Route</Th>
+              <Th className="px-3 py-2 text-left">Odometer (km)</Th>
+              <Th className="px-3 py-2 text-center">Status</Th>
+              <Th className="px-3 py-2 text-center">Action</Th>
+            </tr>
+          </thead>
 
             <tbody className="divide-y">
               {loading && (
                 <tr>
-                  <Td colSpan={6} className="px-3 py-6 text-center text-gray-500">Loading…</Td>
+                  <Td colSpan={7} className="px-3 py-6 text-center text-gray-500">Loading…</Td>
                 </tr>
               )}
 
@@ -213,6 +210,15 @@ export default function InchargeActiveVehiclesPage() {
                       <div>{r.fromLocation || '—'} → {r.toLocation || '—'}</div>
                     </Td>
 
+                    {/* Odometer */}
+                    <Td className="px-3 py-2">
+                      <div className="text-[10px] text-gray-800">Exit: {r.exitOdometer ?? '—'}</div>
+                      <div className="text-[10px] text-gray-800">Entry: {r.entryOdometer ?? '—'}</div>
+                      {r.exitOdometer != null && r.entryOdometer != null ? (
+                        <div className="text-[9px] text-orange-700">Δ {Math.max(0, r.entryOdometer - r.exitOdometer)} km</div>
+                      ) : null}
+                    </Td>
+
                     {/* Status */}
                     <Td className="px-3 py-2 text-center">
                       {chip(statusLabel)}
@@ -246,13 +252,12 @@ export default function InchargeActiveVehiclesPage() {
 
               {!loading && !filtered.length && (
                 <tr>
-                  <Td colSpan={6} className="px-3 py-6 text-center text-gray-500">No active trips</Td>
+                  <Td colSpan={7} className="px-3 py-6 text-center text-gray-500">No active trips</Td>
                 </tr>
               )}
             </tbody>
-          </table>
-        </div>
-      </main>
+        </table>
+      </div>
 
       {/* EXIT modal */}
       {openExitFor && (

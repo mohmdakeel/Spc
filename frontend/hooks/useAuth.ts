@@ -28,10 +28,21 @@ export const useAuth = () => {
     (async () => {
       try {
         const data = await me();
-        if (mounted.current) {
-          setUser(data);
+        if (!mounted.current) return;
+
+        if (!data) {
+          // Session missing/invalid — treat as logged out
+          setUser(null);
           setError(null);
+          if (!pathname?.startsWith('/login')) {
+            const returnUrl = encodeURIComponent(pathname || '/');
+            router.replace(`/login?next=${returnUrl}`);
+          }
+          return;
         }
+
+        setUser(data);
+        setError(null);
       } catch (err: any) {
         console.error('Auth check failed:', err);
         if (mounted.current) {
@@ -57,6 +68,16 @@ export const useAuth = () => {
     setError(null);
     try {
       const data = await me();
+      if (!data) {
+        setUser(null);
+        setError('Session expired. Please sign in again.');
+        if (!pathname?.startsWith('/login')) {
+          const returnUrl = encodeURIComponent(pathname || '/');
+          router.replace(`/login?next=${returnUrl}`);
+        }
+        return null;
+      }
+
       setUser(data);
       setError(null);
       return data;
@@ -67,6 +88,16 @@ export const useAuth = () => {
       setLoading(false);
     }
   };
+
+  // Keep username handy for other modules (e.g., audit headers)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (user?.username) {
+      window.localStorage.setItem('username', user.username);
+    } else {
+      window.localStorage.removeItem('username');
+    }
+  }, [user?.username]);
 
   const hasRole = (roles: string | string[]) => {
     if (!user?.roles) return false;

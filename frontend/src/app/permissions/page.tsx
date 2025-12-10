@@ -5,14 +5,12 @@ import Topbar from '../../../components/Topbar';
 import Sidebar from '../../../components/Sidebar';
 import Modal from '../../../components/Modal';
 import api from '../../../lib/api';
-import { printDocument, escapeHtml } from '../../../lib/print';
 import { useAuth } from '../../../hooks/useAuth';
 import {
   CheckCircle,
   XCircle,
   Check,
   X,
-  Printer,
   Key,
   Shield,
   Users,
@@ -42,18 +40,6 @@ const onlyGlobalFive = (codes: string[] = []) =>
     codes.includes(c)
   );
 
-// tiny text helper for print layout
-const txt = (v?: string) => (v && v.trim() !== '' ? v : 'N/A');
-
-const formatPrintValue = (value?: string | number | null) => {
-  if (value === null || value === undefined) return '—';
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    return escapeHtml(trimmed.length ? trimmed : '—');
-  }
-  return escapeHtml(String(value));
-};
-
 export default function PermissionsPage() {
   const { user, refresh } = useAuth();
 
@@ -70,10 +56,6 @@ export default function PermissionsPage() {
   function showError(msg: string) {
     setErrorMessage(msg);
   }
-
-  // permissions of current logged-in admin (for Print button gating)
-  const has = (p: string) => !!user?.permissions?.includes(p);
-  const canPrint = has('PRINT');
 
   // ================= DATA FROM BACKEND =================
   const [roles, setRoles] = useState<Role[]>([]);
@@ -274,57 +256,6 @@ export default function PermissionsPage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  // ================ PER-USER PRINT ================
-  const handlePrintUser = (u: UserRow) => {
-    if (!canPrint) {
-      showError('You do not have PRINT permission.');
-      return;
-    }
-
-    const rolesSection =
-      (u.roles || []).length > 0
-        ? (u.roles || [])
-            .map(
-              (role) => `<span class="spc-chip spc-chip--role">${formatPrintValue(role)}</span>`
-            )
-            .join('')
-        : '<div class="spc-empty">No roles assigned.</div>';
-
-    const permsSection =
-      (u.permissions || []).length > 0
-        ? (u.permissions || [])
-            .map(
-              (perm) => `<span class="spc-chip spc-chip--perm">${formatPrintValue(perm)}</span>`
-            )
-            .join('')
-        : '<div class="spc-empty">No permissions assigned.</div>';
-
-    const contentHtml = `
-      <div class="spc-section">
-        <p class="spc-section__title">User Info</p>
-        <table class="spc-definition">
-          <tr><td>Username</td><td>${formatPrintValue(u.username)}</td></tr>
-          <tr><td>Full Name</td><td>${formatPrintValue(u.fullName)}</td></tr>
-        </table>
-      </div>
-      <div class="spc-section">
-        <p class="spc-section__title">Roles</p>
-        ${rolesSection}
-      </div>
-      <div class="spc-section">
-        <p class="spc-section__title">Permissions (Global 5)</p>
-        ${permsSection}
-      </div>
-    `;
-
-    printDocument({
-      title: 'User Permission Profile',
-      subtitle: `Username: ${txt(u.username)}`,
-      contentHtml,
-      printedBy: user?.fullName?.trim() || user?.username || undefined,
-    });
   };
 
   // ================ PERMISSION MODAL LOGIC ================
@@ -608,16 +539,6 @@ export default function PermissionsPage() {
                                   <Key className="w-4 h-4 mr-1" />
                                   Permissions
                                 </button>
-
-                                {canPrint && (
-                                  <button
-                                    onClick={() => handlePrintUser(u)}
-                                    className="flex items-center px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm"
-                                  >
-                                    <Printer className="w-4 h-4 mr-1" />
-                                    Print
-                                  </button>
-                                )}
                               </div>
                             </td>
                           </tr>

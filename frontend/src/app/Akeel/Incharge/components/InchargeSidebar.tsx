@@ -1,92 +1,87 @@
 'use client';
 
-import * as React from 'react';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import {
-  Home,
-  ClipboardCheck,
-  CalendarClock,
-  MapPin,
-  History,
-  Users,
-  Truck,
-  Search
-} from 'lucide-react';
+import { Home, ClipboardCheck, CalendarClock, MapPin, Users, Truck, Search, UserCircle, Settings, LogOut } from 'lucide-react';
+import { logout } from '../../../../../lib/auth';
 
-type NavItem = {
-  to: string;
-  label: string;
-  icon: React.ReactNode;
-};
+const MENU = [
+  { to: '/Akeel/Incharge', label: 'Dashboard', icon: Home },
+  { to: '/Akeel/Incharge/Approved', label: 'Requests to Assign', icon: ClipboardCheck },
+  { to: '/Akeel/Incharge/Scheduled', label: 'Scheduled Trips', icon: CalendarClock },
+  { to: '/Akeel/Incharge/Active', label: 'Active Vehicles', icon: MapPin },
+  { to: '/Akeel/Incharge/Driver', label: 'Manage Drivers', icon: Users },
+  { to: '/Akeel/Incharge/Vehicle', label: 'Manage Vehicles', icon: Truck },
+  { to: '/Akeel/Incharge/AvailableDrivers', label: 'Available Drivers', icon: Users },
+  { to: '/Akeel/Incharge/AvailableVehicles', label: 'Available Vehicles', icon: Truck },
+  { to: '/Akeel/Incharge/Track', label: 'Track by Request ID', icon: Search },
+];
 
 export default function InchargeSidebar() {
-  const [collapsed, setCollapsed] = React.useState(false);
   const router = useRouter();
-  const path = usePathname();
+  const pathname = usePathname();
 
-  React.useEffect(() => {
-    const saved = localStorage.getItem('incharge_sidebar_collapsed');
-    if (saved) setCollapsed(saved === '1');
-  }, []);
-  React.useEffect(() => {
-    localStorage.setItem('incharge_sidebar_collapsed', collapsed ? '1' : '0');
-  }, [collapsed]);
+  const isActive = (to: string) => pathname === to || pathname.startsWith(`${to}/`);
 
-  const go = (p: string) => router.push(p);
-  const isActive = (p: string) => path === p || (path?.startsWith(p + '/') ?? false);
-
-  const items: NavItem[] = [
-    { to: '/Akeel/Incharge',                  label: 'Dashboard',           icon: <Home size={18} /> },
-    { to: '/Akeel/Incharge/Approved',         label: 'Requests to Assign',  icon: <ClipboardCheck size={18} /> },
-    { to: '/Akeel/Incharge/Scheduled',        label: 'Scheduled Trips',     icon: <CalendarClock size={18} /> },
-    { to: '/Akeel/Incharge/Active',           label: 'Active Vehicles',     icon: <MapPin size={18} /> },
-    { to: '/Akeel/Incharge/History',          label: 'Completed History',   icon: <History size={18} /> },
-    { to: '/Akeel/Incharge/AvailableDrivers', label: 'Available Drivers',   icon: <Users size={18} /> },
-    { to: '/Akeel/Incharge/AvailableVehicles',label: 'Available Vehicles',  icon: <Truck size={18} /> },
-    { to: '/Akeel/Incharge/Track',            label: 'Track by Request ID', icon: <Search size={18} /> },
-  ];
-
-  const Item = ({ to, icon, label }: NavItem) => {
-    const active = isActive(to);
-    return (
-      <button
-        onClick={() => go(to)}
-        title={collapsed ? label : undefined}
-        aria-current={active ? 'page' : undefined}
-        className={`w-full px-3 py-2 rounded flex items-center gap-2 text-sm transition-colors
-          ${active ? 'bg-orange-600 text-white' : 'text-orange-900 hover:bg-orange-200'}`}
-      >
-        {icon}
-        {!collapsed && <span className="truncate">{label}</span>}
-      </button>
-    );
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (err) {
+      console.warn('Logout failed, forcing redirect anyway', err);
+    } finally {
+      router.push('/login');
+      router.refresh();
+    }
   };
 
   return (
-    <aside
-      className={`${collapsed ? 'w-20' : 'w-64'} h-screen bg-orange-100 p-4 transition-all duration-200 flex flex-col`}
-      aria-label="Vehicle In-Charge Navigation"
-    >
-      {/* Header */}
-      <div className="flex items-center gap-2 mb-6">
-        <Truck className="text-orange-700" />
-        {!collapsed && <h1 className="font-bold text-orange-900 leading-none">Vehicle In-Charge</h1>}
+    <aside className="hod-sidebar w-64 min-w-64 shrink-0 h-screen sticky top-0 bg-orange-100 p-4 border-r border-orange-200 flex flex-col">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-12 h-12 rounded-2xl border border-orange-200 bg-white/80 flex items-center justify-center shadow-sm">
+          <Image src="/spclogopic.png" width={36} height={36} alt="SPC" className="object-contain" priority />
+        </div>
+        <div className="min-w-0">
+          <h1 className="font-bold text-sm text-orange-900 leading-tight truncate">State Printing Corporation</h1>
+          <p className="text-xs text-orange-700/70 truncate">Vehicle In-Charge</p>
+        </div>
       </div>
 
-      {/* Collapse */}
-      <button
-        onClick={() => setCollapsed(c => !c)}
-        className="mb-4 w-full bg-orange-200 rounded py-2 text-sm text-orange-900 hover:bg-orange-300"
-      >
-        {collapsed ? 'Expand' : 'Collapse'}
-      </button>
-
-      {/* Nav */}
       <nav className="space-y-1 flex-1">
-        {items.map(i => (
-          <Item key={i.to} {...i} />
+        {MENU.map(({ to, label, icon: Icon }) => (
+          <button
+            key={label}
+            onClick={() => router.push(to)}
+            className={`hod-sidebar__item ${isActive(to) ? 'is-active' : ''}`}
+          >
+            <Icon size={18} />
+            <span className="truncate">{label}</span>
+          </button>
         ))}
       </nav>
+
+      <div className="pt-4 mt-6 border-t border-orange-200 space-y-2">
+        <button
+          onClick={() => router.push('/Akeel/Incharge/Profile')}
+          className="hod-sidebar__link"
+        >
+          <UserCircle size={18} />
+          <span>Profile</span>
+        </button>
+        <button
+          onClick={() => router.push('/Akeel/Incharge/Settings')}
+          className="hod-sidebar__link"
+        >
+          <Settings size={18} />
+          <span>Settings</span>
+        </button>
+        <button
+          onClick={handleLogout}
+          className="hod-sidebar__danger"
+        >
+          <LogOut size={18} />
+          <span>Logout</span>
+        </button>
+      </div>
     </aside>
   );
 }

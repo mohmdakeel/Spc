@@ -13,7 +13,7 @@ import HODSearchBar from './components/HODSearchBar';
 
 /* ---------- helpers ---------- */
 const chip = (s: string) => (
-  <span className="inline-block text-[10px] px-1.5 py-[2px] rounded bg-orange-100 text-orange-800 leading-none">
+  <span className="inline-block whitespace-nowrap text-[10px] px-1.5 py-[2px] rounded bg-orange-100 text-orange-800 leading-none">
     {s}
   </span>
 );
@@ -309,19 +309,20 @@ th{background:#faf5f0;text-align:left}
               {/* compact, fixed layout */}
               <table className="w-full table-fixed text-[10px] leading-[1.15]">
             {/* keep colgroup in one line to avoid hydration whitespace warning */}
-            <colgroup><col className="w-28"/><col className="w-56"/><col className="w-44"/><col className="w-36"/><col className="w-28"/></colgroup>
+            <colgroup><col className="w-28"/><col className="w-56"/><col className="w-44"/><col className="w-36"/><col className="w-24"/><col className="w-20"/></colgroup>
             <thead className="bg-orange-50">
               <tr className="text-[9.5px]">
                 <Th className="px-2 py-1 text-left">Code / Dept</Th>
                 <Th className="px-2 py-1 text-left">APPLICANT / OFFICER</Th>
                 <Th className="px-2 py-1 text-left">Route</Th>
                 <Th className="px-2 py-1 text-left">Travel</Th>
-                <Th className="px-2 py-1 text-center">Status / Actions</Th>
+                <Th className="px-2 py-1 text-center">Status</Th>
+                <Th className="px-2 py-1 text-center">Action</Th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {loading && (
-                <tr><Td colSpan={5} className="px-2 py-6 text-center text-gray-500">Loading…</Td></tr>
+                <tr><Td colSpan={6} className="px-2 py-6 text-center text-gray-500">Loading…</Td></tr>
               )}
 
               {!loading && filtered.map((r: any) => {
@@ -364,35 +365,33 @@ th{background:#faf5f0;text-align:left}
 
                     <Td className="px-2 py-1 text-center">
                       <div className="mb-1">{chip(r.status)}</div>
-                      <div className="inline-flex items-center gap-1">
-                        <button
-                          type="button"
-                          className="px-2 py-[3px] rounded bg-gray-200 text-gray-800 hover:bg-gray-300 text-[10px] inline-flex items-center gap-1"
-                          onClick={() => setView(r)}
-                          title="Details"
-                        >
-                          <Info size={12} /> View
-                        </button>
+                    </Td>
 
-                        {tab === 'PENDING_HOD' && (
+                    <Td className="px-2 py-1 text-center">
+                      <div className="inline-flex items-center justify-center gap-1">
+                        {tab === 'PENDING_HOD' ? (
                           <>
                             <button
                               type="button"
-                              className="px-2 py-[3px] rounded bg-green-600 text-white hover:bg-green-700 text-[10px] inline-flex items-center gap-1"
+                              className="p-[6px] rounded bg-green-600 text-white hover:bg-green-700 text-[10px] inline-flex items-center"
                               onClick={() => doApprove(r)}
                               title="Approve & send to Management"
+                              aria-label="Approve"
                             >
-                              <Check size={12} /> Approve
+                              <Check size={14} />
                             </button>
                             <button
                               type="button"
-                              className="px-2 py-[3px] rounded bg-red-600 text-white hover:bg-red-700 text-[10px] inline-flex items-center gap-1"
+                              className="p-[6px] rounded bg-red-600 text-white hover:bg-red-700 text-[10px] inline-flex items-center"
                               onClick={() => doReject(r)}
                               title="Reject"
+                              aria-label="Reject"
                             >
-                              <XIcon size={12} /> Reject
+                              <XIcon size={14} />
                             </button>
                           </>
+                        ) : (
+                          <span className="text-[10px] text-gray-500">—</span>
                         )}
                       </div>
                     </Td>
@@ -401,7 +400,7 @@ th{background:#faf5f0;text-align:left}
               })}
 
               {!loading && !filtered.length && (
-                <tr><Td colSpan={5} className="px-2 py-6 text-center text-gray-500">No results</Td></tr>
+                <tr><Td colSpan={6} className="px-2 py-6 text-center text-gray-500">No results</Td></tr>
               )}
             </tbody>
               </table>

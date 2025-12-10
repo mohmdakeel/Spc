@@ -44,7 +44,7 @@ const ALLOWED = new Set([
 function chipStatus(raw?: string) {
   const s = (raw || '—').toUpperCase().trim();
   const base =
-    'inline-flex items-center justify-center px-2 py-[3px] rounded leading-[1.05] text-[11px] ' +
+    'inline-flex items-center justify-center px-2 py-[3px] rounded leading-[1.05] text-xs ' +
     'whitespace-normal break-words max-w-[8.75rem]';
 
   const orange = 'bg-orange-100 text-orange-800';
@@ -220,24 +220,24 @@ th,td{border:1px solid #ddd;padding:6px 8px;font-size:12px;vertical-align:top}th
             value={q}
             onChange={setQ}
             placeholder="Search code, vehicle, driver, gate…"
-            className="w-full lg:w-72"
+            className="w-full lg:w-72 h-10"
           />
           <button
             type="button"
             onClick={printAllCurrent}
-            className="inline-flex items-center gap-1 px-3 h-10 rounded-xl bg-orange-600 text-white hover:bg-orange-700 text-sm"
+            className="inline-flex items-center gap-2 px-4 h-10 rounded-lg bg-orange-600 text-white hover:bg-orange-700 text-sm font-semibold shadow-sm"
             title="Print current list"
           >
-            <Printer size={14} /> Print
+            <Printer size={16} /> Print Page
           </button>
         </div>
       </div>
 
       <div className="bg-white rounded-md border border-orange-200">
-        <table className="w-full table-fixed text-[12.5px] leading-[1.25]">
+        <table className="w-full table-fixed text-[8px] leading-tight">
           <colgroup>{COLS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
-          <thead className="bg-orange-50">
-            <tr className="text-[12px]">
+          <thead className="bg-orange-50 text-[9px] uppercase tracking-wide">
+            <tr>
               <Th className="px-2 py-1 text-left">RQ ID / Applied</Th>
               <Th className="px-2 py-1 text-center">Status</Th>
               <Th className="px-2 py-1 text-left">Assigned</Th>
@@ -260,7 +260,7 @@ th,td{border:1px solid #ddd;padding:6px 8px;font-size:12px;vertical-align:top}th
                 {/* RQ / Applied */}
                 <Td className="px-2 py-1 whitespace-normal break-words">
                   <div className="font-semibold text-orange-900">{r.requestCode || '—'}</div>
-                  <div className="text-[11px] text-gray-600">{appliedLabel(r)}</div>
+                  <div className="text-xs text-gray-600">{appliedLabel(r)}</div>
                 </Td>
 
                 {/* Status */}
@@ -271,7 +271,7 @@ th,td{border:1px solid #ddd;padding:6px 8px;font-size:12px;vertical-align:top}th
                 {/* Assigned */}
                 <Td className="px-2 py-1 whitespace-normal break-words">
                   <div>{r.assignedVehicleNumber || '—'}</div>
-                  <div className="text-[11px] text-gray-700">
+                  <div className="text-xs text-gray-700">
                     {r.assignedDriverName || '—'}{r.assignedDriverPhone ? ` (${r.assignedDriverPhone})` : ''}
                   </div>
                 </Td>
@@ -279,13 +279,13 @@ th,td{border:1px solid #ddd;padding:6px 8px;font-size:12px;vertical-align:top}th
                 {/* Schedule */}
                 <Td className="px-2 py-1 whitespace-normal break-words">
                   <div>P: {fmtDT(r.scheduledPickupAt)}</div>
-                  <div className="text-[11px] text-gray-700">R: {fmtDT(r.scheduledReturnAt)}</div>
+                  <div className="text-xs text-gray-700">R: {fmtDT(r.scheduledReturnAt)}</div>
                 </Td>
 
                 {/* Gate */}
                 <Td className="px-2 py-1 whitespace-normal break-words">
-                  <div>Ex {fmtDT(r.gateExitAt)} <span className="text-[11px] text-gray-600">• O {r.exitOdometer ?? '—'}</span></div>
-                  <div>En {fmtDT(r.gateEntryAt)} <span className="text-[11px] text-gray-600">• O {r.entryOdometer ?? '—'}</span></div>
+                  <div>Ex {fmtDT(r.gateExitAt)} <span className="text-xs text-gray-600">• O {r.exitOdometer ?? '—'}</span></div>
+                  <div>En {fmtDT(r.gateEntryAt)} <span className="text-xs text-gray-600">• O {r.entryOdometer ?? '—'}</span></div>
                 </Td>
 
                 {/* Print */}
@@ -343,8 +343,8 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
 
             <section className="md:col-span-2">
               <div className="text-orange-800 font-semibold mb-1">Gate</div>
-              <div><b>Exit:</b> {fmtDT((request as any).gateExitAt)} • <span className="text-[11px] text-gray-600">O {(request as any).exitOdometer ?? '—'}</span></div>
-              <div><b>Entry:</b> {fmtDT((request as any).gateEntryAt)} • <span className="text-[11px] text-gray-600">O {(request as any).entryOdometer ?? '—'}</span></div>
+              <div><b>Exit:</b> {fmtDT((request as any).gateExitAt)} • <span className="text-xs text-gray-600">O {(request as any).exitOdometer ?? '—'}</span></div>
+              <div><b>Entry:</b> {fmtDT((request as any).gateEntryAt)} • <span className="text-xs text-gray-600">O {(request as any).entryOdometer ?? '—'}</span></div>
             </section>
           </div>
         </div>

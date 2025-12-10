@@ -187,6 +187,30 @@ export interface CompareResult {
   changes: ChangeItem[];
 }
 
+/* ===== Availability DTOs ===== */
+export interface BusyWindow {
+  from: ISODateTimeString;
+  to: ISODateTimeString;
+  requestCode?: string | null;
+  vehicleNumber?: string | null;
+  driverName?: string | null;
+  status?: string | null;
+}
+
+export interface DriverAvailability {
+  driverId?: number | null;
+  driverName: string;
+  driverPhone?: string | null;
+  busy: BusyWindow[];
+}
+
+export interface VehicleAvailability {
+  vehicleId?: number | null;
+  vehicleNumber: string;
+  vehicleType?: string | null;
+  busy: BusyWindow[];
+}
+
 export const normalizeHistoryDto = (dto: HistoryRecordDto): ChangeHistory => ({
   id: dto.id,
   entityType: dto.entityType === "Vehicle" || dto.entityType === "Driver" ? dto.entityType : "Vehicle",

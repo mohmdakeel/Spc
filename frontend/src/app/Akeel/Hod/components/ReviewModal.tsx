@@ -58,33 +58,43 @@ export default function ReviewModal({
   open: boolean;
   request: UsageRequest | null;
   onClose: () => void;
-  onApprove: (remarks?: string) => void | Promise<void>;
-  onReject: (remarks?: string) => void | Promise<void>;
+  onApprove: (remarks: string, password: string) => void | Promise<void>;
+  onReject: (remarks: string, password: string) => void | Promise<void>;
 }) {
   const [remarks, setRemarks] = useState('');
+  const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   // SAFE: extractOfficer handles null
   const off = useMemo(() => extractOfficer(request), [request]);
 
   if (!open || !request) return null;
 
-  const canSubmit = remarks.trim().length > 0 && !busy;
+  const canSubmit = remarks.trim().length > 0 && password.trim().length > 0 && !busy;
 
   const doApprove = async () => {
-    if (!canSubmit) return;
+    if (!canSubmit) {
+      setErr('Add remarks and your account password.');
+      return;
+    }
     setBusy(true);
+    setErr(null);
     try {
-      await Promise.resolve(onApprove(remarks.trim()));
+      await Promise.resolve(onApprove(remarks.trim(), password));
     } finally {
       setBusy(false);
     }
   };
   const doReject = async () => {
-    if (!canSubmit) return;
+    if (!canSubmit) {
+      setErr('Add remarks and your account password.');
+      return;
+    }
     setBusy(true);
+    setErr(null);
     try {
-      await Promise.resolve(onReject(remarks.trim()));
+      await Promise.resolve(onReject(remarks.trim(), password));
     } finally {
       setBusy(false);
     }
@@ -221,6 +231,21 @@ export default function ReviewModal({
             {!remarks.trim() && (
               <div className="text-[12px] text-red-600 mt-1">Please enter a short remark.</div>
             )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-orange-800 mb-1">Account password (required)</label>
+            <input
+              type="password"
+              className="w-full border border-orange-200 rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-orange-300"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Re-enter your password"
+            />
+            {!password.trim() && (
+              <div className="text-[12px] text-red-600 mt-1">Password is required to continue.</div>
+            )}
+            {err ? <div className="text-[12px] text-red-600 mt-1">{err}</div> : null}
           </div>
         </div>
 

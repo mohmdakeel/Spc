@@ -1,8 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { useForm } from 'react-hook-form';
+import api from '../../../../../lib/api';
+import type { Registration } from '../../../../../types';
 import type { Driver } from '../services/types';
 
 interface Props {
@@ -15,7 +17,7 @@ const STATUS = ['ACTIVE', 'INACTIVE', 'SUSPENDED'] as const;
 const toDateInput = (s?: string | null) => (s ? s.toString().slice(0, 10) : '');
 
 export default function DriverForm({ driver, onSubmit, onClose }: Props) {
-  const { register, handleSubmit, formState: { errors }, reset } = useForm<Partial<Driver>>({
+  const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<Partial<Driver>>({
     defaultValues: {
       employeeId: driver?.employeeId ?? '',
       name: driver?.name ?? '',
@@ -51,6 +53,89 @@ export default function DriverForm({ driver, onSubmit, onClose }: Props) {
     onClose();
   };
 
+  // Employee directory lookup (mirrors Applicant new request UX)
+  const [employees, setEmployees] = useState<Registration[]>([]);
+  const [employeesLoading, setEmployeesLoading] = useState(false);
+  const [employeesError, setEmployeesError] = useState<string | null>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<Registration | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const nameField = register('name', { required: 'Name is required' });
+  const employeeIdField = register('employeeId', { required: 'Employee ID is required' });
+  const nameValue = watch('name') || '';
+  const employeeIdValue = watch('employeeId') || '';
+  const [searchTerm, setSearchTerm] = useState<string>(nameValue || employeeIdValue || '');
+
+  useEffect(() => {
+    if (nameValue || employeeIdValue) {
+      setSearchTerm(nameValue || employeeIdValue);
+    }
+  }, [nameValue, employeeIdValue]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadEmployees = async () => {
+      setEmployeesLoading(true);
+      setEmployeesError(null);
+      try {
+        const { data } = await api.get('/registrations');
+        if (cancelled) return;
+        const list = Array.isArray(data) ? data : [];
+        setEmployees(list);
+      } catch (error: any) {
+        if (cancelled) return;
+        const message = error?.response?.data?.message || error?.message || 'Unable to load employees';
+        setEmployeesError(message);
+      } finally {
+        if (!cancelled) setEmployeesLoading(false);
+      }
+    };
+    loadEmployees();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => () => {
+    if (dropdownTimeout.current) clearTimeout(dropdownTimeout.current);
+  }, []);
+
+  const filterEmployees = useMemo(() => {
+    const pool = employees || [];
+    return (term: string) => {
+      const q = (term || '').trim().toLowerCase();
+      if (!q) return pool.slice(0, 8);
+      return pool
+        .filter((reg) => {
+          const tokens = [
+            reg.fullName,
+            reg.nameWithInitials,
+            reg.epfNo,
+            reg.department,
+            (reg as any)?.mobileNo,
+            (reg as any)?.email,
+          ];
+          return tokens.some((token) => token?.toLowerCase().includes(q));
+        })
+        .slice(0, 8);
+    };
+  }, [employees]);
+
+  const matches = useMemo(
+    () => (dropdownOpen ? filterEmployees(searchTerm) : []),
+    [dropdownOpen, filterEmployees, searchTerm]
+  );
+
+  const handleSelectEmployee = (reg: Registration) => {
+    const displayName = (reg.fullName || reg.nameWithInitials || reg.epfNo || '').trim() || 'Unnamed employee';
+    setValue('name', displayName, { shouldDirty: true, shouldValidate: true });
+    setValue('employeeId', reg.epfNo || '', { shouldDirty: true, shouldValidate: true });
+    setValue('phone', (reg as any)?.mobileNo || '', { shouldDirty: true });
+    setValue('email', (reg as any)?.email || '', { shouldDirty: true });
+    setSelectedEmployee(reg);
+    setSearchTerm(displayName || reg.epfNo || '');
+    setDropdownOpen(false);
+  };
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-orange-50 rounded-xl shadow-xl w-full max-w-3xl overflow-hidden border border-orange-200">
@@ -76,35 +161,131 @@ export default function DriverForm({ driver, onSubmit, onClose }: Props) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Left Column */}
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-orange-800 mb-2">
-                  Employee ID <span className="text-red-600">*</span>
-                </label>
+              <div className="relative">
+                <div className="flex items-center justify-between">
+                  <label className="block text-sm font-semibold text-orange-800 mb-1">
+                    Employee / Driver <span className="text-red-600">*</span>
+                  </label>
+                  {employeesLoading ? (
+                    <span className="text-[11px] text-gray-500">Loading directory…</span>
+                  ) : null}
+                </div>
                 <input
+                  autoComplete="off"
                   className={`w-full px-4 py-2.5 rounded-lg border focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 transition-all ${
-                    errors.employeeId ? 'border-red-500' : 'border-orange-200'
+                    errors.name ? 'border-red-500' : 'border-orange-200'
                   }`}
-                  {...register('employeeId', { required: 'Employee ID is required' })}
-                  placeholder="E.g., EMP-1001"
+                  {...nameField}
+                  placeholder="Search by name, EPF, department…"
+                  onFocus={() => {
+                    if (dropdownTimeout.current) {
+                      clearTimeout(dropdownTimeout.current);
+                      dropdownTimeout.current = null;
+                    }
+                    setDropdownOpen(true);
+                    setSearchTerm(nameValue);
+                  }}
+                  onChange={(e) => {
+                    nameField.onChange(e);
+                    if (dropdownTimeout.current) {
+                      clearTimeout(dropdownTimeout.current);
+                      dropdownTimeout.current = null;
+                    }
+                    setDropdownOpen(true);
+                    setSearchTerm(e.target.value);
+                    if (selectedEmployee) {
+                      setSelectedEmployee(null);
+                      setValue('employeeId', '', { shouldDirty: true, shouldValidate: true });
+                    }
+                  }}
+                  onBlur={(e) => {
+                    nameField.onBlur(e);
+                    dropdownTimeout.current = setTimeout(() => setDropdownOpen(false), 120);
+                  }}
                 />
-                {errors.employeeId && (
-                  <p className="text-xs text-red-600 mt-1">{String(errors.employeeId.message)}</p>
+                {dropdownOpen ? (
+                  <div className="absolute z-20 w-full bg-white border border-orange-100 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto">
+                    {employeesLoading ? (
+                      <div className="px-3 py-2 text-[12px] text-gray-500">Loading employees…</div>
+                    ) : matches.length ? (
+                      matches.map((reg, index) => (
+                        <button
+                          type="button"
+                          key={reg.epfNo || reg.id || index}
+                          className="w-full text-left px-3 py-2 hover:bg-orange-50"
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            handleSelectEmployee(reg);
+                          }}
+                        >
+                          <div className="text-[13px] font-medium text-orange-900">
+                            {reg.fullName || reg.nameWithInitials || reg.epfNo || 'Unnamed'}
+                          </div>
+                          <div className="text-[11px] text-gray-600">
+                            {reg.epfNo ? `EPF ${reg.epfNo}` : 'No EPF'}{reg.department ? ` • ${reg.department}` : ''}
+                          </div>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-3 py-2 text-[12px] text-gray-500">No employees match your search.</div>
+                    )}
+                  </div>
+                ) : null}
+                {selectedEmployee ? (
+                  <p className="mt-1 text-[11px] text-gray-600">
+                    Selected: {selectedEmployee.fullName || selectedEmployee.nameWithInitials || 'Employee'} ({selectedEmployee.epfNo || 'No EPF'})
+                  </p>
+                ) : (
+                  <p className="mt-1 text-[11px] text-orange-700">
+                    Pick an employee to auto-fill EPF, phone and email. You can still edit the fields below.
+                  </p>
+                )}
+                {employeesError && !employeesLoading ? (
+                  <p className="mt-1 text-[11px] text-red-600">{employeesError}</p>
+                ) : null}
+                {errors.name && (
+                  <p className="text-xs text-red-600 mt-1">{String(errors.name.message)}</p>
                 )}
               </div>
 
               <div>
                 <label className="block text-sm font-semibold text-orange-800 mb-2">
-                  Name <span className="text-red-600">*</span>
+                  Employee ID (EPF) <span className="text-red-600">*</span>
                 </label>
                 <input
                   className={`w-full px-4 py-2.5 rounded-lg border focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 transition-all ${
-                    errors.name ? 'border-red-500' : 'border-orange-200'
+                    errors.employeeId ? 'border-red-500' : 'border-orange-200'
                   }`}
-                  {...register('name', { required: 'Name is required' })}
-                  placeholder="Full name"
+                  {...employeeIdField}
+                  placeholder="E.g., EPF-1001"
+                  onFocus={() => {
+                    if (dropdownTimeout.current) {
+                      clearTimeout(dropdownTimeout.current);
+                      dropdownTimeout.current = null;
+                    }
+                    setDropdownOpen(true);
+                    setSearchTerm(employeeIdValue);
+                  }}
+                  onChange={(e) => {
+                    employeeIdField.onChange(e);
+                    if (dropdownTimeout.current) {
+                      clearTimeout(dropdownTimeout.current);
+                      dropdownTimeout.current = null;
+                    }
+                    setDropdownOpen(true);
+                    setSearchTerm(e.target.value);
+                    if (selectedEmployee && e.target.value.trim() === '') {
+                      setSelectedEmployee(null);
+                      setValue('name', '', { shouldDirty: true, shouldValidate: true });
+                    }
+                  }}
+                  onBlur={(e) => {
+                    employeeIdField.onBlur(e);
+                    dropdownTimeout.current = setTimeout(() => setDropdownOpen(false), 120);
+                  }}
                 />
-                {errors.name && (
-                  <p className="text-xs text-red-600 mt-1">{String(errors.name.message)}</p>
+                {errors.employeeId && (
+                  <p className="text-xs text-red-600 mt-1">{String(errors.employeeId.message)}</p>
                 )}
               </div>
 

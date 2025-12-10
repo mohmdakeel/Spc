@@ -1,11 +1,10 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import GateSidebar from '../components/GateSidebar';
 import { Th, Td } from '../../Transport/components/ThTd';
 import { listByStatus, gateExit, gateEntry } from '../../Transport/services/usageService';
 import type { UsageRequest } from '../../Transport/services/types';
-import SearchBar from '../../Transport/components/SearchBar';
+import GateSearchBar from '../components/GateSearchBar';
 import GateExitEntryModal from '../../Transport/components/GateExitEntryModal';
 import { toast } from 'react-toastify';
 
@@ -20,7 +19,7 @@ const chip = (label: 'Scheduled' | 'Departed' | 'Return') => {
       : label === 'Departed'
       ? 'bg-blue-600 text-white ring-1 ring-blue-700/60'
       : 'bg-green-500 text-white ring-1 ring-green-600/60';
-  return <span className={`inline-block text-[12px] px-3 py-1 rounded-full ${styles}`}>{label}</span>;
+  return <span className={`inline-block text-[10px] px-2.5 py-1 rounded-full ${styles}`}>{label}</span>;
 };
 
 // light phone cleanup for display
@@ -39,7 +38,7 @@ function resolveOfficerId(r: any): string | undefined {
   return m?.[1]?.trim();
 }
 
-export default function InchargeActiveVehiclesPage() {
+export default function GateScheduledPage() {
   const [rows, setRows] = useState<UsageRequest[]>([]);
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(true);
@@ -114,119 +113,125 @@ export default function InchargeActiveVehiclesPage() {
   }, [rows, q]);
 
   return (
-    <div className="flex min-h-screen bg-orange-50">
-      <GateSidebar />
+    <div className="space-y-3">
+      <div className="flex items-center justify-between mb-2">
+        <h1 className="text-[14px] md:text-lg font-bold text-orange-900">Scheduled &amp; Dispatched</h1>
+        <GateSearchBar value={q} onChange={setQ} placeholder="Search code, vehicle, driver, route…" />
+      </div>
 
-      <main className="p-3 md:p-4 flex-1">
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="text-[14px] md:text-lg font-bold text-orange-900">Active Vehicles</h1>
-          <SearchBar value={q} onChange={setQ} placeholder="Search code, vehicle, driver, route…" className="h-8" />
-        </div>
+      <div className="bg-white rounded-lg border border-orange-200 overflow-auto">
+        <table className="min-w-[980px] w-full table-fixed text-[10px] leading-tight">
+          {/* keep colgroup on one line to avoid whitespace text nodes */}
+          <colgroup><col className="w-[12%]"/><col className="w-[22%]"/><col className="w-[19%]"/><col className="w-[13%]"/><col className="w-[12%]"/><col className="w-[11%]"/><col className="w-[11%]"/></colgroup>
+          <thead className="bg-orange-50 text-[9px] uppercase tracking-wide">
+            <tr>
+              <Th className="px-3 py-2 text-left">Request</Th>
+              <Th className="px-3 py-2 text-left">Schedule</Th>
+              <Th className="px-3 py-2 text-left">Vehicle / Driver</Th>
+              <Th className="px-3 py-2 text-left">Route</Th>
+              <Th className="px-3 py-2 text-left">Odometer (km)</Th>
+              <Th className="px-3 py-2 text-center">Status</Th>
+              <Th className="px-3 py-2 text-center">Action</Th>
+            </tr>
+          </thead>
 
-        <div className="bg-white rounded-lg border border-orange-200 overflow-auto">
-          <table className="min-w-full table-fixed text-[12px] leading-[1.25]">
-            {/* keep colgroup on one line to avoid whitespace text nodes */}
-            <colgroup><col className="w-[12%]"/><col className="w-[28%]"/><col className="w-[22%]"/><col className="w-[18%]"/><col className="w-[8%]"/><col className="w-[12%]"/></colgroup>
-            <thead className="bg-orange-50">
+          <tbody className="divide-y">
+            {loading && (
               <tr>
-                <Th className="px-3 py-2 text-left">Request</Th>
-                <Th className="px-3 py-2 text-left">Schedule</Th>
-                <Th className="px-3 py-2 text-left">Vehicle / Driver</Th>
-                <Th className="px-3 py-2 text-left">Route</Th>
-                <Th className="px-3 py-2 text-center">Status</Th>
-                <Th className="px-3 py-2 text-center">Action</Th>
+                <Td colSpan={7} className="px-3 py-6 text-center text-gray-500">Loading…</Td>
               </tr>
-            </thead>
+            )}
 
-            <tbody className="divide-y">
-              {loading && (
-                <tr>
-                  <Td colSpan={6} className="px-3 py-6 text-center text-gray-500">Loading…</Td>
+            {!loading && filtered.map((r) => {
+              const isDeparted = !!r.gateExitAt && !r.gateEntryAt;
+              const isReturned = !!r.gateEntryAt;
+              const statusLabel: 'Scheduled' | 'Departed' | 'Return' =
+                isReturned ? 'Return' : isDeparted ? 'Departed' : 'Scheduled';
+              const driverPhone = cleanPhone(r.assignedDriverPhone);
+              const officerId = resolveOfficerId(r);
+
+              return (
+                <tr key={r.id} className="align-top">
+                  {/* Request */}
+                  <Td className="px-3 py-2">
+                    <div className="font-semibold text-orange-900 text-[11px]">{r.requestCode || '—'}</div>
+                    <div className="text-[9px] text-gray-600">{r.department || '—'}</div>
+                  </Td>
+
+                  {/* Schedule (4 lines) */}
+                  <Td className="px-3 py-2">
+                    <div className="font-medium">Pickup: {r.timeFrom || fmtTime(r.scheduledPickupAt)}</div>
+                    <div>Return: {r.timeTo || fmtTime(r.scheduledReturnAt)}</div>
+                    <div className="text-blue-700">Departed: {fmtTime(r.gateExitAt)}</div>
+                    <div className="text-green-600">Returned: {fmtTime(r.gateEntryAt)}</div>
+                  </Td>
+
+                  {/* Vehicle / Driver */}
+                  <Td className="px-3 py-2">
+                    <div className="font-medium">{r.assignedVehicleNumber || '—'}</div>
+                    <div className="text-[10px] text-gray-800">
+                      {r.assignedDriverName || '—'}
+                      {r.assignedDriverId ? <span className="text-gray-600"> ({r.assignedDriverId})</span> : null}
+                    </div>
+                    <div className="text-[9px] text-gray-700">{driverPhone || '—'}</div>
+                    {officerId ? (
+                      <div className="text-[9px] text-gray-500">Officer ID: {officerId}</div>
+                    ) : null}
+                  </Td>
+
+                  {/* Route */}
+                  <Td className="px-3 py-2">
+                    <div>{r.fromLocation || '—'} → {r.toLocation || '—'}</div>
+                  </Td>
+
+                  {/* Odometer */}
+                  <Td className="px-3 py-2">
+                    <div className="text-[10px] text-gray-800">Exit: {r.exitOdometer ?? '—'}</div>
+                    <div className="text-[10px] text-gray-800">Entry: {r.entryOdometer ?? '—'}</div>
+                    {r.exitOdometer != null && r.entryOdometer != null ? (
+                      <div className="text-[9px] text-orange-700">Δ {Math.max(0, r.entryOdometer - r.exitOdometer)} km</div>
+                    ) : null}
+                  </Td>
+
+                  {/* Status */}
+                  <Td className="px-3 py-2 text-center">
+                    {chip(statusLabel)}
+                  </Td>
+
+                  {/* Action */}
+                  <Td className="px-3 py-2 text-center">
+                    {!r.gateExitAt && (
+                      <button
+                        className="inline-flex items-center justify-center px-3 py-1.5 rounded bg-orange-600 hover:bg-orange-700 text-white text-[11px]"
+                        onClick={() => setOpenExitFor(r)}
+                        title="Mark vehicle exit"
+                      >
+                        Log Exit
+                      </button>
+                    )}
+                    {isDeparted && (
+                      <button
+                        className="inline-flex items-center justify-center px-3 py-1.5 rounded bg-green-600 hover:bg-green-700 text-white text-[11px]"
+                        onClick={() => setOpenEntryFor(r)}
+                        title="Mark vehicle return"
+                      >
+                        Log Return
+                      </button>
+                    )}
+                    {isReturned && <span className="text-gray-500 text-[10px]">Done</span>}
+                  </Td>
                 </tr>
-              )}
+              );
+            })}
 
-              {!loading && filtered.map((r) => {
-                const isDeparted = !!r.gateExitAt && !r.gateEntryAt;
-                const isReturned = !!r.gateEntryAt;
-                const statusLabel: 'Scheduled' | 'Departed' | 'Return' =
-                  isReturned ? 'Return' : isDeparted ? 'Departed' : 'Scheduled';
-                const driverPhone = cleanPhone(r.assignedDriverPhone);
-                const officerId = resolveOfficerId(r);
-
-                return (
-                  <tr key={r.id} className="align-top">
-                    {/* Request */}
-                    <Td className="px-3 py-2">
-                      <div className="font-semibold text-orange-900">{r.requestCode || '—'}</div>
-                      <div className="text-[11px] text-gray-600">{r.department || '—'}</div>
-                    </Td>
-
-                    {/* Schedule (4 lines) */}
-                    <Td className="px-3 py-2">
-                      <div className="font-medium">Pickup: {r.timeFrom || fmtTime(r.scheduledPickupAt)}</div>
-                      <div>Return: {r.timeTo || fmtTime(r.scheduledReturnAt)}</div>
-                      <div className="text-blue-700">Departed: {fmtTime(r.gateExitAt)}</div>
-                      <div className="text-green-600">Returned: {fmtTime(r.gateEntryAt)}</div>
-                    </Td>
-
-                    {/* Vehicle / Driver */}
-                    <Td className="px-3 py-2">
-                      <div className="font-medium">{r.assignedVehicleNumber || '—'}</div>
-                      <div className="text-[12px] text-gray-800">
-                        {r.assignedDriverName || '—'}
-                        {r.assignedDriverId ? <span className="text-gray-600"> ({r.assignedDriverId})</span> : null}
-                      </div>
-                      <div className="text-[12px] text-gray-700">{driverPhone || '—'}</div>
-                      {officerId ? (
-                        <div className="text-[11px] text-gray-500">Officer ID: {officerId}</div>
-                      ) : null}
-                    </Td>
-
-                    {/* Route */}
-                    <Td className="px-3 py-2">
-                      <div>{r.fromLocation || '—'} → {r.toLocation || '—'}</div>
-                    </Td>
-
-                    {/* Status */}
-                    <Td className="px-3 py-2 text-center">
-                      {chip(statusLabel)}
-                    </Td>
-
-                    {/* Action */}
-                    <Td className="px-3 py-2 text-center">
-                      {!r.gateExitAt && (
-                        <button
-                          className="inline-flex items-center justify-center px-3 py-1.5 rounded bg-orange-600 hover:bg-orange-700 text-white text-[12px]"
-                          onClick={() => setOpenExitFor(r)}
-                          title="Mark vehicle exit"
-                        >
-                          Log Exit
-                        </button>
-                      )}
-                      {isDeparted && (
-                        <button
-                          className="inline-flex items-center justify-center px-3 py-1.5 rounded bg-green-600 hover:bg-green-700 text-white text-[12px]"
-                          onClick={() => setOpenEntryFor(r)}
-                          title="Mark vehicle return"
-                        >
-                          Log Return
-                        </button>
-                      )}
-                      {isReturned && <span className="text-gray-500 text-[12px]">Done</span>}
-                    </Td>
-                  </tr>
-                );
-              })}
-
-              {!loading && !filtered.length && (
-                <tr>
-                  <Td colSpan={6} className="px-3 py-6 text-center text-gray-500">No active trips</Td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </main>
+            {!loading && !filtered.length && (
+              <tr>
+                <Td colSpan={7} className="px-3 py-6 text-center text-gray-500">No active trips</Td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {/* EXIT modal */}
       {openExitFor && (

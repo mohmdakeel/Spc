@@ -155,7 +155,7 @@ export default function MainDashboard() {
                 <Shield className="w-20 h-20 text-gray-300 mx-auto mb-4" />
                 <h3 className="text-2xl font-semibold text-gray-900 mb-3">No Services Available</h3>
                 <p className="text-gray-600 max-w-md mx-auto mb-6">
-                  You don't currently have access to any services. Please contact your system administrator to request access.
+                  You don&apos;t currently have access to any services. Please contact your system administrator to request access.
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3 justify-center">
                   <button
