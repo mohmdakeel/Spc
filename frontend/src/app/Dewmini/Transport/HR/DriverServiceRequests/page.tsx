@@ -28,10 +28,12 @@ type ApiPage<T> = {
 
 type ApiResponse<T> = { ok: boolean; message?: string; data?: T };
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, '') || 'http://localhost:8081';
-
-const ACTOR_HEADER = { 'X-Actor': 'hr.user@company' }; // adjust or inject from auth
+const rawBase =
+  (process.env.NEXT_PUBLIC_TRANSPORT_BASE || process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(
+    /\/+$/,
+    ''
+  );
+const API_BASE = rawBase ? `${rawBase}/api` : '/tapi';
 
 export default function HRDriverServiceRequests() {
   const [items, setItems] = useState<Dsr[]>([]);
@@ -53,7 +55,7 @@ export default function HRDriverServiceRequests() {
   const fetchList = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`${API_BASE}/api/driver-service-requests?page=${page}&size=${size}`);
+      const res = await fetch(`${API_BASE}/driver-service-requests?page=${page}&size=${size}`);
       const json: ApiResponse<ApiPage<Dsr>> = await res.json();
       if (!res.ok || !json.ok) throw new Error(json.message || `HTTP ${res.status}`);
       setItems(json.data?.content || []);
@@ -89,10 +91,10 @@ export default function HRDriverServiceRequests() {
     setSubmitting(true);
     try {
       const res = await fetch(
-        `${API_BASE}/api/driver-service-requests/${approveTarget.id}/hr-approve`,
+        `${API_BASE}/driver-service-requests/${approveTarget.id}/hr-approve`,
         {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', ...ACTOR_HEADER },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload ?? {}),
         }
       );
@@ -132,9 +134,8 @@ export default function HRDriverServiceRequests() {
   const onDecline = async (id: number) => {
     if (!confirm(`Decline DSR #${id}?`)) return;
     try {
-      const res = await fetch(`${API_BASE}/api/driver-service-requests/${id}/hr-decline`, {
+      const res = await fetch(`${API_BASE}/driver-service-requests/${id}/hr-decline`, {
         method: 'PATCH',
-        headers: { ...ACTOR_HEADER },
       });
       const json = (await res.json()) as ApiResponse<any>;
       if (!res.ok || !json.ok) throw new Error(json.message || `HTTP ${res.status}`);

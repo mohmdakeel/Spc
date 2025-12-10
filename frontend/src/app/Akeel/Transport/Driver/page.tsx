@@ -234,7 +234,7 @@ export default function DriverListPage() {
               className="flex items-center gap-2 bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 shadow-sm transition-colors text-sm"
               onClick={() => printDriverList(filtered as Driver[], showDeleted)}
             >
-              <Printer size={16} /><span>Print All</span>
+              <Printer size={16} /><span>Print</span>
             </button>
           </div>
         </div>

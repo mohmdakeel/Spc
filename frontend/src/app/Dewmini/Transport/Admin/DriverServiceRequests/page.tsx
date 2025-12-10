@@ -70,6 +70,12 @@ function HL({ str, q }: { str?: string | number; q: string }) {
 
 export default function DriverServiceRequestsPage() {
   const router = useRouter();
+  const rawBase =
+    (process.env.NEXT_PUBLIC_TRANSPORT_BASE || process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(
+      /\/+$/,
+      ''
+    );
+  const API_BASE = rawBase ? `${rawBase}/api` : '/tapi';
 
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<DSR[]>([]);
@@ -85,7 +91,7 @@ export default function DriverServiceRequestsPage() {
   const loadRequests = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:8081/api/driver-service-requests', { cache: 'no-store' });
+      const res = await fetch(`${API_BASE}/driver-service-requests`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Failed to fetch driver service requests');
       const json = await res.json();
       const data: DSR[] = (json?.data?.content ?? []) as DSR[];
@@ -153,7 +159,7 @@ export default function DriverServiceRequestsPage() {
   const onDelete = async () => {
     if (!deleteTarget) return;
     try {
-      const res = await fetch(`http://localhost:8081/api/driver-service-requests/${deleteTarget.id}`, {
+      const res = await fetch(`${API_BASE}/driver-service-requests/${deleteTarget.id}`, {
         method: 'DELETE',
       });
       if (!res.ok) throw new Error((await res.json())?.message ?? 'Failed to delete');

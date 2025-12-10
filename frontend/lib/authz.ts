@@ -7,6 +7,33 @@ export function pickHomeFor(user: any): string {
   }
 
   const roles = user.roles.map((r: string) => r.toUpperCase());
+  const isAdmin = roles.includes('ADMIN');
+  const managementRoles = ['HRD', 'GM', 'CHAIRMAN'];
+
+  // HODs land directly on their dashboard
+  if (roles.includes('HOD') && !isAdmin) {
+    return '/Akeel/Hod';
+  }
+
+  // HRD / GM / Chairman go straight to management workspace
+  if (!isAdmin && managementRoles.some((role) => roles.includes(role))) {
+    return '/Akeel/Management';
+  }
+
+  // Gate security officers
+  if (!isAdmin && roles.includes('GATE_SECURITY')) {
+    return '/Akeel/Gate';
+  }
+
+  // Vehicle in-charge panel
+  if (!isAdmin && roles.includes('VEHICLE_INCHARGE')) {
+    return '/Akeel/Incharge';
+  }
+
+  // Staff / applicants
+  if (!isAdmin && roles.includes('STAFF')) {
+    return '/Akeel/Applicant';
+  }
 
   // Admins and "multi-service" people go to the combined dashboard
   if (

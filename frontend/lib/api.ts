@@ -17,7 +17,7 @@ const api = axios.create({
   baseURL,
   withCredentials: true, // <-- send SPC_JWT cookie to backend
   headers: { 'Content-Type': 'application/json' },
-  timeout: 10000,
+  timeout: 15000,
 });
 
 // Request interceptor (optional hook point)
@@ -33,7 +33,25 @@ api.interceptors.request.use(
 
 // Response interceptor
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const payload = response.data;
+    if (
+      payload &&
+      typeof payload === 'object' &&
+      Object.prototype.hasOwnProperty.call(payload, 'ok')
+    ) {
+      if ((payload as any).ok) {
+        response.data =
+          Object.prototype.hasOwnProperty.call(payload as any, 'data') ? (payload as any).data : null;
+        return response;
+      }
+
+      const err = new Error((payload as any).message || 'Request failed');
+      (err as any).response = { status: response.status, data: payload };
+      return Promise.reject(err);
+    }
+    return response;
+  },
   (error) => {
     if (error.response?.status === 401) {
       // Token missing / expired -> go to login

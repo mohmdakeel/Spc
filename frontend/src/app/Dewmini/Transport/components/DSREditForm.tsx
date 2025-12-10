@@ -43,6 +43,13 @@ type EditForm = {
 
 const HR_STATUS: HrApprovalStatus[] = ['PENDING', 'APPROVED', 'REJECTED'];
 
+const rawBase =
+  (process.env.NEXT_PUBLIC_TRANSPORT_BASE || process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(
+    /\/+$/,
+    ''
+  );
+const API_BASE = rawBase ? `${rawBase}/api` : '/tapi';
+
 interface Props {
   id: number;
   onClose: () => void;
@@ -77,7 +84,7 @@ export default function DSREditForm({ id, onClose, onUpdated }: Props) {
     (async () => {
       try {
         setLoading(true);
-        const res = await fetch(`http://localhost:8081/api/driver-service-requests/${id}`, { cache: 'no-store' });
+        const res = await fetch(`${API_BASE}/driver-service-requests/${id}`, { cache: 'no-store' });
         if (!res.ok) throw new Error('Failed to fetch request');
         const json = await res.json();
         const r: DSRResponse = json?.data as DSRResponse;
@@ -137,9 +144,9 @@ export default function DSREditForm({ id, onClose, onUpdated }: Props) {
         hrApproval: data.hrApproval,
       };
 
-      const res = await fetch(`http://localhost:8081/api/driver-service-requests/${id}`, {
+      const res = await fetch(`${API_BASE}/driver-service-requests/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'X-Actor': 'web' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       if (!res.ok) {

@@ -1,11 +1,12 @@
 'use client';
 
 import * as React from 'react';
-import ApplicantSidebar from '../components/ApplicantSidebar';
 import { listMyRequests, listAllRequests } from '../../Transport/services/usageService';
 import type { UsageRequest } from '../../Transport/services/types';
 import { Th, Td } from '../../Transport/components/ThTd';
-import { Search, Printer, X } from 'lucide-react';
+import { Printer, X } from 'lucide-react';
+import WorkspaceSearchBar from '../../../../../components/workspace/WorkspaceSearchBar';
+import { printDocument, escapeHtml, guessPrintedBy } from '../../../../../lib/print';
 
 const fmtDT = (s?: string | null) => (s ? new Date(s).toLocaleString() : '—');
 
@@ -42,19 +43,31 @@ function chip(raw?: string) {
   );
 }
 
-/* print helper */
-function printHtmlViaIframe(html: string) {
-  const iframe = document.createElement('iframe');
-  Object.assign(iframe.style, { position: 'fixed', right: '0', bottom: '0', width: '0', height: '0', border: '0' } as CSSStyleDeclaration);
-  document.body.appendChild(iframe);
-  const doc = iframe.contentWindow?.document;
-  if (!doc) { document.body.removeChild(iframe); return; }
-  doc.open(); doc.write(html); doc.close();
-  iframe.onload = () => {
-    try { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); } catch {}
-    setTimeout(() => { try { document.body.removeChild(iframe); } catch {} }, 1200);
-  };
-}
+const formatPrintValue = (value?: string | number | null) => {
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return escapeHtml(trimmed.length ? trimmed : '—');
+  }
+  return escapeHtml(String(value));
+};
+
+const TRACK_PRINT_STYLES = `
+  .track-table th {
+    white-space: nowrap;
+  }
+  .rq {
+    font-weight: 600;
+    color: #9a3412;
+  }
+  .sub {
+    color: #6b7280;
+    font-size: 0.78rem;
+  }
+  .mono {
+    font-family: 'JetBrains Mono', 'Fira Mono', Consolas, monospace;
+  }
+`;
 
 export default function TrackRequestPage() {
   const [items, setItems] = React.useState<UsageRequest[]>([]);
@@ -120,91 +133,136 @@ export default function TrackRequestPage() {
   }, [items, q]);
 
   const printAllCurrent = React.useCallback(() => {
-    const rowsHtml = filtered.map((r: any) => `
-<tr>
-  <td><div class="rq">${r.requestCode || ''}</div><div class="sub">${appliedLabel(r)}</div></td>
-  <td class="center">${r.status || ''}</td>
-  <td><div>${r.assignedVehicleNumber || '—'}</div><div class="sub">${r.assignedDriverName || '—'}${r.assignedDriverPhone ? ` (${r.assignedDriverPhone})` : ''}</div></td>
-  <td><div>P: ${fmtDT(r.scheduledPickupAt)}</div><div class="sub">R: ${fmtDT(r.scheduledReturnAt)}</div></td>
-  <td><div>Ex ${fmtDT(r.gateExitAt)} <span class="sub">• O ${r.exitOdometer ?? '—'}</span></div><div>En ${fmtDT(r.gateEntryAt)} <span class="sub">• O ${r.entryOdometer ?? '—'}</span></div></td>
-</tr>`).join('');
+    const rowsHtml = filtered
+      .map((r: any, index) => {
+        const driverLine = [
+          r.assignedDriverName || '—',
+          r.assignedDriverPhone ? ` (${r.assignedDriverPhone})` : '',
+        ].join('');
+        return `
+  <tr>
+    <td>${formatPrintValue(index + 1)}</td>
+    <td>
+      <div class="rq">${formatPrintValue(r.requestCode)}</div>
+      <div class="sub">${escapeHtml(appliedLabel(r))}</div>
+    </td>
+    <td class="center">${formatPrintValue(r.status)}</td>
+    <td>
+      <div>${formatPrintValue(r.assignedVehicleNumber)}</div>
+      <div class="sub">${formatPrintValue(driverLine)}</div>
+    </td>
+    <td>
+      <div>P: ${escapeHtml(fmtDT(r.scheduledPickupAt))}</div>
+      <div class="sub">R: ${escapeHtml(fmtDT(r.scheduledReturnAt))}</div>
+    </td>
+    <td>
+      <div>Exit: ${escapeHtml(fmtDT(r.gateExitAt))} <span class="sub">• O ${formatPrintValue(r.exitOdometer)}</span></div>
+      <div>Entry: ${escapeHtml(fmtDT(r.gateEntryAt))} <span class="sub">• O ${formatPrintValue(r.entryOdometer)}</span></div>
+    </td>
+  </tr>`;
+      })
+      .join('');
 
-    const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"/><title>Track Requests - Print</title><meta name="viewport" content="width=device-width, initial-scale=1"/>
-<style>
-:root{--fg:#111;--muted:#666;--head:#faf5f0}*{box-sizing:border-box}body{margin:0;padding:10mm;font-family:system-ui,Arial,sans-serif;color:var(--fg)}
-h3{margin:0 0 8px 0}.meta{margin:4px 0 8px 0;font-size:12px;color:var(--muted)}
-table{width:100%;border-collapse:collapse;table-layout:fixed}thead{display:table-header-group}
-th,td{border:1px solid #ddd;padding:6px 8px;vertical-align:top;font-size:12px}th{background:var(--head);text-align:left}
-.center{text-align:center}.sub{color:var(--muted);font-size:11px}.rq{font-weight:600;color:#8b4513}
-col.c1{width:15%}col.c2{width:12%}col.c3{width:22%}col.c4{width:21%}col.c5{width:24%}
-@media print{@page{size:A4 landscape;margin:8mm}body{padding:0}}
-</style></head>
-<body>
-  <h3>Track Request</h3>
-  <div class="meta">Results: ${filtered.length}</div>
-  <table>
-    <colgroup><col class="c1"/><col class="c2"/><col class="c3"/><col class="c4"/><col class="c5"/></colgroup>
-    <thead><tr><th>RQ ID / Applied</th><th class="center">Status</th><th>Assigned</th><th>Schedule</th><th>Gate</th></tr></thead>
-    <tbody>${rowsHtml || '<tr><td colspan="5">No data</td></tr>'}</tbody>
-  </table>
-  <script>addEventListener('load',()=>setTimeout(()=>{focus();print();},150));</script>
-</body></html>`;
-    printHtmlViaIframe(html);
+    const contentHtml = rowsHtml
+      ? `<table class="spc-table track-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>RQ ID / Applied</th>
+              <th>Status</th>
+              <th>Assignment</th>
+              <th>Schedule</th>
+              <th>Gate Activity</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>`
+      : '<div class="spc-empty">No requests match the current filters.</div>';
+
+    printDocument({
+      title: 'Applicant Request Tracker',
+      subtitle: `Records shown: ${filtered.length}`,
+      contentHtml,
+      printedBy: guessPrintedBy(),
+      pageOrientation: 'landscape',
+      extraCss: TRACK_PRINT_STYLES,
+    });
   }, [filtered]);
 
   const printOne = React.useCallback((r: any) => {
-    const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"/><title>${r.requestCode || 'Request'} - Print</title><meta name="viewport" content="width=device-width, initial-scale=1"/>
-<style>*{box-sizing:border-box}body{margin:0;padding:12mm;font-family:system-ui,Arial,sans-serif;color:#111}
-h2{margin:0 0 12px 0}table{width:100%;border-collapse:collapse;margin-top:10px}
-th,td{border:1px solid #ddd;padding:6px 8px;font-size:12px;vertical-align:top}th{background:#faf5f0;text-align:left;width:34%}
-@media print{@page{size:A4 portrait;margin:10mm}body{padding:0}}</style></head>
-<body>
-  <h2>Transport Request • ${r.requestCode || ''}</h2>
-  <table>
-    <tr><th>Status</th><td>${r.status || '—'}</td></tr>
-    <tr><th>Assigned</th><td>${r.assignedVehicleNumber || '—'} / ${r.assignedDriverName || '—'}${r.assignedDriverPhone ? ` (${r.assignedDriverPhone})` : ''}</td></tr>
-    <tr><th>Pickup</th><td>${fmtDT(r.scheduledPickupAt)}</td></tr>
-    <tr><th>Return</th><td>${fmtDT(r.scheduledReturnAt)}</td></tr>
-    <tr><th>Gate Exit • Odometer</th><td>${fmtDT(r.gateExitAt)} • O ${r.exitOdometer ?? '—'}</td></tr>
-    <tr><th>Gate Entry • Odometer</th><td>${fmtDT(r.gateEntryAt)} • O ${r.entryOdometer ?? '—'}</td></tr>
-  </table>
-  <script>addEventListener('load',()=>setTimeout(()=>{focus();print();},150));</script>
-</body></html>`;
-    printHtmlViaIframe(html);
+    const assignment = [
+      formatPrintValue(r.assignedVehicleNumber),
+      '/',
+      formatPrintValue(r.assignedDriverName),
+      r.assignedDriverPhone ? ` (${escapeHtml(r.assignedDriverPhone)})` : '',
+    ]
+      .join(' ')
+      .trim();
+
+    const contentHtml = `
+      <div class="spc-section">
+        <p class="spc-section__title">Overview</p>
+        <table class="spc-definition">
+          <tr><td>Request Code</td><td>${formatPrintValue(r.requestCode)}</td></tr>
+          <tr><td>Status</td><td>${formatPrintValue(r.status)}</td></tr>
+          <tr><td>Applied</td><td>${escapeHtml(appliedLabel(r))}</td></tr>
+        </table>
+      </div>
+      <div class="spc-section">
+        <p class="spc-section__title">Assignment & Schedule</p>
+        <table class="spc-definition">
+          <tr><td>Vehicle / Driver</td><td>${assignment}</td></tr>
+          <tr><td>Pickup</td><td>${escapeHtml(fmtDT(r.scheduledPickupAt))}</td></tr>
+          <tr><td>Return</td><td>${escapeHtml(fmtDT(r.scheduledReturnAt))}</td></tr>
+        </table>
+      </div>
+      <div class="spc-section">
+        <p class="spc-section__title">Gate Logs</p>
+        <table class="spc-definition">
+          <tr><td>Gate Exit</td><td>${escapeHtml(fmtDT(r.gateExitAt))} • O ${formatPrintValue(r.exitOdometer)}</td></tr>
+          <tr><td>Gate Entry</td><td>${escapeHtml(fmtDT(r.gateEntryAt))} • O ${formatPrintValue(r.entryOdometer)}</td></tr>
+        </table>
+      </div>
+    `;
+
+    printDocument({
+      title: 'Transport Request',
+      subtitle: `Code: ${r.requestCode || '—'}`,
+      contentHtml,
+      printedBy: guessPrintedBy(),
+      extraCss: TRACK_PRINT_STYLES,
+    });
   }, []);
 
   /* widen status column to avoid overlap */
   const COLS = React.useMemo(() => ['15%','12%','22%','21%','24%','6%'], []);
 
   return (
-    <div className="flex min-h-screen bg-orange-50">
-      <ApplicantSidebar />
-
-      <main className="p-3 md:p-4 flex-1 text-[13px] min-w-0">
-        <div className="flex items-center justify-between mb-3">
-          <h1 className="text-sm md:text-base font-semibold text-orange-900">Track Request</h1>
-          <div className="flex items-center gap-2">
-            <label className="relative">
-              <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search…"
-                className="pl-7 pr-2 py-1.5 rounded border border-orange-200 text-[12px] h-8 w-[240px] focus:outline-none focus:ring-1 focus:ring-orange-300"
-              />
-            </label>
-            <button
-              type="button"
-              onClick={printAllCurrent}
-              className="inline-flex items-center gap-1 px-3 h-8 rounded bg-orange-600 text-white hover:bg-orange-700 text-[12px]"
-              title="Print all (current filter)"
-            >
-              <Printer size={14} /> Print Page
-            </button>
-          </div>
+    <div className="space-y-4 text-[13px]">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Track</p>
+          <h1 className="text-2xl font-bold text-orange-900">Request progress</h1>
+          <p className="text-sm text-gray-600">Monitor assignments, schedule and gate activity in one place.</p>
         </div>
+        <div className="flex w-full flex-col gap-2 lg:w-auto lg:flex-row lg:items-center">
+          <WorkspaceSearchBar
+            value={q}
+            onChange={setQ}
+            placeholder="Search code, vehicle, driver, gate…"
+            className="w-full lg:w-80"
+          />
+          <button
+            type="button"
+            onClick={printAllCurrent}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-600 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-orange-700"
+            title="Print all (current filter)"
+          >
+            <Printer size={14} />
+            Print
+          </button>
+        </div>
+      </div>
 
         {!ids.length && (
           <div className="mb-3 text-[11px] rounded bg-yellow-50 border border-yellow-200 text-yellow-800 px-2 py-1">
@@ -212,7 +270,7 @@ th,td{border:1px solid #ddd;padding:6px 8px;font-size:12px;vertical-align:top}th
           </div>
         )}
 
-        <div className="bg-white rounded-md border border-orange-200">
+        <div className="bg-white rounded-2xl border border-orange-200 shadow-sm overflow-x-auto">
           <table className="w-full table-fixed text-[12.5px] leading-[1.25]">
             <colgroup>{COLS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
             <thead className="bg-orange-50">
@@ -282,8 +340,6 @@ th,td{border:1px solid #ddd;padding:6px 8px;font-size:12px;vertical-align:top}th
             </tbody>
           </table>
         </div>
-      </main>
-
       {view && <DetailsModal request={view} onClose={() => setView(null)} />}
     </div>
   );

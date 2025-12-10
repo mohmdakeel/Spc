@@ -29,8 +29,12 @@ interface Props {
   onCreated?: () => void; // callback to refresh the list
 }
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, '') || 'http://localhost:8081';
+const rawBase =
+  (process.env.NEXT_PUBLIC_TRANSPORT_BASE || process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(
+    /\/+$/,
+    ''
+  );
+const API_BASE = rawBase ? `${rawBase}/api` : '/tapi';
 
 export default function DriverServiceRequestForm({
   onClose = () => {},
@@ -57,7 +61,7 @@ export default function DriverServiceRequestForm({
       setVehLoading(true);
       setVehError(null);
       try {
-        const res = await fetch(`${API_BASE}/api/vehicles`, { signal: ctrl.signal });
+        const res = await fetch(`${API_BASE}/vehicles`, { signal: ctrl.signal });
         if (!res.ok) {
           const body = await res.text().catch(() => '');
           throw new Error(`Failed to fetch vehicles (${res.status}) ${body || ''}`.trim());
@@ -127,7 +131,7 @@ export default function DriverServiceRequestForm({
         servicesNeeded: servicesArray,
       };
 
-      const res = await fetch(`${API_BASE}/api/driver-service-requests`, {
+      const res = await fetch(`${API_BASE}/driver-service-requests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

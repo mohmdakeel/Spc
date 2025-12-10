@@ -26,7 +26,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-  private final JwtAuthFilter jwtAuthFilter;   // simple stub below
+  private final JwtAuthFilter jwtAuthFilter;
   private final UserDetailsService userDetailsService;
 
   @Bean
@@ -36,8 +36,14 @@ public class SecurityConfig {
       .cors(Customizer.withDefaults())
       .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
       .authorizeHttpRequests(auth -> auth
-        .requestMatchers("/actuator/health", "/api/auth/ping", "/api/auth/login").permitAll()
+        // Public endpoints (no JWT required)
+        .requestMatchers(
+            "/actuator/health",
+            "/api/auth/ping",
+            "/api/auth/login"
+        ).permitAll()
         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+        // Everything else → authenticated
         .anyRequest().authenticated()
       )
       .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
@@ -46,7 +52,7 @@ public class SecurityConfig {
   }
 
   @Bean
-  public DaoAuthenticationProvider daoAuthenticationProvider(PasswordEncoder encoder) {
+  public DaoAuthenticationProvider daoAuthentication963Provider(PasswordEncoder encoder) {
     var p = new DaoAuthenticationProvider();
     p.setUserDetailsService(userDetailsService);
     p.setPasswordEncoder(encoder);

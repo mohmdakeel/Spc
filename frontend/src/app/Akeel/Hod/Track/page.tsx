@@ -1,11 +1,11 @@
 'use client';
 
 import * as React from 'react';
-import HODSidebar from '../components/HODSidebar';
 import type { UsageRequest } from '../../Transport/services/types';
 import { listByStatus, listAllRequests } from '../../Transport/services/usageService';
 import { Th, Td } from '../../Transport/components/ThTd';
-import { Search, Printer, X } from 'lucide-react';
+import { Printer, X } from 'lucide-react';
+import HODSearchBar from '../components/HODSearchBar';
 
 /* ---------------- helpers (same look & feel as applicant page) ---------------- */
 const fmtDT = (s?: string | null) => (s ? new Date(s).toLocaleString() : '—');
@@ -83,13 +83,29 @@ function printHtmlViaIframe(html: string) {
 
 /* ======================= Page ======================= */
 export default function HODTrackPage() {
+  const [baseItems, setBaseItems] = React.useState<UsageRequest[]>([]);
   const [items, setItems] = React.useState<UsageRequest[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [q, setQ] = React.useState('');
   const [view, setView] = React.useState<UsageRequest | null>(null);
+  const [lookup, setLookup] = React.useState('');
+  const [lookupMessage, setLookupMessage] = React.useState<string | null>(null);
 
   // widen Status to 12% so long labels don’t crowd neighbors
   const COLS = React.useMemo(() => ['15%','12%','22%','21%','24%','6%'], []);
+
+  const normalizeItems = React.useCallback((merged: any[], enforceAllowed = true) => {
+    const seen = new Set<string>();
+    const filtered = merged.filter((r: any) => {
+      const k = String(r?.id ?? r?.requestCode ?? '');
+      if (!k || seen.has(k)) return false;
+      seen.add(k);
+      if (enforceAllowed && !ALLOWED.has(String(r?.status || '').toUpperCase())) return false;
+      return true;
+    });
+    filtered.sort((a: any, b: any) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0));
+    return filtered;
+  }, []);
 
   React.useEffect(() => {
     (async () => {
@@ -119,21 +135,21 @@ export default function HODTrackPage() {
           } catch {}
         }
 
-        const seen = new Set<string>();
-        const filtered = merged.filter((r: any) => {
-          const k = String(r?.id ?? r?.requestCode ?? '');
-          if (!k || seen.has(k)) return false;
-          seen.add(k);
-          return ALLOWED.has(String(r?.status || '').toUpperCase());
-        });
-
-        filtered.sort((a: any, b: any) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0));
-        setItems(filtered);
+        const normalized = normalizeItems(merged, true);
+        setBaseItems(normalized);
+        setItems(normalized);
       } finally {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [normalizeItems]);
+
+  React.useEffect(() => {
+    if (!lookup) {
+      setItems(baseItems);
+      setLookupMessage(null);
+    }
+  }, [lookup, baseItems]);
 
   const list = React.useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -206,33 +222,92 @@ th,td{border:1px solid #ddd;padding:6px 8px;font-size:12px;vertical-align:top}th
     printHtmlViaIframe(html);
   }, []);
 
-  return (
-    <div className="flex min-h-screen bg-orange-50">
-      <HODSidebar />
+  const handleLookup = React.useCallback(async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const code = lookup.trim();
+    if (!code) {
+      setItems(baseItems);
+      setLookupMessage(null);
+      return;
+    }
+    setLoading(true);
+    setLookupMessage(null);
+    try {
+      const all = await listAllRequests();
+      const dataset = toArray(all);
+      const matches = dataset.filter((r: any) =>
+        String(r?.requestCode || '')
+          .toLowerCase()
+          .includes(code.toLowerCase())
+      );
+      if (matches.length) {
+        const normalized = normalizeItems(matches, false);
+        setItems(normalized);
+        setLookupMessage(`Showing ${normalized.length} match${normalized.length > 1 ? 'es' : ''}`);
+      } else {
+        setLookupMessage('No requests found for that ID');
+      }
+    } catch {
+      setLookupMessage('Unable to fetch requests right now');
+    } finally {
+      setLoading(false);
+    }
+  }, [lookup, baseItems, normalizeItems]);
 
-      <main className="p-3 md:p-4 flex-1 text-[13px] min-w-0">
-        <div className="flex items-center justify-between mb-3">
-          <h1 className="text-sm md:text-base font-semibold text-orange-900">Track Request (HOD — Approved only)</h1>
-          <div className="flex items-center gap-2">
-            <label className="relative">
-              <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search…"
-                className="pl-7 pr-2 py-1.5 rounded border border-orange-200 text-[12px] h-8 w-[240px] focus:outline-none focus:ring-1 focus:ring-orange-300"
-              />
-            </label>
+  const resetLookup = React.useCallback(() => {
+    setLookup('');
+    setLookupMessage(null);
+    setItems(baseItems);
+  }, [baseItems]);
+
+  return (
+    <>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-3">
+        <h1 className="text-sm md:text-base font-semibold text-orange-900">Track Request (HOD — Approved only)</h1>
+        <div className="flex flex-col gap-2 w-full md:w-auto md:flex-row md:items-center">
+          <HODSearchBar
+            value={q}
+            onChange={setQ}
+            placeholder="Search by code, vehicle, driver…"
+            className="w-full md:w-72"
+          />
+          <button
+            type="button"
+            onClick={printAllCurrent}
+            className="inline-flex items-center justify-center gap-1 px-3 h-11 md:h-10 rounded-lg bg-orange-600 text-white hover:bg-orange-700 text-xs font-semibold"
+            title="Print all (current filter)"
+          >
+            <Printer size={14} /> Print
+          </button>
+        </div>
+      </div>
+
+      <form onSubmit={handleLookup} className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3 mb-4">
+        <HODSearchBar
+          value={lookup}
+          onChange={setLookup}
+          placeholder="Quick lookup by Request ID / Code"
+          className="w-full md:w-80"
+        />
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            className="inline-flex items-center justify-center rounded-lg border border-orange-300 px-4 py-2 text-sm font-semibold text-orange-700 hover:bg-orange-50"
+          >
+            Track ID
+          </button>
+          {lookup && (
             <button
               type="button"
-              onClick={printAllCurrent}
-              className="inline-flex items-center gap-1 px-3 h-8 rounded bg-orange-600 text-white hover:bg-orange-700 text-[12px]"
-              title="Print all (current filter)"
+              onClick={resetLookup}
+              className="inline-flex items-center justify-center rounded-lg border border-orange-200 px-4 py-2 text-sm text-orange-700 hover:bg-orange-50"
             >
-              <Printer size={14} /> Print Page
+              Reset
             </button>
-          </div>
+          )}
         </div>
+        {lookupMessage && <p className="text-xs text-gray-600 md:ml-3">{lookupMessage}</p>}
+      </form>
 
         <div className="bg-white rounded-md border border-orange-200">
           <table className="w-full table-fixed text-[12.5px] leading-[1.25]">
@@ -307,10 +382,9 @@ th,td{border:1px solid #ddd;padding:6px 8px;font-size:12px;vertical-align:top}th
             </tbody>
           </table>
         </div>
-      </main>
 
       {view && <DetailsModal request={view} onClose={() => setView(null)} />}
-    </div>
+    </>
   );
 }
 

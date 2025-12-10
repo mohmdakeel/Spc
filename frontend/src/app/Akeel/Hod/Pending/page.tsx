@@ -11,12 +11,11 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import HODSidebar from '../components/HODSidebar';
 import { listByStatus, hodApprove, hodReject } from '../../Transport/services/usageService';
 import type { UsageRequest } from '../../Transport/services/types';
 import { Th, Td } from '../../Transport/components/ThTd';
-import SearchBar from '../../Transport/components/SearchBar';
 import ReviewModal from '../components/ReviewModal';
+import HODSearchBar from '../components/HODSearchBar';
 import { toast } from 'react-toastify';
 import { Printer, X, ClipboardCheck } from 'lucide-react';
 
@@ -271,156 +270,152 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
 
   /* ---------- UI ---------- */
   return (
-    <div className="flex min-h-screen bg-orange-50">
-      <HODSidebar />
-
-      <main className="p-3 md:p-4 flex-1">
-        <div className="flex items-center justify-between mb-2">
+    <>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-2">
           <h1 className="text-[14px] md:text-lg font-bold text-orange-900">Pending Approvals</h1>
-          <div className="flex items-center gap-2">
-            <SearchBar
+          <div className="flex flex-col gap-2 w-full md:w-auto md:flex-row md:items-center">
+            <HODSearchBar
               value={q}
               onChange={setQ}
-              placeholder="Search code, applicant, dept, route, officer, purpose…"
-              className="h-8"
+              placeholder="Search code, applicant, dept, route…"
+              className="w-full md:w-72"
             />
             <button
               type="button"
               onClick={printPage}
-              className="inline-flex items-center gap-1 px-2.5 h-8 rounded bg-orange-600 text-white hover:bg-orange-700 text-[12px]"
+              className="inline-flex items-center justify-center gap-1 px-3 h-11 md:h-10 rounded-lg bg-orange-600 text-white hover:bg-orange-700 text-xs font-semibold"
               title="Print current list"
             >
-              <Printer size={14} /> Print Page
+              <Printer size={14} /> Print
             </button>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg border border-orange-200 overflow-auto">
-          {/* Hydration-safe colgroup */}
-          <table className="w-full table-fixed text-[10.5px] leading-[1.15]">
-            <colgroup>{COLS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
+      <div className="bg-white rounded-lg border border-orange-200 overflow-auto">
+        {/* Hydration-safe colgroup */}
+        <table className="w-full table-fixed text-[10.5px] leading-[1.15]">
+          <colgroup>{COLS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
 
-            <thead className="bg-orange-50">
-              <tr className="text-[9.5px]">
-                <Th className="px-2 py-1 text-left">RQ ID / Applied</Th>
-                <Th className="px-2 py-1 text-left">Applicant / Dept</Th>
-                <Th className="px-2 py-1 text-center">Status</Th>
-                <Th className="px-2 py-1 text-left">Travel</Th>
-                <Th className="px-2 py-1 text-left">Route</Th>
-                <Th className="px-2 py-1 text-left">Officer</Th>
-                <Th className="px-2 py-1 text-left">Purpose / Goods</Th>
-                <Th className="px-2 py-1 text-center">Actions</Th>
+          <thead className="bg-orange-50">
+            <tr className="text-[9.5px]">
+              <Th className="px-2 py-1 text-left">RQ ID / Applied</Th>
+              <Th className="px-2 py-1 text-left">Applicant / Dept</Th>
+              <Th className="px-2 py-1 text-center">Status</Th>
+              <Th className="px-2 py-1 text-left">Travel</Th>
+              <Th className="px-2 py-1 text-left">Route</Th>
+              <Th className="px-2 py-1 text-left">Officer</Th>
+              <Th className="px-2 py-1 text-left">Purpose / Goods</Th>
+              <Th className="px-2 py-1 text-center">Actions</Th>
+            </tr>
+          </thead>
+
+          <tbody className="divide-y">
+            {loading && (
+              <tr>
+                <Td colSpan={8} className="px-2 py-6 text-center text-gray-500">
+                  Loading…
+                </Td>
               </tr>
-            </thead>
+            )}
 
-            <tbody className="divide-y">
-              {loading && (
-                <tr>
-                  <Td colSpan={8} className="px-2 py-6 text-center text-gray-500">
-                    Loading…
+            {!loading && filtered.map((r: any) => {
+              const off = extractOfficer(r);
+              const rowKey = String(r?.id ?? r?.requestCode ?? `${r?.employeeId}-${r?.dateOfTravel}-${r?.timeFrom}`);
+
+              return (
+                <tr
+                  key={rowKey}
+                  className="align-top hover:bg-orange-50/40 cursor-pointer"
+                  onClick={() => setView(r)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setView(r); } }}
+                  role="button"
+                  tabIndex={0}
+                  title="Click for full details"
+                >
+                  {/* RQ / Applied */}
+                  <Td className="px-2 py-1 whitespace-normal">
+                    <div className="font-semibold text-orange-900 truncate">{r.requestCode || '—'}</div>
+                    <div className="text-[9px] text-gray-600 truncate">{appliedLabel(r)}</div>
+                  </Td>
+
+                  {/* Applicant / Dept */}
+                  <Td className="px-2 py-1 whitespace-normal">
+                    <div className="truncate">
+                      <span className="font-medium text-orange-900">{r.applicantName || '—'}</span>{' '}
+                      <span className="text-gray-600 text-[9px]">({r.employeeId || '—'})</span>
+                    </div>
+                    <div className="text-[9px] text-gray-700 truncate">{r.department || '—'}</div>
+                  </Td>
+
+                  {/* Status */}
+                  <Td className="px-2 py-1 text-center">{chip(r.status)}</Td>
+
+                  {/* Travel */}
+                  <Td className="px-2 py-1 whitespace-normal">
+                    <div className="truncate">{r.dateOfTravel || '—'}</div>
+                    <div className="text-[9px] text-gray-600">
+                      <span className="font-mono">{r.timeFrom || '—'}</span>–<span className="font-mono">{r.timeTo || '—'}</span> {r.overnight ? '(overnight)' : ''}
+                    </div>
+                  </Td>
+
+                  {/* Route */}
+                  <Td className="px-2 py-1 whitespace-normal">
+                    <div className="truncate">{r.fromLocation || '—'} → {r.toLocation || '—'}</div>
+                  </Td>
+
+                  {/* Officer */}
+                  <Td className="px-2 py-1 whitespace-normal">
+                    {off.withOfficer ? (
+                      <>
+                        <div className="truncate">
+                          {off.name ?? '—'}{off.id ? <span className="text-[9px] text-gray-600"> ({off.id})</span> : null}
+                        </div>
+                        {off.phone ? <div className="text-[9px] text-gray-700 break-all">{off.phone}</div> : null}
+                      </>
+                    ) : '—'}
+                  </Td>
+
+                  {/* Purpose / Goods */}
+                  <Td className="px-2 py-1 whitespace-normal">
+                    <div className="break-words break-all">{purposeWithoutOfficer(r)}</div>
+                    <div className="text-[9px] text-gray-700">{r.goods || '—'}</div>
+                  </Td>
+
+                  {/* Actions */}
+                  <Td className="px-2 py-1 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-center gap-1.5">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 px-2 py-[4px] rounded bg-blue-600 text-white hover:bg-blue-700 text-[10px]"
+                        onClick={() => setSelected(r)}
+                        title="Review / Approve / Reject"
+                      >
+                        <ClipboardCheck size={12} /> Review
+                      </button>
+                      <button
+                        type="button"
+                        className="inline-flex items-center justify-center px-2 py-[4px] rounded bg-orange-600 text-white hover:bg-orange-700 text-[10px]"
+                        onClick={() => printOne(r)}
+                        title="Print this request"
+                      >
+                        <Printer size={12} />
+                      </button>
+                    </div>
                   </Td>
                 </tr>
-              )}
+              );
+            })}
 
-              {!loading && filtered.map((r: any) => {
-                const off = extractOfficer(r);
-                const rowKey = String(r?.id ?? r?.requestCode ?? `${r?.employeeId}-${r?.dateOfTravel}-${r?.timeFrom}`);
-
-                return (
-                  <tr
-                    key={rowKey}
-                    className="align-top hover:bg-orange-50/40 cursor-pointer"
-                    onClick={() => setView(r)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setView(r); } }}
-                    role="button"
-                    tabIndex={0}
-                    title="Click for full details"
-                  >
-                    {/* RQ / Applied */}
-                    <Td className="px-2 py-1 whitespace-normal">
-                      <div className="font-semibold text-orange-900 truncate">{r.requestCode || '—'}</div>
-                      <div className="text-[9px] text-gray-600 truncate">{appliedLabel(r)}</div>
-                    </Td>
-
-                    {/* Applicant / Dept */}
-                    <Td className="px-2 py-1 whitespace-normal">
-                      <div className="truncate">
-                        <span className="font-medium text-orange-900">{r.applicantName || '—'}</span>{' '}
-                        <span className="text-gray-600 text-[9px]">({r.employeeId || '—'})</span>
-                      </div>
-                      <div className="text-[9px] text-gray-700 truncate">{r.department || '—'}</div>
-                    </Td>
-
-                    {/* Status */}
-                    <Td className="px-2 py-1 text-center">{chip(r.status)}</Td>
-
-                    {/* Travel */}
-                    <Td className="px-2 py-1 whitespace-normal">
-                      <div className="truncate">{r.dateOfTravel || '—'}</div>
-                      <div className="text-[9px] text-gray-600">
-                        <span className="font-mono">{r.timeFrom || '—'}</span>–<span className="font-mono">{r.timeTo || '—'}</span> {r.overnight ? '(overnight)' : ''}
-                      </div>
-                    </Td>
-
-                    {/* Route */}
-                    <Td className="px-2 py-1 whitespace-normal">
-                      <div className="truncate">{r.fromLocation || '—'} → {r.toLocation || '—'}</div>
-                    </Td>
-
-                    {/* Officer */}
-                    <Td className="px-2 py-1 whitespace-normal">
-                      {off.withOfficer ? (
-                        <>
-                          <div className="truncate">
-                            {off.name ?? '—'}{off.id ? <span className="text-[9px] text-gray-600"> ({off.id})</span> : null}
-                          </div>
-                          {off.phone ? <div className="text-[9px] text-gray-700 break-all">{off.phone}</div> : null}
-                        </>
-                      ) : '—'}
-                    </Td>
-
-                    {/* Purpose / Goods */}
-                    <Td className="px-2 py-1 whitespace-normal">
-                      <div className="break-words break-all">{purposeWithoutOfficer(r)}</div>
-                      <div className="text-[9px] text-gray-700">{r.goods || '—'}</div>
-                    </Td>
-
-                    {/* Actions */}
-                    <Td className="px-2 py-1 text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-center gap-1.5">
-                        <button
-                          type="button"
-                          className="inline-flex items-center gap-1 px-2 py-[4px] rounded bg-blue-600 text-white hover:bg-blue-700 text-[10px]"
-                          onClick={() => setSelected(r)}
-                          title="Review / Approve / Reject"
-                        >
-                          <ClipboardCheck size={12} /> Review
-                        </button>
-                        <button
-                          type="button"
-                          className="inline-flex items-center justify-center px-2 py-[4px] rounded bg-orange-600 text-white hover:bg-orange-700 text-[10px]"
-                          onClick={() => printOne(r)}
-                          title="Print this request"
-                        >
-                          <Printer size={12} />
-                        </button>
-                      </div>
-                    </Td>
-                  </tr>
-                );
-              })}
-
-              {!loading && !filtered.length && (
-                <tr>
-                  <Td colSpan={8} className="px-2 py-6 text-center text-gray-500">
-                    No pending requests
-                  </Td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </main>
+            {!loading && !filtered.length && (
+              <tr>
+                <Td colSpan={8} className="px-2 py-6 text-center text-gray-500">
+                  No pending requests
+                </Td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {/* Approve/Reject modal */}
       <ReviewModal
@@ -435,7 +430,7 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
       {view
         ? createPortal(<DetailsModal request={view} onClose={() => setView(null)} />, document.body)
         : null}
-    </div>
+    </>
   );
 }
 

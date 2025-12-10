@@ -1,12 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Topbar from '../../../components/Topbar';
 import Sidebar from '../../../components/Sidebar';
 import Modal from '../../../components/Modal';
+import { PermissionGate } from '../../../components/PermissionGate';
 import api from '../../../lib/api';
 import { useAuth } from '../../../hooks/useAuth';
+import { usePermissionFlags } from '../../../hooks/usePermissionFlags';
 import { Registration } from '../../../types';
+import { printDocument, escapeHtml } from '../../../lib/print';
 import {
   Users,
   Edit,
@@ -45,6 +48,15 @@ function exportToCsv(rows: CsvRow[], fileName: string) {
   link.download = fileName;
   link.click();
 }
+
+const formatPrintValue = (value?: string | number | null) => {
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return escapeHtml(trimmed.length ? trimmed : '—');
+  }
+  return escapeHtml(String(value));
+};
 
 export default function Employees() {
   const { user, loading: authLoading, refresh } = useAuth();
@@ -86,32 +98,44 @@ export default function Employees() {
   const [successMessage, setSuccessMessage] = useState('');
   const [loadingData, setLoadingData] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(10);
 
   // holds the new file picked in step 2
   const [imageFile, setImageFile] = useState<File | null>(null);
 
   // ---- global permission gates ----
-  const has = (p: string) => !!user?.permissions?.includes(p);
-  const canRead = has('READ');
-  const canCreate = has('CREATE');
-  const canUpdate = has('UPDATE');
-  const canDelete = has('DELETE');
-  const canPrint = has('PRINT');
+  const { canRead, canCreate, canUpdate, canDelete, canPrint } = usePermissionFlags();
 
-  // Filter employees based on search term
-  const filteredRegistrations = registrations.filter(reg =>
-    reg.epfNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    reg.fullName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    reg.nicNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    reg.department?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    reg.mobileNo?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const filteredRegistrations = useMemo(() => {
+    if (!normalizedSearch) return registrations;
+    return registrations.filter(
+      (reg) =>
+        reg.epfNo?.toLowerCase().includes(normalizedSearch) ||
+        reg.fullName?.toLowerCase().includes(normalizedSearch) ||
+        reg.nicNo?.toLowerCase().includes(normalizedSearch) ||
+        reg.department?.toLowerCase().includes(normalizedSearch) ||
+        reg.mobileNo?.toLowerCase().includes(normalizedSearch)
+    );
+  }, [registrations, normalizedSearch]);
 
   useEffect(() => {
-    if (!user) return;
+    setPage(1);
+  }, [normalizedSearch, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRegistrations.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const currentPageRegs = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return filteredRegistrations.slice(start, start + pageSize);
+  }, [filteredRegistrations, safePage, pageSize]);
+
+  useEffect(() => {
+    if (!user || !canRead) return;
     fetchRegistrations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, canRead]);
 
   const fetchRegistrations = async () => {
     setLoadingData(true);
@@ -134,6 +158,14 @@ export default function Employees() {
   };
 
   const handleOpen = (reg?: Registration) => {
+    if (reg && !canUpdate) {
+      setErrorMessage('You do not have UPDATE permission.');
+      return;
+    }
+    if (!reg && !canCreate) {
+      setErrorMessage('You do not have CREATE permission.');
+      return;
+    }
     if (reg) {
       setEditMode(true);
       setFormData({
@@ -274,6 +306,10 @@ export default function Employees() {
   };
 
   const handleDelete = async (epfNo: string) => {
+    if (!canDelete) {
+      setErrorMessage('You do not have DELETE permission.');
+      return;
+    }
     if (!confirm('Are you sure you want to delete this employee?')) return;
     try {
       await api.delete(`/registrations/${encodeURIComponent(epfNo)}`);
@@ -296,6 +332,52 @@ export default function Employees() {
       return;
     }
     exportToCsv(registrations, 'employees.csv');
+  };
+
+  const handlePrintList = () => {
+    if (!canPrint) {
+      setErrorMessage('You do not have PRINT permission.');
+      return;
+    }
+
+    const rows = filteredRegistrations;
+    const tableRows = rows
+      .map(
+        (reg, index) => `
+        <tr>
+          <td>${formatPrintValue(index + 1)}</td>
+          <td>${formatPrintValue(reg.epfNo)}</td>
+          <td>${formatPrintValue(reg.fullName)}</td>
+          <td>${formatPrintValue(reg.department)}</td>
+          <td>${formatPrintValue(reg.mobileNo)}</td>
+          <td>${formatPrintValue(reg.personalEmail)}</td>
+        </tr>
+      `
+      )
+      .join('');
+
+    const tableHtml = rows.length
+      ? `<table class="spc-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>EPF No</th>
+              <th>Full Name</th>
+              <th>Department</th>
+              <th>Mobile</th>
+              <th>Email</th>
+            </tr>
+          </thead>
+          <tbody>${tableRows}</tbody>
+        </table>`
+      : '<div class="spc-empty">No employee records match the current filters.</div>';
+
+    printDocument({
+      title: 'Employee Register',
+      subtitle: rows.length ? `Records shown: ${rows.length}` : undefined,
+      contentHtml: tableHtml,
+      printedBy: user?.fullName?.trim() || user?.username || undefined,
+    });
   };
 
   // ----- multi-step modal body -----
@@ -837,14 +919,38 @@ export default function Employees() {
     );
   }
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-orange-100">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-gray-600">Loading your workspace…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (user && !canRead) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-orange-100 p-6">
+        <div className="bg-white border border-orange-200 rounded-2xl shadow-xl p-8 max-w-md text-center space-y-3">
+          <h1 className="text-2xl font-bold text-gray-900">Access restricted</h1>
+          <p className="text-sm text-gray-600">
+            You do not have permission to view employee records. Please contact an administrator if you believe this is a mistake.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-screen bg-gradient-to-br from-orange-50 to-orange-100">
+    <div className="auth-shell">
       <Sidebar user={user} isOpen={isOpenSidebar} onClose={() => setIsOpenSidebar(false)} />
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="auth-shell__main overflow-hidden">
         <Topbar user={user} />
 
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="auth-shell__content">
           {/* HEADER */}
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-2">
@@ -873,84 +979,84 @@ export default function Employees() {
             <div className="xl:col-span-3">
               <div className="bg-white rounded-2xl shadow-lg border border-orange-200 overflow-hidden">
                 <div className="p-6 border-b border-orange-200 bg-orange-50">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                      <Users className="w-5 h-5 text-orange-600" />
-                      System Employees
-                    </h2>
-                    
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      {/* Search Box */}
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                        <input
-                          type="text"
-                          placeholder="Search employees..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* TOOLBAR */}
-                <div className="p-4 border-b border-gray-200 bg-white">
-                  <div className="flex flex-wrap gap-3">
-                    {canCreate && (
-                      <button
-                        onClick={() => handleOpen()}
-                        className="flex items-center px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium"
-                      >
-                        <Users className="w-4 h-4 mr-2" /> 
-                        Add Employee
-                      </button>
-                    )}
-
-                    {canRead && (
-                      <button
-                        onClick={handleExport}
-                        className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                      >
-                        <Download className="w-4 h-4 mr-2" /> 
-                        Export CSV
-                      </button>
-                    )}
-
-                    {canPrint && (
-                      <button
-                        onClick={() => window.print()}
-                        className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
-                      >
-                        <Printer className="w-4 h-4 mr-2" /> 
-                        Print
-                      </button>
-                    )}
-                  </div>
+                  <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <Users className="w-5 h-5 text-orange-600" />
+                    System Employees
+                  </h2>
                 </div>
 
                 {/* TABLE */}
-                {!canRead ? (
-                  <div className="p-8 text-center">
-                    <Shield className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                    <p className="text-gray-600">
-                      You don't have permission to view employees (need{' '}
-                      <code className="bg-gray-100 px-2 py-1 rounded text-sm">READ</code>{' '}
-                      permission).
-                    </p>
-                  </div>
-                ) : loadingData ? (
+                {loadingData ? (
                   <div className="p-8 text-center">
                     <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
                     <p className="text-gray-600">Loading employees...</p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-orange-50">
-                        <tr>
-                          <th className="p-3 text-left text-sm font-semibold text-gray-700">EPF No</th>
+                  <>
+                    <div className="p-4 border-t border-b border-gray-200 bg-white flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                      <div className="relative w-full md:max-w-sm">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                        <input
+                          type="text"
+                          placeholder="Search employees..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-600">Rows per page</span>
+                        <select
+                          value={pageSize}
+                          onChange={(e) => setPageSize(Number(e.target.value))}
+                          className="py-2 px-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                        >
+                          <option value={10}>10</option>
+                          <option value={15}>15</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="p-4 border-b border-gray-200 bg-white">
+                      <div className="flex flex-wrap gap-3">
+                        <PermissionGate require="CREATE">
+                          <button
+                            onClick={() => handleOpen()}
+                            className="flex items-center px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium"
+                          >
+                            <Users className="w-4 h-4 mr-2" />
+                            Add Employee
+                          </button>
+                        </PermissionGate>
+
+                        <PermissionGate require="PRINT">
+                          <button
+                            onClick={handleExport}
+                            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            Export CSV
+                          </button>
+                        </PermissionGate>
+
+                        {canPrint && (
+                          <button
+                            onClick={handlePrintList}
+                            className="flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
+                          >
+                            <Printer className="w-4 h-4 mr-2" />
+                            Print
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead className="bg-orange-50">
+                          <tr>
+                            <th className="p-3 text-left text-sm font-semibold text-gray-700">EPF No</th>
                           <th className="p-3 text-left text-sm font-semibold text-gray-700">Full Name</th>
                           <th className="p-3 text-left text-sm font-semibold text-gray-700">Mobile No</th>
                           <th className="p-3 text-left text-sm font-semibold text-gray-700">Emergency Contact</th>
@@ -959,7 +1065,7 @@ export default function Employees() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
-                        {filteredRegistrations.map((reg) => (
+                        {currentPageRegs.map((reg) => (
                           <tr key={reg.id ?? reg.epfNo} className="hover:bg-orange-50 transition-colors">
                             <td className="p-3">
                               <div className="font-medium text-gray-900">{reg.epfNo}</div>
@@ -996,7 +1102,7 @@ export default function Employees() {
                                     Edit
                                   </button>
                                 )}
-                                {canDelete && (
+                                <PermissionGate require="DELETE">
                                   <button
                                     onClick={() => handleDelete(reg.epfNo!)}
                                     className="flex items-center px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
@@ -1004,7 +1110,7 @@ export default function Employees() {
                                     <Trash2 className="w-4 h-4 mr-1" />
                                     Delete
                                   </button>
-                                )}
+                                </PermissionGate>
                               </div>
                             </td>
                           </tr>
@@ -1018,7 +1124,42 @@ export default function Employees() {
                         )}
                       </tbody>
                     </table>
-                  </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border-t border-gray-200 text-sm bg-white">
+                      <div className="text-gray-600 mb-3 sm:mb-0">
+                        Page {safePage} / {totalPages} • Showing{' '}
+                        <span className="font-semibold">{currentPageRegs.length}</span> of{' '}
+                        <span className="font-semibold">{filteredRegistrations.length}</span> employees
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setPage((p) => Math.max(1, p - 1))}
+                          disabled={safePage === 1}
+                          className={`flex items-center px-3 py-2 rounded-lg border text-sm ${
+                            safePage === 1
+                              ? 'text-gray-400 border-gray-200 bg-gray-50 cursor-not-allowed'
+                              : 'text-gray-700 border-gray-300 bg-white hover:bg-gray-100'
+                          }`}
+                        >
+                          <ChevronLeft className="w-4 h-4 mr-1" />
+                          Prev
+                        </button>
+                        <button
+                          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                          disabled={safePage === totalPages}
+                          className={`flex items-center px-3 py-2 rounded-lg border text-sm ${
+                            safePage === totalPages
+                              ? 'text-gray-400 border-gray-200 bg-gray-50 cursor-not-allowed'
+                              : 'text-gray-700 border-gray-300 bg-white hover:bg-gray-100'
+                          }`}
+                        >
+                          Next
+                          <ChevronRight className="w-4 h-4 ml-1" />
+                        </button>
+                      </div>
+                    </div>
+                  </>
                 )}
               </div>
             </div>

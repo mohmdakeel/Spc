@@ -1,225 +1,133 @@
-// components/Sidebar.tsx
 'use client';
-import { useState } from 'react';
+
 import Link from 'next/link';
-import { 
-  Home, 
-  Users, 
-  User, 
-  Shield, 
-  Settings, 
-  History, 
+import Image from 'next/image';
+import { usePathname, useRouter } from 'next/navigation';
+import {
+  Home,
+  Users,
+  User,
+  Shield,
+  Settings,
+  History,
   UserCircle,
-  ChevronDown,
-  ChevronUp,
-  Car,
-  LogOut
+  LogOut,
+  BarChart3,
 } from 'lucide-react';
-import { logout } from '../lib/auth'; // Import the same logout function
+import { logout } from '../lib/auth';
 
 interface SidebarProps {
-  user: any;
+  user: {
+    roles: string[];
+    permissions: string[];
+  };
   isOpen: boolean;
   onClose: () => void;
 }
 
-const SidebarItem: React.FC<{
-  label: string;
-  icon: React.ReactNode;
-  children?: React.ReactNode;
-  collapsed?: boolean;
-  active?: boolean;
-  onClick?: () => void;
-}> = ({ label, icon, children, collapsed = false, active = false, onClick }) => {
-  const [open, setOpen] = useState(active);
-
-  const handleClick = () => {
-    if (children) setOpen((s) => !s);
-    onClick?.();
-  };
-
-  return (
-    <div className="mb-1">
-      <button
-        type="button"
-        onClick={handleClick}
-        aria-expanded={!collapsed && !!children ? open : undefined}
-        className={`flex items-center justify-between w-full px-4 py-3 ${
-          active ? 'bg-orange-600 text-white' : 'text-black hover:bg-orange-500 hover:text-white'
-        } text-left transition-all rounded-lg group ${collapsed ? 'justify-center px-2' : ''}`}
-      >
-        <div className={`flex items-center gap-3 ${collapsed ? 'flex-col' : ''}`}>
-          <span className="flex-shrink-0">{icon}</span>
-          {!collapsed && (
-            <span
-              className={`text-sm font-medium truncate ${
-                active ? 'text-white' : 'text-black group-hover:text-white'
-              }`}
-            >
-              {label}
-            </span>
-          )}
-        </div>
-        {!collapsed && children && (
-          <span className={active ? 'text-white' : 'text-black group-hover:text-white'}>
-            {open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-          </span>
-        )}
-      </button>
-
-      {!collapsed && open && children && (
-        <div className="ml-2 pl-6 mt-1 space-y-1 text-sm border-l-2 border-orange-300">{children}</div>
-      )}
-    </div>
-  );
-};
+const MENU = [
+  { text: 'Dashboard', icon: Home, path: '/dashboard', roles: ['ADMIN', 'AUTH_ADMIN', 'HRD', 'HOD', 'GM', 'CHAIRMAN', 'TRANSPORT_ADMIN', 'TRANSPORT', 'VEHICLE_INCHARGE'], perm: 'READ' },
+  { text: 'Employees', icon: Users, path: '/employees', roles: ['ADMIN', 'HRD', 'HOD', 'GM', 'TRANSPORT_ADMIN'], perm: 'READ' },
+  { text: 'Users', icon: User, path: '/users', roles: ['ADMIN', 'AUTH_ADMIN', 'HRD'], perm: 'READ' },
+  { text: 'Roles', icon: Shield, path: '/roles', roles: ['ADMIN'], perm: 'READ' },
+  { text: 'Permissions', icon: Settings, path: '/permissions', roles: ['ADMIN'], perm: 'READ' },
+  { text: 'History', icon: History, path: '/history', roles: ['ADMIN', 'AUTH_ADMIN', 'HRD', 'HOD', 'GM', 'TRANSPORT_ADMIN'], perm: 'READ' },
+  { text: 'Reports', icon: BarChart3, path: '/reports', roles: ['ADMIN', 'HRD', 'HOD', 'GM', 'CHAIRMAN'], perm: 'READ' },
+];
 
 export default function Sidebar({ user, isOpen, onClose }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const pathname = usePathname() || '';
+  const router = useRouter();
 
-  const menuItems = [
-    { text: 'Dashboard', icon: Home, path: '/dashboard', roles: ['ADMIN', 'HR', 'HOD', 'GM', 'TRANSPORT'] },
-    { text: 'Employees', icon: Users, path: '/employees', roles: ['ADMIN', 'HR', 'HOD', 'GM', 'TRANSPORT'] },
-    { text: 'Users', icon: User, path: '/users', roles: ['ADMIN', 'HR', 'HOD', 'GM', 'TRANSPORT'] },
-    { text: 'Roles', icon: Shield, path: '/roles', roles: ['ADMIN'] },
-    { text: 'Permissions', icon: Settings, path: '/permissions', roles: ['ADMIN', 'HR'] },
-    { text: 'History', icon: History, path: '/history', roles: ['ADMIN', 'HR', 'HOD', 'GM', 'TRANSPORT'] },
-    { text: 'Profile', icon: UserCircle, path: '/profile', roles: ['ADMIN', 'HR', 'HOD', 'GM', 'TRANSPORT'] },
-  ];
+  const hasRole = (roles?: string[]) => {
+    if (!roles || roles.length === 0) return true;
+    return roles.some((role) => user.roles?.includes(role));
+  };
 
-  const filteredItems = menuItems.filter(item => 
-    item.roles.some(role => user.roles.includes(role))
-  );
+  const hasPerm = (perm?: string) => {
+    if (!perm) return true;
+    return user.permissions?.includes(perm);
+  };
+
+  const visibleMenu = MENU.filter((item) => hasRole(item.roles) && hasPerm(item.perm));
+
+  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
   const handleLogout = async () => {
-    try {
-      await logout();
-      // Redirect to login page immediately after logout
-      window.location.href = '/login';
-    } catch (error) {
-      console.error('Logout failed:', error);
-      // Still redirect to login even if there's an error
-      window.location.href = '/login';
-    }
+    await logout();
+    router.push('/login');
   };
 
   return (
-    <div className={`fixed inset-y-0 left-0 z-50 bg-orange-100 h-screen ${
-      collapsed ? 'w-20' : 'w-64'
-    } p-4 overflow-y-auto transition-all duration-300 ease-in-out flex flex-col shadow-[4px_0_20px_rgba(0,0,0,0.1)] ${
-      isOpen ? 'translate-x-0' : '-translate-x-full'
-    } md:relative md:translate-x-0`}>
-      
-      {/* Brand */}
-      <div className="mb-6 flex flex-col items-center">
-        {!collapsed ? (
-          <>
-            <div className="flex items-center gap-2 mb-2">
-              <Car size={28} className="text-orange-600" />
-              <h1 className="text-xl font-bold text-black truncate">SPC Transport</h1>
-            </div>
-            <p className="text-xs text-orange-800/80 truncate">Admin System</p>
-          </>
-        ) : (
-          <Car size={28} className="text-orange-600" />
-        )}
+    <aside
+      className={`hod-sidebar w-[260px] shrink-0 h-screen sticky top-0 bg-orange-100 border-r border-orange-200 flex flex-col p-4 transition-transform duration-300 ${
+        isOpen ? 'translate-x-0' : '-translate-x-full'
+      } md:translate-x-0`}
+    >
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-12 h-12 rounded-2xl border border-orange-200 bg-white/80 flex items-center justify-center shadow-sm">
+          <Image
+            src="/spclogopic.png"
+            alt="State Printing Corporation logo"
+            width={36}
+            height={36}
+            className="object-contain"
+            priority
+          />
+        </div>
+        <div className="min-w-0">
+          <h1 className="font-bold text-sm text-orange-900 leading-tight truncate">
+            State Printing Corporation
+          </h1>
+          <p className="text-xs text-orange-700/70 truncate">Auth Service Control</p>
+        </div>
       </div>
 
-      {/* Collapse toggle */}
-      <button
-        type="button"
-        onClick={() => setCollapsed((c) => !c)}
-        aria-pressed={collapsed}
-        className="hidden md:flex items-center justify-center p-2 mb-4 bg-orange-200 rounded-lg hover:bg-orange-300 transition-all text-black hover:text-white"
-        title={collapsed ? 'Expand' : 'Collapse'}
-      >
-        {collapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
-      </button>
+      <nav className="space-y-1 flex-1">
+        {visibleMenu.map((item) => {
+          const Icon = item.icon;
+          const active = isActive(item.path);
+          return (
+            <Link
+              key={item.text}
+              href={item.path}
+              onClick={onClose}
+              className={`w-full px-3 py-2 rounded flex items-center gap-2 text-sm transition ${
+                active ? 'bg-orange-600 text-white' : 'text-orange-900 hover:bg-orange-200'
+              }`}
+            >
+              <Icon size={18} />
+              <span className="truncate">{item.text}</span>
+            </Link>
+          );
+        })}
+      </nav>
 
-      {/* Close button for mobile */}
-      <button
-        type="button"
-        onClick={onClose}
-        className="md:hidden absolute top-4 right-4 p-2 bg-orange-200 rounded-lg hover:bg-orange-300 transition-all text-black"
-      >
-        ×
-      </button>
-
-      {/* Dashboard */}
-      <Link
-        href="/dashboard"
-        onClick={onClose}
-        className={`flex items-center gap-2 px-4 py-3 rounded-lg mb-4 transition-all ${
-          typeof window !== 'undefined' && window.location.pathname === '/dashboard'
-            ? 'bg-orange-600 text-white'
-            : 'bg-orange-200 text-black hover:bg-orange-500 hover:text-white'
-        }`}
-      >
-        <Home size={20} />
-        {!collapsed && <span>Dashboard</span>}
-      </Link>
-
-      {/* Menu Items */}
-      <div className="space-y-1 flex-1">
-        {filteredItems.filter(item => item.text !== 'Dashboard' && item.text !== 'Profile').map((item) => (
-          <Link
-            key={item.text}
-            href={item.path}
-            onClick={onClose}
-            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-              typeof window !== 'undefined' && window.location.pathname === item.path
-                ? 'bg-orange-600 text-white'
-                : 'text-black hover:bg-orange-500 hover:text-white'
-            } ${collapsed ? 'justify-center px-2' : ''}`}
-          >
-            <item.icon size={20} />
-            {!collapsed && <span className="text-sm font-medium">{item.text}</span>}
-          </Link>
-        ))}
-      </div>
-
-      {/* Footer buttons */}
-      <div className="pt-4 border-t border-orange-300 mt-auto space-y-1">
-        {/* Profile */}
+      <div className="pt-4 mt-6 border-t border-orange-200 space-y-2">
         <Link
           href="/profile"
           onClick={onClose}
-          className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-            typeof window !== 'undefined' && window.location.pathname === '/profile'
-              ? 'bg-orange-600 text-white'
-              : 'text-black hover:bg-orange-500 hover:text-white'
-          } ${collapsed ? 'justify-center px-2' : ''}`}
+          className="w-full px-3 py-2 rounded flex items-center gap-2 text-sm text-orange-900 hover:bg-orange-200 transition"
         >
           <UserCircle size={18} />
-          {!collapsed && <span className="text-sm font-medium">Profile</span>}
+          <span>Profile</span>
         </Link>
-
-        {/* Settings */}
         <Link
           href="/settings"
           onClick={onClose}
-          className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all ${
-            typeof window !== 'undefined' && window.location.pathname === '/settings'
-              ? 'bg-orange-600 text-white'
-              : 'text-black hover:bg-orange-500 hover:text-white'
-          } ${collapsed ? 'justify-center px-2' : ''}`}
+          className="w-full px-3 py-2 rounded flex items-center gap-2 text-sm text-orange-900 hover:bg-orange-200 transition"
         >
           <Settings size={18} />
-          {!collapsed && <span className="text-sm font-medium">Settings</span>}
+          <span>Settings</span>
         </Link>
-
-        {/* Logout */}
         <button
-          type="button"
           onClick={handleLogout}
-          className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all text-black hover:bg-red-500 hover:text-white ${
-            collapsed ? 'justify-center px-2' : ''
-          }`}
+          className="w-full px-3 py-2 rounded flex items-center gap-2 text-sm text-red-600 border border-red-100 hover:bg-red-50 transition"
         >
           <LogOut size={18} />
-          {!collapsed && <span className="text-sm font-medium">Logout</span>}
+          <span>Logout</span>
         </button>
       </div>
-    </div>
+    </aside>
   );
 }

@@ -36,6 +36,13 @@ type FilterMode = 'vehicleNumber' | 'source' | 'createdDate';
 
 const ITEMS_PER_PAGE = 10;
 
+const rawBase =
+  (process.env.NEXT_PUBLIC_TRANSPORT_BASE || process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(
+    /\/+$/,
+    ''
+  );
+const API_BASE = rawBase ? `${rawBase}/api` : '/tapi';
+
 // ---- Highlight helper (same look as your DSR page) ----
 function HL({ str, q }: { str?: string | number; q: string }) {
   const s = (str ?? '').toString();
@@ -83,7 +90,7 @@ export default function ServiceCandidatesPage() {
   const loadCandidates = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:8081/api/service-candidates', { cache: 'no-store' });
+      const res = await fetch(`${API_BASE}/service-candidates`, { cache: 'no-store' });
       if (!res.ok) throw new Error('Failed to fetch service candidates');
       const json = await res.json();
       const list: ServiceCandidate[] = (json?.data?.content ?? []) as ServiceCandidate[];

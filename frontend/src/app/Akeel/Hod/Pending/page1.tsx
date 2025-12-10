@@ -8,12 +8,11 @@
  */
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import HODSidebar from '../components/HODSidebar';
 import { listByStatus, hodApprove, hodReject } from '../../Transport/services/usageService';
 import type { UsageRequest } from '../../Transport/services/types';
 import { Th, Td } from '../../Transport/components/ThTd';
-import SearchBar from '../../Transport/components/SearchBar';
 import ReviewModal from '../components/ReviewModal';
+import HODSearchBar from '../components/HODSearchBar';
 import { toast } from 'react-toastify';
 import { Printer } from 'lucide-react';
 
@@ -170,15 +169,17 @@ th,td{border:1px solid #ddd;padding:6px 8px;vertical-align:top;font-size:11px}th
   }, [filtered]);
 
   return (
-    <div className="flex min-h-screen bg-orange-50">
-      <HODSidebar />
-      <main className="p-3 md:p-4 flex-1">
-        <div className="flex items-center justify-between mb-2">
+    <>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-2">
           <h1 className="text-[14px] md:text-lg font-bold text-orange-900">Pending Approvals</h1>
-          <div className="flex items-center gap-2">
-            <SearchBar value={q} onChange={setQ} placeholder="Search code, applicant, dept, route…" className="h-8" />
-            <button type="button" onClick={printPage} className="inline-flex items-center gap-1 px-2.5 h-8 rounded bg-orange-600 text-white hover:bg-orange-700 text-[12px]">
-              <Printer size={14} /> Print Page
+          <div className="flex flex-col gap-2 w-full md:w-auto md:flex-row md:items-center">
+            <HODSearchBar value={q} onChange={setQ} placeholder="Search code, applicant, dept, route…" className="w-full md:w-72" />
+            <button
+              type="button"
+              onClick={printPage}
+              className="inline-flex items-center justify-center gap-1 px-3 h-11 md:h-10 rounded-lg bg-orange-600 text-white hover:bg-orange-700 text-xs font-semibold"
+            >
+              <Printer size={14} /> Print
             </button>
           </div>
         </div>
@@ -271,7 +272,6 @@ th,td{border:1px solid #ddd;padding:6px 8px;vertical-align:top;font-size:11px}th
             </tbody>
           </table>
         </div>
-      </main>
 
       <ReviewModal
         open={!!selected}
@@ -280,6 +280,6 @@ th,td{border:1px solid #ddd;padding:6px 8px;vertical-align:top;font-size:11px}th
         onApprove={actApprove}
         onReject={actReject}
       />
-    </div>
+    </>
   );
 }

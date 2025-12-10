@@ -91,6 +91,7 @@ export interface UsageRequest {
 
   // Travel
   dateOfTravel: ISODateString;
+  returnDate?: ISODateString | null;
   timeFrom: string; // HH:mm
   timeTo: string;   // HH:mm
   fromLocation: string;

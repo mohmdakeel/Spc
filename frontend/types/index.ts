@@ -11,9 +11,9 @@ export interface User {
   epfNo?: string;
 }
 
-
 export interface Registration {
   id?: number;
+
   epfNo: string;
   attendanceNo?: string;
   nameWithInitials?: string;
@@ -38,6 +38,17 @@ export interface Registration {
   emergencyContact?: string;
   workingStatus?: string;
   department?: string;
+
+  // soft delete
+  deleted?: boolean;
+
+  // audit fields from backend
+  addedTime?: string;
+  addedBy?: string;
+  modifiedTime?: string;
+  modifiedBy?: string;
+  deletedTime?: string;
+  deletedBy?: string;
 }
 
 export interface AuditLog {
@@ -55,5 +66,3 @@ export interface Permission {
   code: string;
   description: string;
 }
-
-

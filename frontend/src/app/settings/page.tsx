@@ -1,25 +1,23 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Topbar from '../../../components/Topbar';
 import Sidebar from '../../../components/Sidebar';
 import { useAuth } from '../../../hooks/useAuth';
 import api from '../../../lib/api';
+import { useTheme } from '../../../components/ThemeProvider';
 import {
-  Shield,
   UserCog,
   Info,
-  AlertTriangle,
   KeyRound,
+  Key,
   CheckCircle,
   XCircle,
   Eye,
   EyeOff,
   Settings as SettingsIcon,
-  Users,
-  Key,
-  Database,
-  LogOut
+  Sun,
+  Moon
 } from 'lucide-react';
 
 export default function SettingsPage() {
@@ -38,10 +36,7 @@ export default function SettingsPage() {
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
 
-  // fake "system config" toggles (future backend)
-  const [protectRootEnabled, setProtectRootEnabled] = useState(true);
-  const [requireStrongPw, setRequireStrongPw] = useState(true);
-  const [auditTracking, setAuditTracking] = useState(true);
+  const { theme, setTheme } = useTheme();
 
   function flashSuccess(msg: string) {
     setSuccessMessage(msg);
@@ -51,6 +46,18 @@ export default function SettingsPage() {
     setErrorMessage(msg);
     setTimeout(() => setErrorMessage(''), 5000);
   }
+
+  const extractError = (err: unknown, fallback: string) => {
+    if (
+      typeof err === 'object' &&
+      err !== null &&
+      'response' in err &&
+      (err as { response?: { data?: { message?: string } } }).response?.data?.message
+    ) {
+      return (err as { response?: { data?: { message?: string } } }).response!.data!.message!;
+    }
+    return fallback;
+  };
 
   const handleChangePassword = async () => {
     if (!oldPassword || !newPassword) {
@@ -70,25 +77,16 @@ export default function SettingsPage() {
       setOldPassword('');
       setNewPassword('');
       flashSuccess('Password updated successfully');
-    } catch (err: any) {
-      flashError(
-        err?.response?.data?.message ||
-          'Failed to change password'
-      );
+    } catch (err) {
+      flashError(extractError(err, 'Failed to change password'));
     } finally {
         setChanging(false);
     }
   };
 
-  // NOTE:
-  // "Danger Zone" buttons are wired to just alert()
-  // You can later hook them to backend admin ops.
-  const handleResetSeedData = () => {
-    alert('TODO: call backend /admin/reset-seed (not implemented)');
-  };
-
-  const handleLogoutAllSessions = () => {
-    alert('TODO: call backend /auth/logout-all (not implemented)');
+  const setThemeMode = (mode: 'light' | 'dark') => {
+    setTheme(mode);
+    flashSuccess(`Appearance set to ${mode === 'dark' ? 'Dark' : 'Light'} mode.`);
   };
 
   if (!user) {
@@ -103,20 +101,18 @@ export default function SettingsPage() {
   }
 
   // Guard: only ADMIN should see system-level settings.
-  const isAdmin = user.roles?.includes('ADMIN');
-
   return (
-    <div className="flex h-screen bg-gradient-to-br from-orange-50 to-orange-100">
+    <div className="auth-shell">
       <Sidebar
         user={user}
         isOpen={isOpenSidebar}
         onClose={() => setIsOpenSidebar(false)}
       />
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="auth-shell__main overflow-hidden">
         <Topbar user={user} />
 
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="auth-shell__content">
           {/* HEADER */}
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-2">
@@ -315,147 +311,50 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* DANGER ZONE - ADMIN ONLY */}
-              {isAdmin && (
-                <div className="bg-white rounded-2xl shadow-lg border border-red-300 overflow-hidden">
-                  <div className="p-6 border-b border-red-300 bg-red-50">
-                    <h2 className="text-xl font-bold text-red-900 flex items-center gap-2">
-                      <AlertTriangle className="w-5 h-5 text-red-600" />
-                      Danger Zone
-                    </h2>
-                  </div>
-                  <div className="p-6 space-y-4">
-                    <p className="text-gray-600">
-                      High-impact maintenance actions. These operations affect all users and system data.
-                    </p>
-
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <button
-                        onClick={handleLogoutAllSessions}
-                        className="flex items-center px-4 py-3 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors font-medium"
-                      >
-                        <LogOut className="w-4 h-4 mr-2" />
-                        Force Logout All Users
-                      </button>
-
-                      <button
-                        onClick={handleResetSeedData}
-                        className="flex items-center px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
-                      >
-                        <Database className="w-4 h-4 mr-2" />
-                        Reset Demo Data
-                      </button>
-                    </div>
-
-                    <div className="text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg p-3">
-                      <AlertTriangle className="w-4 h-4 inline mr-1 text-yellow-500" />
-                      These actions are currently stubs. Backend endpoints to implement:
-                      <br />
-                      • <code className="bg-gray-100 px-1 rounded">POST /admin/force-logout-all</code>
-                      <br />
-                      • <code className="bg-gray-100 px-1 rounded">POST /admin/reset-seed</code>
-                    </div>
-                  </div>
+              {/* APPEARANCE */}
+              <div className="bg-white rounded-2xl shadow-lg border border-orange-200 overflow-hidden">
+                <div className="p-6 border-b border-orange-200 bg-orange-50 flex items-center gap-2">
+                  {theme === 'dark' ? (
+                    <Moon className="w-5 h-5 text-orange-600" />
+                  ) : (
+                    <Sun className="w-5 h-5 text-orange-600" />
+                  )}
+                  <h2 className="text-xl font-bold text-gray-900">Appearance</h2>
                 </div>
-              )}
-            </div>
-
-            {/* RIGHT COLUMN - SECURITY POLICY */}
-            {isAdmin && (
-              <div className="space-y-6">
-                {/* SECURITY POLICY CARD */}
-                <div className="bg-white rounded-2xl shadow-lg border border-orange-200 overflow-hidden">
-                  <div className="p-6 border-b border-orange-200 bg-orange-50">
-                    <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                      <Shield className="w-5 h-5 text-orange-600" />
-                      Security Policy
-                    </h2>
+                <div className="p-6 space-y-4">
+                  <p className="text-sm text-gray-600">
+                    Switch between light and dark modes for the entire workspace.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setThemeMode('light')}
+                      className={`flex-1 rounded-lg border px-4 py-3 text-sm font-semibold transition ${
+                        theme === 'light'
+                          ? 'bg-orange-600 text-white border-orange-600 shadow'
+                          : 'border-orange-200 text-orange-800 hover:bg-orange-50'
+                      }`}
+                    >
+                      Light Mode
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setThemeMode('dark')}
+                      className={`flex-1 rounded-lg border px-4 py-3 text-sm font-semibold transition ${
+                        theme === 'dark'
+                          ? 'bg-orange-600 text-white border-orange-600 shadow'
+                          : 'border-orange-200 text-orange-800 hover:bg-orange-50'
+                      }`}
+                    >
+                      Dark Mode
+                    </button>
                   </div>
-                  <div className="p-6">
-                    <p className="text-sm text-gray-600 mb-4">
-                      Configure system-wide security settings and policies.
-                    </p>
-
-                    <div className="space-y-4">
-                      <label className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
-                        <input
-                          type="checkbox"
-                          checked={protectRootEnabled}
-                          onChange={(e) => setProtectRootEnabled(e.target.checked)}
-                          className="mt-1 text-orange-600 focus:ring-orange-500"
-                        />
-                        <div>
-                          <div className="font-medium text-gray-900">Protect Root Accounts</div>
-                          <div className="text-sm text-gray-500 mt-1">
-                            Prevent editing or deleting critical system accounts (admin1, etc.)
-                          </div>
-                        </div>
-                      </label>
-
-                      <label className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
-                        <input
-                          type="checkbox"
-                          checked={requireStrongPw}
-                          onChange={(e) => setRequireStrongPw(e.target.checked)}
-                          className="mt-1 text-orange-600 focus:ring-orange-500"
-                        />
-                        <div>
-                          <div className="font-medium text-gray-900">Require Strong Passwords</div>
-                          <div className="text-sm text-gray-500 mt-1">
-                            Enforce minimum length and complexity requirements
-                          </div>
-                        </div>
-                      </label>
-
-                      <label className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
-                        <input
-                          type="checkbox"
-                          checked={auditTracking}
-                          onChange={(e) => setAuditTracking(e.target.checked)}
-                          className="mt-1 text-orange-600 focus:ring-orange-500"
-                        />
-                        <div>
-                          <div className="font-medium text-gray-900">Activity Audit Tracking</div>
-                          <div className="text-sm text-gray-500 mt-1">
-                            Log role assignments, permission changes, and login activity
-                          </div>
-                        </div>
-                      </label>
-                    </div>
-
-                    <div className="mt-4 text-sm text-gray-500 bg-gray-50 border border-gray-200 rounded-lg p-3">
-                      <Info className="w-4 h-4 inline mr-1" />
-                      These settings are currently UI-only. Connect to backend via{' '}
-                      <code className="bg-gray-100 px-1 rounded">/admin/security-policy</code>
-                    </div>
-                  </div>
-                </div>
-
-                {/* QUICK STATS */}
-                <div className="bg-white rounded-2xl shadow-lg border border-orange-200 overflow-hidden">
-                  <div className="p-6 border-b border-orange-200 bg-orange-50">
-                    <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                      <Users className="w-5 h-5 text-orange-600" />
-                      Quick Stats
-                    </h2>
-                  </div>
-                  <div className="p-6 space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Admin Access</span>
-                      <span className="text-2xl font-bold text-green-600">Enabled</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Security Level</span>
-                      <span className="text-2xl font-bold text-orange-600">High</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Audit Logging</span>
-                      <span className="text-2xl font-bold text-blue-600">Active</span>
-                    </div>
-                  </div>
+                  <p className="text-xs text-gray-500">
+                    Preference is stored locally as <code>workspace-theme</code>.
+                  </p>
                 </div>
               </div>
-            )}
+            </div>
           </div>
 
           {/* Mobile Menu Button */}

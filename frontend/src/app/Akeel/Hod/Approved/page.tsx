@@ -2,10 +2,9 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import HODSidebar from '../components/HODSidebar';
 import type { UsageRequest } from '../../Transport/services/types';
 import { Th, Td } from '../../Transport/components/ThTd';
-import SearchBar from '../../Transport/components/SearchBar';
+import HODSearchBar from '../components/HODSearchBar';
 import { Printer, X } from 'lucide-react';
 
 /* ---------------- helpers ---------------- */
@@ -159,6 +158,32 @@ export default function HODApprovedHistoryPage() {
     });
   }, [items, q]);
 
+  const monthlyRaw = useMemo(() => {
+    const map = new Map<number, { label: string; labelShort: string; count: number; order: number }>();
+    items.forEach((r: any) => {
+      const raw = r.__approvedAt || r.updatedAt || r.createdAt;
+      if (!raw) return;
+      const date = new Date(raw);
+      if (Number.isNaN(date.getTime())) return;
+      const order = date.getFullYear() * 12 + date.getMonth();
+      const label = date.toLocaleString('default', { month: 'short', year: 'numeric' });
+      const labelShort = date.toLocaleString('default', { month: 'short' });
+      const existing = map.get(order) ?? { label, labelShort, count: 0, order };
+      existing.count += 1;
+      map.set(order, existing);
+    });
+    return Array.from(map.values()).sort((a, b) => a.order - b.order).slice(-6);
+  }, [items]);
+
+  const monthlyStats = useMemo(() => {
+    if (!monthlyRaw.length) return [];
+    const max = Math.max(...monthlyRaw.map((m) => m.count), 1);
+    return monthlyRaw.map((m) => ({
+      ...m,
+      pct: Math.max(8, (m.count / max) * 100),
+    }));
+  }, [monthlyRaw]);
+
   /* -------------------- PRINT HELPERS -------------------- */
   const printPage = useCallback(() => {
     const rowsHtml = filtered.map((r: any) => {
@@ -240,153 +265,181 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
   }, []);
 
   return (
-    <div className="flex min-h-screen bg-orange-50">
-      <HODSidebar />
-
-      <main className="p-3 md:p-4 flex-1">
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="text-[14px] md:text-lg font-bold text-orange-900">Approved — My History</h1>
-          <div className="flex items-center gap-2">
-            <SearchBar value={q} onChange={setQ} placeholder="Search code, applicant, dept, route, officer, purpose…" className="h-8" />
-            <button
-              type="button"
-              onClick={printPage}
-              className="inline-flex items-center gap-1 px-2.5 h-8 rounded bg-orange-600 text-white hover:bg-orange-700 text-[12px]"
-              title="Print current list"
-            >
-              <Printer size={14} /> Print Page
-            </button>
-          </div>
+    <>
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-2">
+        <div>
+          <h1 className="text-base md:text-lg font-bold text-orange-900">Approved — My History</h1>
+          <p className="text-xs text-gray-600">Requests you approved from the Pending queue (stored locally).</p>
         </div>
+        <div className="flex flex-col gap-2 w-full md:w-auto md:flex-row md:items-center">
+          <HODSearchBar
+            value={q}
+            onChange={setQ}
+            placeholder="Search code, applicant, dept, route, officer, purpose…"
+            className="w-full md:w-72"
+          />
+          <button
+            type="button"
+            onClick={printPage}
+            className="inline-flex items-center justify-center gap-1 px-3 h-11 md:h-10 rounded-lg bg-orange-600 text-white hover:bg-orange-700 text-xs font-semibold"
+            title="Print current list"
+          >
+            <Printer size={14} /> Print
+          </button>
+        </div>
+      </div>
 
-        <div className="bg-white rounded-lg border border-orange-200 overflow-auto">
-          <table className="w-full table-fixed text-[10.5px] leading-[1.15]">
-            <colgroup>{COLS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
+      {monthlyStats.length > 0 && (
+        <section className="hod-card bg-white border border-orange-200 p-4 rounded-2xl">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-orange-600 font-semibold">Monthly insight</p>
+              <h2 className="text-lg font-bold text-orange-900">Approvals over the last {monthlyStats.length} months</h2>
+            </div>
+            <span className="text-xs text-gray-600">Total {items.length}</span>
+          </div>
+          <div className="flex items-end gap-2 h-36">
+            {monthlyStats.map((m) => (
+              <div key={m.label} className="flex-1 flex flex-col items-center gap-1">
+                <div
+                  className="w-full rounded-t-full bg-gradient-to-b from-orange-400 to-orange-600 transition-all duration-300"
+                  style={{ height: `${m.pct}%` }}
+                  aria-label={`${m.label} approvals ${m.count}`}
+                />
+                <span className="text-[11px] font-semibold text-orange-900">{m.labelShort}</span>
+                <span className="text-[10px] text-gray-600">{m.count}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
-            <thead className="bg-orange-50">
-              <tr className="text-[9.5px]">
-                <Th className="px-2 py-1 text-left">RQ ID / Applied</Th>
-                <Th className="px-2 py-1 text-left">Applicant / Dept</Th>
-                <Th className="px-2 py-1 text-center">Status</Th>
-                <Th className="px-2 py-1 text-left">Travel</Th>
-                <Th className="px-2 py-1 text-left">Route</Th>
-                <Th className="px-2 py-1 text-left">Officer</Th>
-                <Th className="px-2 py-1 text-left">Purpose / Goods</Th>
-                <Th className="px-2 py-1 text-center">Print</Th>
+      <div className="bg-white rounded-lg border border-orange-200 overflow-auto">
+        <table className="w-full table-fixed text-[10.5px] leading-[1.15]">
+          <colgroup>{COLS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
+
+          <thead className="bg-orange-50">
+            <tr className="text-[9.5px]">
+              <Th className="px-2 py-1 text-left">RQ ID / Applied</Th>
+              <Th className="px-2 py-1 text-left">Applicant / Dept</Th>
+              <Th className="px-2 py-1 text-center">Status</Th>
+              <Th className="px-2 py-1 text-left">Travel</Th>
+              <Th className="px-2 py-1 text-left">Route</Th>
+              <Th className="px-2 py-1 text-left">Officer</Th>
+              <Th className="px-2 py-1 text-left">Purpose / Goods</Th>
+              <Th className="px-2 py-1 text-center">Print</Th>
+            </tr>
+          </thead>
+
+          <tbody className="divide-y">
+            {loading && (
+              <tr>
+                <Td colSpan={8} className="px-2 py-6 text-center text-gray-500">Loading…</Td>
               </tr>
-            </thead>
+            )}
 
-            <tbody className="divide-y">
-              {loading && (
-                <tr>
-                  <Td colSpan={8} className="px-2 py-6 text-center text-gray-500">Loading…</Td>
-                </tr>
-              )}
+            {!loading && filtered.map((r: any) => {
+              const off = extractOfficer(r);
+              const rowKey = r.id || r.requestCode || `${r.employeeId}-${r.dateOfTravel}-${r.timeFrom}`;
 
-              {!loading && filtered.map((r: any) => {
-                const off = extractOfficer(r);
-                const rowKey = r.id || r.requestCode || `${r.employeeId}-${r.dateOfTravel}-${r.timeFrom}`;
+              return (
+                <tr
+                  key={rowKey}
+                  className="align-top hover:bg-orange-50/40 cursor-pointer"
+                  onClick={() => setView(r)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setView(r); } }}
+                  role="button"
+                  tabIndex={0}
+                  title="Click for full details"
+                >
+                  {/* RQ / Applied */}
+                  <Td className="px-2 py-1 whitespace-normal">
+                    <div className="font-semibold text-orange-900 truncate" title={r.requestCode}>
+                      {r.requestCode || '—'}
+                    </div>
+                    <div className="text-[9px] text-gray-600 truncate" title={appliedLabel(r)}>
+                      {appliedLabel(r)}
+                    </div>
+                  </Td>
 
-                return (
-                  <tr
-                    key={rowKey}
-                    className="align-top hover:bg-orange-50/40 cursor-pointer"
-                    onClick={() => setView(r)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setView(r); } }}
-                    role="button"
-                    tabIndex={0}
-                    title="Click for full details"
-                  >
-                    {/* RQ / Applied */}
-                    <Td className="px-2 py-1 whitespace-normal">
-                      <div className="font-semibold text-orange-900 truncate" title={r.requestCode}>
-                        {r.requestCode || '—'}
-                      </div>
-                      <div className="text-[9px] text-gray-600 truncate" title={appliedLabel(r)}>
-                        {appliedLabel(r)}
-                      </div>
-                    </Td>
+                  {/* Applicant / Dept */}
+                  <Td className="px-2 py-1 whitespace-normal">
+                    <div className="truncate" title={`${r.applicantName} (${r.employeeId})`}>
+                      <span className="font-medium text-orange-900">{r.applicantName || '—'}</span>{' '}
+                      <span className="text-gray-600 text-[9px]">({r.employeeId || '—'})</span>
+                    </div>
+                    <div className="text-[9px] text-gray-700 truncate">{r.department || '—'}</div>
+                  </Td>
 
-                    {/* Applicant / Dept */}
-                    <Td className="px-2 py-1 whitespace-normal">
-                      <div className="truncate" title={`${r.applicantName} (${r.employeeId})`}>
-                        <span className="font-medium text-orange-900">{r.applicantName || '—'}</span>{' '}
-                        <span className="text-gray-600 text-[9px]">({r.employeeId || '—'})</span>
-                      </div>
-                      <div className="text-[9px] text-gray-700 truncate">{r.department || '—'}</div>
-                    </Td>
+                  {/* Status */}
+                  <Td className="px-2 py-1 text-center">{chip(r.status)}</Td>
 
-                    {/* Status */}
-                    <Td className="px-2 py-1 text-center">{chip(r.status)}</Td>
+                  {/* Travel */}
+                  <Td className="px-2 py-1 whitespace-normal">
+                    <div className="truncate" title={r.dateOfTravel}>{r.dateOfTravel || '—'}</div>
+                    <div className="text-[9px] text-gray-600">
+                      <span className="font-mono">{r.timeFrom || '—'}</span>–<span className="font-mono">{r.timeTo || '—'}</span> {r.overnight ? '(overnight)' : ''}
+                    </div>
+                  </Td>
 
-                    {/* Travel */}
-                    <Td className="px-2 py-1 whitespace-normal">
-                      <div className="truncate" title={r.dateOfTravel}>{r.dateOfTravel || '—'}</div>
-                      <div className="text-[9px] text-gray-600">
-                        <span className="font-mono">{r.timeFrom || '—'}</span>–<span className="font-mono">{r.timeTo || '—'}</span> {r.overnight ? '(overnight)' : ''}
-                      </div>
-                    </Td>
+                  {/* Route */}
+                  <Td className="px-2 py-1 whitespace-normal">
+                    <div className="truncate" title={`${r.fromLocation} → ${r.toLocation}`}>
+                      {r.fromLocation || '—'} → {r.toLocation || '—'}
+                    </div>
+                  </Td>
 
-                    {/* Route */}
-                    <Td className="px-2 py-1 whitespace-normal">
-                      <div className="truncate" title={`${r.fromLocation} → ${r.toLocation}`}>
-                        {r.fromLocation || '—'} → {r.toLocation || '—'}
-                      </div>
-                    </Td>
+                  {/* Officer */}
+                  <Td className="px-2 py-1 whitespace-normal">
+                    {off.withOfficer ? (
+                      <>
+                        <div className="truncate">
+                          {off.name ?? '—'}{off.id ? <span className="text-[9px] text-gray-600"> ({off.id})</span> : null}
+                        </div>
+                        {off.phone ? <div className="text-[9px] text-gray-700 break-all">{off.phone}</div> : null}
+                      </>
+                    ) : '—'}
+                  </Td>
 
-                    {/* Officer */}
-                    <Td className="px-2 py-1 whitespace-normal">
-                      {off.withOfficer ? (
-                        <>
-                          <div className="truncate">
-                            {off.name ?? '—'}{off.id ? <span className="text-[9px] text-gray-600"> ({off.id})</span> : null}
-                          </div>
-                          {off.phone ? <div className="text-[9px] text-gray-700 break-all">{off.phone}</div> : null}
-                        </>
-                      ) : '—'}
-                    </Td>
+                  {/* Purpose / Goods */}
+                  <Td className="px-2 py-1 whitespace-normal">
+                    <div className="break-words break-all">{purposeWithoutOfficer(r)}</div>
+                    <div className="text-[9px] text-gray-700">{r.goods || '—'}</div>
+                  </Td>
 
-                    {/* Purpose / Goods */}
-                    <Td className="px-2 py-1 whitespace-normal">
-                      <div className="break-words break-all">{purposeWithoutOfficer(r)}</div>
-                      <div className="text-[9px] text-gray-700">{r.goods || '—'}</div>
-                    </Td>
-
-                    {/* Print */}
-                    <Td className="px-2 py-1 text-center" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        className="px-2 py-[4px] rounded bg-orange-600 text-white hover:bg-orange-700 text-[10px]"
-                        onClick={() => printOne(r)}
-                        title="Print this request"
-                      >
-                        <Printer size={12} />
-                      </button>
-                    </Td>
-                  </tr>
-                );
-              })}
-
-              {!loading && !filtered.length && (
-                <tr>
-                  <Td colSpan={8} className="px-2 py-6 text-center text-gray-500">
-                    Nothing here yet — approvals you make in <b>Pending</b> will appear in this history.
+                  {/* Print */}
+                  <Td className="px-2 py-1 text-center" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      className="px-2 py-[4px] rounded bg-orange-600 text-white hover:bg-orange-700 text-[10px]"
+                      onClick={() => printOne(r)}
+                      title="Print this request"
+                    >
+                      <Printer size={12} />
+                    </button>
                   </Td>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </main>
+              );
+            })}
 
-      {/* Modal rendered via portal so it never gets clipped by scroll containers */}
+            {!loading && !filtered.length && (
+              <tr>
+                <Td colSpan={8} className="px-2 py-6 text-center text-gray-500">
+                  Nothing here yet — approvals you make in <b>Pending</b> will appear in this history.
+                </Td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
       {view
         ? createPortal(
             <DetailsModal request={view} onClose={() => setView(null)} />,
             document.body
           )
         : null}
-    </div>
+    </>
   );
 }
 

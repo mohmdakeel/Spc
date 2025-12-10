@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Car, Shield, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
-  const [username, setU] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setP] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setErr] = useState<string | null>(null);
@@ -21,7 +21,7 @@ export default function LoginPage() {
     setLoading(true);
     
     try {
-      await login({ username, password });
+      await login({ username: identifier, password });
       const u = await me();
       const next = params.get('next');
       
@@ -68,13 +68,13 @@ export default function LoginPage() {
           <div className="space-y-4">
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
-                Username
+                Username or Email
               </label>
               <input
                 id="username"
-                value={username}
-                onChange={e => setU(e.target.value)}
-                placeholder="Enter your username"
+                value={identifier}
+                onChange={e => setIdentifier(e.target.value)}
+                placeholder="Enter your username or email"
                 className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
                 required
                 autoComplete="username"

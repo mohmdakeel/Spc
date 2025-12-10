@@ -1,10 +1,9 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import HODSidebar from '../components/HODSidebar';
 import type { UsageRequest } from '../../Transport/services/types';
 import { Th, Td } from '../../Transport/components/ThTd';
-import SearchBar from '../../Transport/components/SearchBar';
+import HODSearchBar from '../components/HODSearchBar';
 import { Printer, X } from 'lucide-react';
 
 /* ---------- helpers (kept consistent across pages) ---------- */
@@ -317,193 +316,190 @@ th{background:#faf5f0;text-align:left;width:34%}
   }, []);
 
   return (
-    <div className="flex min-h-screen bg-orange-50">
-      <HODSidebar />
-      <main className="p-3 md:p-4 flex-1">
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="text-[14px] md:text-lg font-bold text-orange-900">My Approved (History)</h1>
-          <div className="flex items-center gap-2">
-            <SearchBar value={q} onChange={setQ} placeholder="Search code, applicant, dept, route…" className="h-8" />
-            <button
-              type="button"
-              onClick={printPage}
-              className="inline-flex items-center gap-1 px-2.5 h-8 rounded bg-orange-600 text-white hover:bg-orange-700 text-[12px]"
-              title="Print current list"
-            >
-              <Printer size={14} /> Print Page
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (!confirm('Clear local approval history for this browser?')) return;
-                localStorage.removeItem('hodApprovedHistory');
-                setItems([]);
-              }}
-              className="px-2.5 h-8 rounded border border-orange-300 text-[12px]"
-              title="Clear local history"
-            >
-              Clear
-            </button>
-          </div>
+    <>
+      <div className="flex items-center justify-between mb-2">
+        <h1 className="text-[14px] md:text-lg font-bold text-orange-900">My Approved (History)</h1>
+        <div className="flex items-center gap-2">
+          <HODSearchBar value={q} onChange={setQ} placeholder="Search code, applicant, dept, route…" className="w-full md:w-72" />
+          <button
+            type="button"
+            onClick={printPage}
+            className="inline-flex items-center gap-1 px-2.5 h-8 rounded bg-orange-600 text-white hover:bg-orange-700 text-[12px]"
+            title="Print current list"
+          >
+            <Printer size={14} /> Print Page
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (!confirm('Clear local approval history for this browser?')) return;
+              localStorage.removeItem('hodApprovedHistory');
+              setItems([]);
+            }}
+            className="px-2.5 h-8 rounded border border-orange-300 text-[12px]"
+            title="Clear local history"
+          >
+            Clear
+          </button>
         </div>
+      </div>
 
-        <div className="bg-white rounded-lg border border-orange-200 overflow-auto">
-          {/* Column order mirrors other pages (9 columns) */}
-          <table className="w-full table-fixed text-[10px] leading-[1.15]">
-            <colgroup>
-              <col className="w-28" />
-              <col className="w-56" />
-              <col className="w-20" />
-              <col className="w-28" />
-              <col className="w-40" />
-              <col className="w-36" />
-              <col className="w-36" />
-              <col className="w-40" />
-              <col className="w-16" />
-            </colgroup>
-            <thead className="bg-orange-50">
-              <tr className="text-[9.5px]">
-                <Th className="px-2 py-1 text-left">RQ ID / Applied / Approved</Th>
-                <Th className="px-2 py-1 text-left">APPLICANT / OFFICER</Th>
-                <Th className="px-2 py-1 text-center">Status</Th>
-                <Th className="px-2 py-1 text-left">Travel</Th>
-                <Th className="px-2 py-1 text-left">Route</Th>
-                <Th className="px-2 py-1 text-left">Assigned</Th>
-                <Th className="px-2 py-1 text-left">Schedule</Th>
-                <Th className="px-2 py-1 text-left">Gate</Th>
-                <Th className="px-2 py-1 text-center">Print</Th>
+      <div className="bg-white rounded-lg border border-orange-200 overflow-auto">
+        {/* Column order mirrors other pages (9 columns) */}
+        <table className="w-full table-fixed text-[10px] leading-[1.15]">
+          <colgroup>
+            <col className="w-28" />
+            <col className="w-56" />
+            <col className="w-20" />
+            <col className="w-28" />
+            <col className="w-40" />
+            <col className="w-36" />
+            <col className="w-36" />
+            <col className="w-40" />
+            <col className="w-16" />
+          </colgroup>
+          <thead className="bg-orange-50">
+            <tr className="text-[9.5px]">
+              <Th className="px-2 py-1 text-left">RQ ID / Applied / Approved</Th>
+              <Th className="px-2 py-1 text-left">APPLICANT / OFFICER</Th>
+              <Th className="px-2 py-1 text-center">Status</Th>
+              <Th className="px-2 py-1 text-left">Travel</Th>
+              <Th className="px-2 py-1 text-left">Route</Th>
+              <Th className="px-2 py-1 text-left">Assigned</Th>
+              <Th className="px-2 py-1 text-left">Schedule</Th>
+              <Th className="px-2 py-1 text-left">Gate</Th>
+              <Th className="px-2 py-1 text-center">Print</Th>
+            </tr>
+          </thead>
+
+          <tbody className="divide-y">
+            {!filtered.length && (
+              <tr>
+                <Td colSpan={9} className="px-2 py-6 text-center text-gray-500">
+                  No local approval history yet.
+                </Td>
               </tr>
-            </thead>
+            )}
 
-            <tbody className="divide-y">
-              {!filtered.length && (
-                <tr>
-                  <Td colSpan={9} className="px-2 py-6 text-center text-gray-500">
-                    No local approval history yet.
+            {filtered.map((e) => {
+              const r = (e.snapshot as any) as UsageRequest;
+              const off = extractOfficer(r);
+              return (
+                <tr
+                  key={`${e.id}-${e.approvedAt}`}
+                  className="align-top hover:bg-orange-50/40 cursor-pointer"
+                  onClick={() => setView(r)}
+                  title="Click to view details"
+                >
+                  {/* RQ / Applied / Approved */}
+                  <Td className="px-2 py-1 whitespace-nowrap">
+                    <div className="font-semibold text-orange-900 truncate" title={r.requestCode}>
+                      {r.requestCode}
+                    </div>
+                    <div className="text-[9px] text-gray-600 truncate" title={appliedLabel(r)}>
+                      {appliedLabel(r)}
+                    </div>
+                    <div className="text-[9px] text-gray-600 truncate" title={fmtDT(e.approvedAt)}>
+                      Approved: {fmtDT(e.approvedAt)}
+                    </div>
+                  </Td>
+
+                  {/* People */}
+                  <Td className="px-2 py-1">
+                    <div className="truncate" title={`${r.applicantName} (${r.employeeId})`}>
+                      <span className="font-medium text-orange-900">Applicant:</span> {r.applicantName}
+                      <span className="text-gray-600 text-[9px]"> ({r.employeeId})</span>
+                    </div>
+                    <div
+                      className="text-[9.5px] text-gray-700 truncate"
+                      title={off.withOfficer ? `${off.name || '-'} (${off.id || '-'})${off.phone ? `, ${off.phone}` : ''}` : '—'}
+                    >
+                      <span className="font-medium">Officer:</span>{' '}
+                      {off.withOfficer ? (
+                        <>
+                          {off.name || '-'}
+                          <span className="text-gray-600 text-[9px]"> ({off.id || '-'})</span>
+                          {off.phone ? <span className="text-gray-600 text-[9px]">, {off.phone}</span> : null}
+                        </>
+                      ) : (
+                        '—'
+                      )}
+                    </div>
+                  </Td>
+
+                  {/* Status */}
+                  <Td className="px-2 py-1 text-center">{chip('Sent to Management')}</Td>
+
+                  {/* Travel */}
+                  <Td className="px-2 py-1">
+                    <div className="truncate">{r.dateOfTravel}</div>
+                    <div className="text-[9px] text-gray-600">
+                      <span className="font-mono">{r.timeFrom}</span>–<span className="font-mono">{r.timeTo}</span>{' '}
+                      {r.overnight ? '(overnight)' : ''}
+                    </div>
+                  </Td>
+
+                  {/* Route */}
+                  <Td className="px-2 py-1">
+                    <div className="truncate" title={`${r.fromLocation} → ${r.toLocation}`}>
+                      {r.fromLocation} → {r.toLocation}
+                    </div>
+                  </Td>
+
+                  {/* Assigned */}
+                  <Td className="px-2 py-1 whitespace-nowrap">
+                    <div className="font-medium truncate" title={r.assignedVehicleNumber || '—'}>
+                      {r.assignedVehicleNumber || '—'}
+                    </div>
+                    <div className="text-[9px] text-gray-600 truncate" title={r.assignedDriverName || '—'}>
+                      {r.assignedDriverName || '—'}
+                    </div>
+                  </Td>
+
+                  {/* Schedule */}
+                  <Td className="px-2 py-1 whitespace-nowrap">
+                    <div className="truncate" title={fmtDT(r.scheduledPickupAt)}>
+                      P: {fmtDT(r.scheduledPickupAt)}
+                    </div>
+                    <div className="text-[9px] text-gray-600 truncate" title={fmtDT(r.scheduledReturnAt)}>
+                      R: {fmtDT(r.scheduledReturnAt)}
+                    </div>
+                  </Td>
+
+                  {/* Gate */}
+                  <Td className="px-2 py-1 whitespace-nowrap">
+                    <div className="truncate" title={`Exit ${fmtDT(r.gateExitAt)} Odo ${r.exitOdometer ?? '-'}`}>
+                      Ex {fmtDT(r.gateExitAt)} <span className="text-[9px] text-gray-600">O {r.exitOdometer ?? '-'}</span>
+                    </div>
+                    <div className="truncate" title={`Entry ${fmtDT(r.gateEntryAt)} Odo ${r.entryOdometer ?? '-'}`}>
+                      En {fmtDT(r.gateEntryAt)} <span className="text-[9px] text-gray-600">O {r.entryOdometer ?? '-'}</span>
+                    </div>
+                  </Td>
+
+                  {/* Print */}
+                  <Td className="px-2 py-1 text-center">
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-1 px-2 py-[3px] rounded bg-orange-600 text-white hover:bg-orange-700 text-[10px]"
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        printOne(r, e.approvedAt);
+                      }}
+                      title="Print details"
+                    >
+                      <Printer size={12} /> Print
+                    </button>
                   </Td>
                 </tr>
-              )}
-
-              {filtered.map((e) => {
-                const r = (e.snapshot as any) as UsageRequest;
-                const off = extractOfficer(r);
-                return (
-                  <tr
-                    key={`${e.id}-${e.approvedAt}`}
-                    className="align-top hover:bg-orange-50/40 cursor-pointer"
-                    onClick={() => setView(r)}
-                    title="Click to view details"
-                  >
-                    {/* RQ / Applied / Approved */}
-                    <Td className="px-2 py-1 whitespace-nowrap">
-                      <div className="font-semibold text-orange-900 truncate" title={r.requestCode}>
-                        {r.requestCode}
-                      </div>
-                      <div className="text-[9px] text-gray-600 truncate" title={appliedLabel(r)}>
-                        {appliedLabel(r)}
-                      </div>
-                      <div className="text-[9px] text-gray-600 truncate" title={fmtDT(e.approvedAt)}>
-                        Approved: {fmtDT(e.approvedAt)}
-                      </div>
-                    </Td>
-
-                    {/* People */}
-                    <Td className="px-2 py-1">
-                      <div className="truncate" title={`${r.applicantName} (${r.employeeId})`}>
-                        <span className="font-medium text-orange-900">Applicant:</span> {r.applicantName}
-                        <span className="text-gray-600 text-[9px]"> ({r.employeeId})</span>
-                      </div>
-                      <div
-                        className="text-[9.5px] text-gray-700 truncate"
-                        title={off.withOfficer ? `${off.name || '-'} (${off.id || '-'})${off.phone ? `, ${off.phone}` : ''}` : '—'}
-                      >
-                        <span className="font-medium">Officer:</span>{' '}
-                        {off.withOfficer ? (
-                          <>
-                            {off.name || '-'}
-                            <span className="text-gray-600 text-[9px]"> ({off.id || '-'})</span>
-                            {off.phone ? <span className="text-gray-600 text-[9px]">, {off.phone}</span> : null}
-                          </>
-                        ) : (
-                          '—'
-                        )}
-                      </div>
-                    </Td>
-
-                    {/* Status */}
-                    <Td className="px-2 py-1 text-center">{chip('Sent to Management')}</Td>
-
-                    {/* Travel */}
-                    <Td className="px-2 py-1">
-                      <div className="truncate">{r.dateOfTravel}</div>
-                      <div className="text-[9px] text-gray-600">
-                        <span className="font-mono">{r.timeFrom}</span>–<span className="font-mono">{r.timeTo}</span>{' '}
-                        {r.overnight ? '(overnight)' : ''}
-                      </div>
-                    </Td>
-
-                    {/* Route */}
-                    <Td className="px-2 py-1">
-                      <div className="truncate" title={`${r.fromLocation} → ${r.toLocation}`}>
-                        {r.fromLocation} → {r.toLocation}
-                      </div>
-                    </Td>
-
-                    {/* Assigned */}
-                    <Td className="px-2 py-1 whitespace-nowrap">
-                      <div className="font-medium truncate" title={r.assignedVehicleNumber || '—'}>
-                        {r.assignedVehicleNumber || '—'}
-                      </div>
-                      <div className="text-[9px] text-gray-600 truncate" title={r.assignedDriverName || '—'}>
-                        {r.assignedDriverName || '—'}
-                      </div>
-                    </Td>
-
-                    {/* Schedule */}
-                    <Td className="px-2 py-1 whitespace-nowrap">
-                      <div className="truncate" title={fmtDT(r.scheduledPickupAt)}>
-                        P: {fmtDT(r.scheduledPickupAt)}
-                      </div>
-                      <div className="text-[9px] text-gray-600 truncate" title={fmtDT(r.scheduledReturnAt)}>
-                        R: {fmtDT(r.scheduledReturnAt)}
-                      </div>
-                    </Td>
-
-                    {/* Gate */}
-                    <Td className="px-2 py-1 whitespace-nowrap">
-                      <div className="truncate" title={`Exit ${fmtDT(r.gateExitAt)} Odo ${r.exitOdometer ?? '-'}`}>
-                        Ex {fmtDT(r.gateExitAt)} <span className="text-[9px] text-gray-600">O {r.exitOdometer ?? '-'}</span>
-                      </div>
-                      <div className="truncate" title={`Entry ${fmtDT(r.gateEntryAt)} Odo ${r.entryOdometer ?? '-'}`}>
-                        En {fmtDT(r.gateEntryAt)} <span className="text-[9px] text-gray-600">O {r.entryOdometer ?? '-'}</span>
-                      </div>
-                    </Td>
-
-                    {/* Print */}
-                    <Td className="px-2 py-1 text-center">
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 px-2 py-[3px] rounded bg-orange-600 text-white hover:bg-orange-700 text-[10px]"
-                        onClick={(ev) => {
-                          ev.stopPropagation();
-                          printOne(r, e.approvedAt);
-                        }}
-                        title="Print details"
-                      >
-                        <Printer size={12} /> Print
-                      </button>
-                    </Td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </main>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
       {/* -------- row-click details modal -------- */}
       {view && <DetailsModal request={view} onClose={() => setView(null)} />}
-    </div>
+    </>
   );
 }
 

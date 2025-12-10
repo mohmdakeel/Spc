@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import HODSidebar from './components/HODSidebar';
 import {
   listByStatus,
   hodApprove,
@@ -9,7 +8,8 @@ import {
 } from '../Transport/services/usageService';
 import type { UsageRequest } from '../Transport/services/types';
 import { Th, Td } from '../Transport/components/ThTd';
-import { Search, Printer, Check, X as XIcon, Info } from 'lucide-react';
+import { Check, X as XIcon, Info, Printer, RefreshCw } from 'lucide-react';
+import HODSearchBar from './components/HODSearchBar';
 
 /* ---------- helpers ---------- */
 const chip = (s: string) => (
@@ -18,7 +18,6 @@ const chip = (s: string) => (
   </span>
 );
 const fmtDT = (s?: string | null) => (s ? new Date(s).toLocaleString() : '-');
-
 export default function HODDashboardPage() {
   const [pendingHOD, setPendingHOD] = useState<UsageRequest[]>([]);
   const [toMgmt, setToMgmt] = useState<UsageRequest[]>([]);
@@ -58,6 +57,43 @@ export default function HODDashboardPage() {
 
   const rows = tab === 'PENDING_HOD' ? pendingHOD : tab === 'PENDING_MANAGEMENT' ? toMgmt : rejected;
 
+  const monthlyFlow = useMemo(() => {
+    const map = new Map<
+      number,
+      { label: string; order: number; pending: number; management: number; rejected: number }
+    >();
+    const add = (list: UsageRequest[], bucket: 'pending' | 'management' | 'rejected') => {
+      list.forEach((r) => {
+        const raw = (r as any).createdAt || (r as any).appliedDate || (r as any).dateOfTravel;
+        if (!raw) return;
+        const d = new Date(raw);
+        if (Number.isNaN(d.getTime())) return;
+        const order = d.getFullYear() * 12 + d.getMonth();
+        const label = d.toLocaleString('default', { month: 'short', year: 'numeric' });
+        const entry = map.get(order) ?? { label, order, pending: 0, management: 0, rejected: 0 };
+        entry[bucket] += 1;
+        map.set(order, entry);
+      });
+    };
+    add(pendingHOD, 'pending');
+    add(toMgmt, 'management');
+    add(rejected, 'rejected');
+    return Array.from(map.values())
+      .sort((a, b) => a.order - b.order)
+      .slice(-6)
+      .map((m) => {
+        const total = m.pending + m.management + m.rejected;
+        const safeTotal = total || 1;
+        return {
+          ...m,
+          total,
+          pendingPct: (m.pending / safeTotal) * 100,
+          managementPct: (m.management / safeTotal) * 100,
+          rejectedPct: (m.rejected / safeTotal) * 100,
+        };
+      });
+  }, [pendingHOD, toMgmt, rejected]);
+
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
     if (!s) return rows;
@@ -81,6 +117,7 @@ export default function HODDashboardPage() {
         .includes(s)
     );
   }, [rows, q]);
+  const hasQuery = q.trim().length > 0;
 
   /* ---------- actions ---------- */
   const doApprove = async (r: UsageRequest) => {
@@ -171,53 +208,106 @@ th{background:#faf5f0;text-align:left}
   };
 
   return (
-    <div className="flex min-h-screen bg-orange-50">
-      <HODSidebar />
-      <main className="p-3 md:p-4 flex-1">
-        <div className="flex items-center justify-between mb-3">
-          <h1 className="text-[14px] md:text-lg font-bold text-orange-900">HOD Dashboard</h1>
-          <div className="flex items-center gap-2">
-            {/* search */}
-            <label className="relative">
-              <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search code, people, route…"
-                className="pl-6 pr-2 py-1 rounded border border-orange-200 text-[11px] h-7 w-[220px] focus:outline-none focus:ring-1 focus:ring-orange-300"
-              />
-            </label>
-            {/* print */}
-            <button
-              type="button"
-              onClick={printCurrent}
-              className="inline-flex items-center gap-1 px-2.5 h-7 rounded bg-orange-600 text-white hover:bg-orange-700 text-[11px]"
-              title="Print current list"
-            >
-              <Printer size={13} /> Print
-            </button>
+    <>
+      <section className="bg-white rounded-2xl border border-orange-200 shadow-sm p-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <HODSearchBar
+          value={q}
+          onChange={setQ}
+          placeholder="Search by request code, applicant, officer or route"
+          className="w-full md:flex-1"
+        />
+        <div className="flex items-center gap-2 justify-end w-full md:w-auto">
+          <button
+            type="button"
+            disabled={!hasQuery}
+            onClick={() => setQ('')}
+                  className="px-3 py-2 rounded-lg border border-orange-200 text-sm font-medium text-orange-700 hover:bg-orange-50 disabled:opacity-50"
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  onClick={() => load()}
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-orange-200 text-sm font-medium text-orange-700 hover:bg-orange-50 disabled:opacity-50"
+                >
+                  <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                  Refresh
+                </button>
+                <button
+                  type="button"
+                  onClick={printCurrent}
+                  disabled={!filtered.length}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-orange-600 text-white text-sm font-semibold hover:bg-orange-700 disabled:bg-orange-300"
+                >
+                  <Printer size={16} />
+                  Print queue
+                </button>
+              </div>
+            </section>
+
+      {/* KPI cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+        {cards.map((c) => (
+          <button
+            key={c.label}
+            onClick={() => setTab(c.key)}
+                  className={`rounded-lg border ${tab === c.key ? 'border-orange-300 ring-1 ring-orange-300' : 'border-orange-200'} bg-white p-4 text-left`}
+                >
+                  <div className="text-sm text-orange-700">{c.label}</div>
+                  <div className="text-3xl font-bold text-orange-900">{loading ? '—' : c.n}</div>
+                  <div className="text-xs text-orange-600 mt-1">{c.hint}</div>
+                </button>
+        ))}
+      </div>
+
+      {monthlyFlow.length > 0 && (
+        <section className="hod-card bg-white rounded-2xl border border-orange-200 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-orange-600 font-semibold">Monthly flow</p>
+              <h2 className="text-lg font-bold text-orange-900">Request journey snapshot</h2>
+            </div>
+            <div className="flex gap-4 text-[11px] text-gray-600">
+              <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-orange-500" /> Pending</span>
+              <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" /> Sent to Mgmt</span>
+              <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-rose-500" /> Rejected</span>
+            </div>
           </div>
-        </div>
+          <div className="space-y-3">
+            {monthlyFlow.map((m) => (
+              <div key={m.label}>
+                <div className="flex items-center justify-between text-xs text-gray-600">
+                  <span>{m.label}</span>
+                  <span>{m.total || 0} requests</span>
+                </div>
+                <div className="flex h-3 rounded-full overflow-hidden bg-orange-100/70 mt-1">
+                  <span
+                    className="bg-orange-500"
+                    style={{ width: `${m.pendingPct}%` }}
+                    title={`Pending HOD: ${m.pending}`}
+                  />
+                  <span
+                    className="bg-emerald-500"
+                    style={{ width: `${m.managementPct}%` }}
+                    title={`Sent to Management: ${m.management}`}
+                  />
+                  <span
+                    className="bg-rose-500"
+                    style={{ width: `${m.rejectedPct}%` }}
+                    title={`Rejected: ${m.rejected}`}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
-        {/* KPI cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-          {cards.map((c) => (
-            <button
-              key={c.label}
-              onClick={() => setTab(c.key)}
-              className={`rounded-lg border ${tab === c.key ? 'border-orange-300 ring-1 ring-orange-300' : 'border-orange-200'} bg-white p-4 text-left`}
-            >
-              <div className="text-sm text-orange-700">{c.label}</div>
-              <div className="text-3xl font-bold text-orange-900">{loading ? '—' : c.n}</div>
-              <div className="text-xs text-orange-600 mt-1">{c.hint}</div>
-            </button>
-          ))}
-        </div>
-
-        {/* Queue table */}
-        <div className="bg-white rounded-lg border border-orange-200 overflow-auto">
-          {/* compact, fixed layout */}
-          <table className="w-full table-fixed text-[10px] leading-[1.15]">
+            {/* Queue table */}
+            <div className="bg-white rounded-lg border border-orange-200 overflow-auto">
+              {/* compact, fixed layout */}
+              <table className="w-full table-fixed text-[10px] leading-[1.15]">
             {/* keep colgroup in one line to avoid hydration whitespace warning */}
             <colgroup><col className="w-28"/><col className="w-56"/><col className="w-44"/><col className="w-36"/><col className="w-28"/></colgroup>
             <thead className="bg-orange-50">
@@ -314,13 +404,12 @@ th{background:#faf5f0;text-align:left}
                 <tr><Td colSpan={5} className="px-2 py-6 text-center text-gray-500">No results</Td></tr>
               )}
             </tbody>
-          </table>
-        </div>
+              </table>
+            </div>
 
-        {/* details modal */}
-        {view && <DetailsModal request={view} onClose={() => setView(null)} />}
-      </main>
-    </div>
+            {/* details modal */}
+            {view && <DetailsModal request={view} onClose={() => setView(null)} />}
+    </>
   );
 }
 

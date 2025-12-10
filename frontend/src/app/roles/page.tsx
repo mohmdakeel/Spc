@@ -351,11 +351,11 @@ export default function RolesPage() {
   }
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-orange-50 to-orange-100">
+    <div className="auth-shell">
       <Sidebar user={user} isOpen={isOpenSidebar} onClose={toggleSidebar} />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="auth-shell__main overflow-hidden">
         <Topbar user={user} />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="auth-shell__content">
           {/* HEADER */}
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-2">

@@ -5,18 +5,20 @@ import Topbar from '../../../components/Topbar';
 import Sidebar from '../../../components/Sidebar';
 import Modal from '../../../components/Modal';
 import api from '../../../lib/api';
+import { printDocument, escapeHtml } from '../../../lib/print';
 import { useAuth } from '../../../hooks/useAuth';
 import {
   CheckCircle,
   XCircle,
   Check,
   X,
-  Eye,
   Printer,
   Key,
   Shield,
   Users,
-  User
+  User,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 // ===== backend shapes =====
@@ -34,11 +36,23 @@ type UserRow = {
 // we ONLY care about these 5 perms everywhere in UI
 const GLOBAL5 = new Set(['CREATE', 'READ', 'UPDATE', 'DELETE', 'PRINT']);
 
-// little helper for table display
+// only show these 5 perms in UI
 const onlyGlobalFive = (codes: string[] = []) =>
   ['CREATE', 'READ', 'UPDATE', 'DELETE', 'PRINT'].filter((c) =>
     codes.includes(c)
   );
+
+// tiny text helper for print layout
+const txt = (v?: string) => (v && v.trim() !== '' ? v : 'N/A');
+
+const formatPrintValue = (value?: string | number | null) => {
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return escapeHtml(trimmed.length ? trimmed : '—');
+  }
+  return escapeHtml(String(value));
+};
 
 export default function PermissionsPage() {
   const { user, refresh } = useAuth();
@@ -57,6 +71,10 @@ export default function PermissionsPage() {
     setErrorMessage(msg);
   }
 
+  // permissions of current logged-in admin (for Print button gating)
+  const has = (p: string) => !!user?.permissions?.includes(p);
+  const canPrint = has('PRINT');
+
   // ================= DATA FROM BACKEND =================
   const [roles, setRoles] = useState<Role[]>([]);
   const [allPerms, setAllPerms] = useState<Perm[]>([]);
@@ -67,22 +85,38 @@ export default function PermissionsPage() {
   const [roleUsers, setRoleUsers] = useState<UserLite[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string>('');
 
-  // permissions for the selected userId
+  // permissions for the selected userId (right column)
   const [effectivePerms, setEffectivePerms] = useState<string[]>([]);
   const [directPerms, setDirectPerms] = useState<string[]>([]);
 
-  // ----- modal state for grant/revoke -----
+  // ----- grant/revoke modal -----
   const [manageOpen, setManageOpen] = useState(false);
   const [mode, setMode] = useState<'grant' | 'revoke'>('grant');
   const [selectedPerms, setSelectedPerms] = useState<string[]>([]);
   const [selectedUserLabel, setSelectedUserLabel] = useState<string>('');
 
-  // ----- view modal (for "Eye / View") -----
+  // ----- view modal -----
   const [viewOpen, setViewOpen] = useState(false);
   const [viewUser, setViewUser] = useState<UserRow | null>(null);
 
-  // ================= HELPERS TO/FROM BACKEND =================
+  // ================= PAGINATION =================
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(10); // 10 or 15
 
+  // whenever pageSize changes, go back to page 1
+  useEffect(() => {
+    setPage(1);
+  }, [pageSize]);
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(users.length / pageSize)
+  );
+  const safePage = Math.min(page, totalPages);
+  const startIdx = (safePage - 1) * pageSize;
+  const currentPageUsers = users.slice(startIdx, startIdx + pageSize);
+
+  // ================= HELPERS TO/FROM BACKEND =================
   const fetchPermsForUser = async (uid: number) => {
     const [effRes, dirRes] = await Promise.all([
       api.get<string[]>(`/users/${uid}/permissions/effective`),
@@ -210,7 +244,7 @@ export default function PermissionsPage() {
   }, [selectedUserId]);
 
   // ================ TABLE ACTIONS ================
-  const handleOpenView = (u: UserRow) => {
+  const handleRowClick = (u: UserRow) => {
     setViewUser(u);
     setViewOpen(true);
   };
@@ -242,13 +276,67 @@ export default function PermissionsPage() {
     }
   };
 
+  // ================ PER-USER PRINT ================
+  const handlePrintUser = (u: UserRow) => {
+    if (!canPrint) {
+      showError('You do not have PRINT permission.');
+      return;
+    }
+
+    const rolesSection =
+      (u.roles || []).length > 0
+        ? (u.roles || [])
+            .map(
+              (role) => `<span class="spc-chip spc-chip--role">${formatPrintValue(role)}</span>`
+            )
+            .join('')
+        : '<div class="spc-empty">No roles assigned.</div>';
+
+    const permsSection =
+      (u.permissions || []).length > 0
+        ? (u.permissions || [])
+            .map(
+              (perm) => `<span class="spc-chip spc-chip--perm">${formatPrintValue(perm)}</span>`
+            )
+            .join('')
+        : '<div class="spc-empty">No permissions assigned.</div>';
+
+    const contentHtml = `
+      <div class="spc-section">
+        <p class="spc-section__title">User Info</p>
+        <table class="spc-definition">
+          <tr><td>Username</td><td>${formatPrintValue(u.username)}</td></tr>
+          <tr><td>Full Name</td><td>${formatPrintValue(u.fullName)}</td></tr>
+        </table>
+      </div>
+      <div class="spc-section">
+        <p class="spc-section__title">Roles</p>
+        ${rolesSection}
+      </div>
+      <div class="spc-section">
+        <p class="spc-section__title">Permissions (Global 5)</p>
+        ${permsSection}
+      </div>
+    `;
+
+    printDocument({
+      title: 'User Permission Profile',
+      subtitle: `Username: ${txt(u.username)}`,
+      contentHtml,
+      printedBy: user?.fullName?.trim() || user?.username || undefined,
+    });
+  };
+
   // ================ PERMISSION MODAL LOGIC ================
+  // list of permissions shown in modal depending on grant/revoke mode
   const permissionOptions = useMemo(() => {
     const effSet = new Set(effectivePerms);
 
     if (mode === 'grant') {
+      // can only GRANT permissions the user doesn't already effectively have
       return allPerms.filter((p) => !effSet.has(p.code));
     } else {
+      // can only REVOKE permissions the user has directly
       const directSet = new Set(directPerms);
       return allPerms.filter((p) => directSet.has(p.code));
     }
@@ -345,69 +433,18 @@ export default function PermissionsPage() {
     }
   };
 
-  // ================ RENDER HELPERS ================
-  const tableRows = users.map((u) => (
-    <tr key={u.id} className="border-b hover:bg-orange-50 transition-colors">
-      <td className="p-3">
-        <div className="font-medium text-gray-900">{u.username}</div>
-        {u.fullName && <div className="text-sm text-gray-600">{u.fullName}</div>}
-      </td>
-      <td className="p-3">
-        <div className="flex flex-wrap gap-1">
-          {(u.roles || []).map(role => (
-            <span key={role} className="bg-orange-100 text-orange-700 px-2 py-1 rounded text-xs font-medium">
-              {role}
-            </span>
-          ))}
-        </div>
-      </td>
-      <td className="p-3">
-        <div className="flex flex-wrap gap-1">
-          {onlyGlobalFive(u.permissions || []).map(perm => (
-            <span key={perm} className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium">
-              {perm}
-            </span>
-          ))}
-        </div>
-      </td>
-      <td className="p-3">
-        <div className="flex gap-2">
-          <button
-            onClick={() => handleOpenView(u)}
-            className="flex items-center px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
-          >
-            <Eye className="w-4 h-4 mr-1" />
-            View
-          </button>
-
-          <button
-            onClick={() => handleOpenPermissionsFromRow(u)}
-            className="flex items-center px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm"
-          >
-            <Key className="w-4 h-4 mr-1" />
-            Permissions
-          </button>
-
-          <button
-            onClick={() => window.print()}
-            className="flex items-center px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm"
-          >
-            <Printer className="w-4 h-4 mr-1" />
-            Print
-          </button>
-        </div>
-      </td>
-    </tr>
-  ));
-
   // ================ PAGE GUARD ================
   if (!user || !user.roles?.includes('ADMIN')) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center">
         <div className="bg-white rounded-2xl shadow-lg p-8 text-center border border-orange-200">
           <Shield className="w-16 h-16 text-red-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
-          <p className="text-gray-600">Admin privileges required to access this page.</p>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            Access Denied
+          </h2>
+          <p className="text-gray-600">
+            Admin privileges required to access this page.
+          </p>
         </div>
       </div>
     );
@@ -415,35 +452,39 @@ export default function PermissionsPage() {
 
   // ================ JSX ================
   return (
-    <div className="flex h-screen bg-gradient-to-br from-orange-50 to-orange-100">
+    <div className="auth-shell">
       <Sidebar
         user={user}
         isOpen={isOpenSidebar}
         onClose={() => setIsOpenSidebar(false)}
       />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="auth-shell__main overflow-hidden">
         <Topbar user={user} />
 
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="auth-shell__content">
           {/* HEADER */}
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-2">
               <Shield className="w-8 h-8 text-orange-600" />
-              <h1 className="text-3xl font-bold text-gray-900">Permissions Management</h1>
+              <h1 className="text-3xl font-bold text-gray-900">
+                Permissions Management
+              </h1>
             </div>
-            <p className="text-gray-600">Manage user permissions and access controls</p>
+            <p className="text-gray-600">
+              Manage user permissions and access controls
+            </p>
           </div>
 
           {/* MESSAGES */}
           {successMessage && (
             <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center">
-              <CheckCircle className="mr-2 text-green-600" /> 
+              <CheckCircle className="mr-2 text-green-600" />
               <span className="text-green-800">{successMessage}</span>
             </div>
           )}
           {errorMessage && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center">
-              <XCircle className="mr-2 text-red-600" /> 
+              <XCircle className="mr-2 text-red-600" />
               <span className="text-red-800">{errorMessage}</span>
             </div>
           )}
@@ -452,33 +493,194 @@ export default function PermissionsPage() {
             {/* LEFT COLUMN - USERS TABLE */}
             <div className="xl:col-span-2">
               <div className="bg-white rounded-2xl shadow-lg border border-orange-200 overflow-hidden">
-                <div className="p-6 border-b border-orange-200 bg-orange-50">
+                {/* table header */}
+                <div className="p-6 border-b border-orange-200 bg-orange-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                     <Users className="w-5 h-5 text-orange-600" />
                     System Users
                   </h2>
+
+                  <div className="flex items-center gap-3">
+                    {/* page size select */}
+                    <select
+                      value={pageSize}
+                      onChange={(e) => setPageSize(Number(e.target.value))}
+                      className="py-2 px-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    >
+                      <option value={10}>10 / page</option>
+                      <option value={15}>15 / page</option>
+                    </select>
+                  </div>
                 </div>
+
+                {/* table */}
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead className="bg-orange-50">
                       <tr>
-                        <th className="p-3 text-left text-sm font-semibold text-gray-700">User</th>
-                        <th className="p-3 text-left text-sm font-semibold text-gray-700">Roles</th>
-                        <th className="p-3 text-left text-sm font-semibold text-gray-700">Permissions</th>
-                        <th className="p-3 text-left text-sm font-semibold text-gray-700">Actions</th>
+                        <th className="p-3 text-left text-sm font-semibold text-gray-700">
+                          User
+                        </th>
+                        <th className="p-3 text-left text-sm font-semibold text-gray-700">
+                          Roles
+                        </th>
+                        <th className="p-3 text-left text-sm font-semibold text-gray-700">
+                          Permissions
+                        </th>
+                        <th className="p-3 text-left text-sm font-semibold text-gray-700">
+                          Actions
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {tableRows}
-                      {users.length === 0 && (
+                      {currentPageUsers.length > 0 ? (
+                        currentPageUsers.map((u) => (
+                          <tr
+                            key={u.id}
+                            className="border-b hover:bg-orange-50 transition-colors cursor-pointer"
+                            onClick={() => handleRowClick(u)}
+                          >
+                            {/* user / fullName */}
+                            <td className="p-3">
+                              <div className="font-medium text-gray-900">
+                                {u.username}
+                              </div>
+                              {u.fullName && (
+                                <div className="text-sm text-gray-600">
+                                  {u.fullName}
+                                </div>
+                              )}
+                            </td>
+
+                            {/* roles */}
+                            <td className="p-3">
+                              <div className="flex flex-wrap gap-1">
+                                {(u.roles || []).map((role) => (
+                                  <span
+                                    key={role}
+                                    className="bg-orange-100 text-orange-700 px-2 py-1 rounded text-xs font-medium"
+                                  >
+                                    {role}
+                                  </span>
+                                ))}
+                                {(u.roles || []).length === 0 && (
+                                  <span className="text-gray-500 text-sm">
+                                    N/A
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* perms */}
+                            <td className="p-3">
+                              <div className="flex flex-wrap gap-1">
+                                {onlyGlobalFive(u.permissions || []).map(
+                                  (perm) => (
+                                    <span
+                                      key={perm}
+                                      className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium"
+                                    >
+                                      {perm}
+                                    </span>
+                                  )
+                                )}
+                                {onlyGlobalFive(u.permissions || []).length ===
+                                  0 && (
+                                  <span className="text-gray-500 text-sm">
+                                    N/A
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* actions */}
+                            <td
+                              className="p-3"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  onClick={() =>
+                                    handleOpenPermissionsFromRow(u)
+                                  }
+                                  className="flex items-center px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm"
+                                >
+                                  <Key className="w-4 h-4 mr-1" />
+                                  Permissions
+                                </button>
+
+                                {canPrint && (
+                                  <button
+                                    onClick={() => handlePrintUser(u)}
+                                    className="flex items-center px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm"
+                                  >
+                                    <Printer className="w-4 h-4 mr-1" />
+                                    Print
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
                         <tr>
-                          <td colSpan={4} className="p-6 text-center text-gray-500">
-                            {loading ? 'Loading users...' : 'No users found'}
+                          <td
+                            colSpan={4}
+                            className="p-6 text-center text-gray-500"
+                          >
+                            {loading
+                              ? 'Loading users...'
+                              : 'No users found'}
                           </td>
                         </tr>
                       )}
                     </tbody>
                   </table>
+                </div>
+
+                {/* pagination footer */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 border-t border-gray-200 text-sm bg-white">
+                  <div className="text-gray-600 mb-3 sm:mb-0">
+                    Page {safePage} / {totalPages} • Showing{' '}
+                    <span className="font-medium">
+                      {currentPageUsers.length}
+                    </span>{' '}
+                    of{' '}
+                    <span className="font-medium">
+                      {users.length.toString().padStart(1, '0')}
+                    </span>{' '}
+                    users
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={safePage === 1}
+                      className={`flex items-center px-3 py-2 rounded-lg border text-sm ${
+                        safePage === 1
+                          ? 'text-gray-400 border-gray-200 bg-gray-50 cursor-not-allowed'
+                          : 'text-gray-700 border-gray-300 bg-white hover:bg-gray-100'
+                      }`}
+                    >
+                      <ChevronLeft className="w-4 h-4 mr-1" />
+                      Prev
+                    </button>
+
+                    <button
+                      onClick={() =>
+                        setPage((p) => Math.min(totalPages, p + 1))
+                      }
+                      disabled={safePage === totalPages}
+                      className={`flex items-center px-3 py-2 rounded-lg border text-sm ${
+                        safePage === totalPages
+                          ? 'text-gray-400 border-gray-200 bg-gray-50 cursor-not-allowed'
+                          : 'text-gray-700 border-gray-300 bg-white hover:bg-gray-100'
+                      }`}
+                    >
+                      Next
+                      <ChevronRight className="w-4 h-4 ml-1" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -496,7 +698,9 @@ export default function PermissionsPage() {
                 <div className="p-6 space-y-6">
                   {/* Role Selection */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Select Role</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Select Role
+                    </label>
                     <select
                       value={selectedRole}
                       onChange={(e) => setSelectedRole(e.target.value)}
@@ -513,7 +717,9 @@ export default function PermissionsPage() {
 
                   {/* User Selection */}
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Select User</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Select User
+                    </label>
                     <select
                       value={selectedUserId}
                       onChange={(e) => {
@@ -545,7 +751,9 @@ export default function PermissionsPage() {
                   {/* Action Buttons */}
                   <div className="flex flex-col gap-3">
                     <button
-                      onClick={() => openManageModalFromDropdown('grant')}
+                      onClick={() =>
+                        openManageModalFromDropdown('grant')
+                      }
                       className="w-full px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-green-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 font-medium"
                       disabled={!selectedUserId}
                     >
@@ -554,7 +762,9 @@ export default function PermissionsPage() {
                     </button>
 
                     <button
-                      onClick={() => openManageModalFromDropdown('revoke')}
+                      onClick={() =>
+                        openManageModalFromDropdown('revoke')
+                      }
                       className="w-full px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-red-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 font-medium"
                       disabled={!selectedUserId}
                     >
@@ -565,7 +775,7 @@ export default function PermissionsPage() {
 
                   {/* Permission Display */}
                   {selectedUserId && (
-                    <div className="grid grid-cols-1 gap-4">
+                    <div className="grid grid-cols-1 gap-4 text-sm">
                       <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                         <h3 className="font-semibold text-green-800 mb-2 flex items-center gap-2">
                           <Check className="w-4 h-4" />
@@ -574,12 +784,17 @@ export default function PermissionsPage() {
                         <div className="flex flex-wrap gap-1">
                           {effectivePerms.length > 0 ? (
                             effectivePerms.map((perm) => (
-                              <span key={perm} className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium">
+                              <span
+                                key={perm}
+                                className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium"
+                              >
                                 {perm}
                               </span>
                             ))
                           ) : (
-                            <span className="text-green-700 text-sm">No permissions</span>
+                            <span className="text-green-700 text-sm">
+                              No permissions
+                            </span>
                           )}
                         </div>
                       </div>
@@ -592,12 +807,17 @@ export default function PermissionsPage() {
                         <div className="flex flex-wrap gap-1">
                           {directPerms.length > 0 ? (
                             directPerms.map((perm) => (
-                              <span key={perm} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium">
+                              <span
+                                key={perm}
+                                className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-medium"
+                              >
                                 {perm}
                               </span>
                             ))
                           ) : (
-                            <span className="text-blue-700 text-sm">No direct permissions</span>
+                            <span className="text-blue-700 text-sm">
+                              No direct permissions
+                            </span>
                           )}
                         </div>
                       </div>
@@ -614,14 +834,26 @@ export default function PermissionsPage() {
                     Available Permissions
                   </h2>
                 </div>
-                <div className="p-6">
+                <div className="p-6 text-sm">
                   <div className="grid grid-cols-1 gap-2">
                     {allPerms.map((perm) => (
-                      <div key={perm.id} className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                        <div className="font-mono text-sm font-medium text-blue-800">{perm.code}</div>
-                        <div className="text-xs text-blue-600">{perm.description}</div>
+                      <div
+                        key={perm.id}
+                        className="bg-blue-50 border border-blue-200 rounded-lg p-3"
+                      >
+                        <div className="font-mono text-sm font-medium text-blue-800">
+                          {perm.code}
+                        </div>
+                        <div className="text-xs text-blue-600">
+                          {perm.description}
+                        </div>
                       </div>
                     ))}
+                    {allPerms.length === 0 && (
+                      <div className="text-center text-gray-500 text-xs py-6">
+                        No permissions loaded
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -629,9 +861,9 @@ export default function PermissionsPage() {
           </div>
 
           {/* VIEW MODAL */}
-          <Modal 
-            isOpen={viewOpen} 
-            onClose={() => setViewOpen(false)} 
+          <Modal
+            isOpen={viewOpen}
+            onClose={() => setViewOpen(false)}
             title="User Details"
             size="md"
             showFooter={false}
@@ -640,36 +872,69 @@ export default function PermissionsPage() {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
-                    <p className="text-gray-900">{viewUser.username}</p>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Username
+                    </label>
+                    <p className="text-gray-900">
+                      {viewUser.username}
+                    </p>
                   </div>
                   {viewUser.fullName && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                      <p className="text-gray-900">{viewUser.fullName}</p>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Full Name
+                      </label>
+                      <p className="text-gray-900">
+                        {viewUser.fullName}
+                      </p>
                     </div>
                   )}
                 </div>
-                
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Roles</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Roles
+                  </label>
                   <div className="flex flex-wrap gap-1">
-                    {(viewUser.roles || []).map(role => (
-                      <span key={role} className="bg-orange-100 text-orange-700 px-2 py-1 rounded text-xs font-medium">
-                        {role}
+                    {(viewUser.roles || []).length > 0 ? (
+                      (viewUser.roles || []).map((role) => (
+                        <span
+                          key={role}
+                          className="bg-orange-100 text-orange-700 px-2 py-1 rounded text-xs font-medium"
+                        >
+                          {role}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-gray-500 text-sm">
+                        No roles
                       </span>
-                    ))}
+                    )}
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Permissions</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Permissions
+                  </label>
                   <div className="flex flex-wrap gap-1">
-                    {onlyGlobalFive(viewUser.permissions || []).map(perm => (
-                      <span key={perm} className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium">
-                        {perm}
+                    {onlyGlobalFive(viewUser.permissions || []).length >
+                    0 ? (
+                      onlyGlobalFive(viewUser.permissions || []).map(
+                        (perm) => (
+                          <span
+                            key={perm}
+                            className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-medium"
+                          >
+                            {perm}
+                          </span>
+                        )
+                      )
+                    ) : (
+                      <span className="text-gray-500 text-sm">
+                        No permissions
                       </span>
-                    ))}
+                    )}
                   </div>
                 </div>
               </div>
@@ -680,9 +945,15 @@ export default function PermissionsPage() {
           <Modal
             isOpen={manageOpen}
             onClose={() => setManageOpen(false)}
-            title={`${mode === 'grant' ? 'Grant' : 'Revoke'} Permissions - ${selectedUserLabel}`}
+            title={`${
+              mode === 'grant' ? 'Grant' : 'Revoke'
+            } Permissions - ${selectedUserLabel}`}
             onSubmit={submitManage}
-            submitText={mode === 'grant' ? 'Grant Selected' : 'Revoke Selected'}
+            submitText={
+              mode === 'grant'
+                ? 'Grant Selected'
+                : 'Revoke Selected'
+            }
             size="md"
             loading={loading}
           >
@@ -690,10 +961,13 @@ export default function PermissionsPage() {
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => { setMode('grant'); setSelectedPerms([]); }}
+                  onClick={() => {
+                    setMode('grant');
+                    setSelectedPerms([]);
+                  }}
                   className={`flex-1 px-4 py-2 rounded-lg border transition-colors ${
-                    mode === 'grant' 
-                      ? 'bg-green-600 text-white border-green-700' 
+                    mode === 'grant'
+                      ? 'bg-green-600 text-white border-green-700'
                       : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                   }`}
                 >
@@ -701,10 +975,13 @@ export default function PermissionsPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setMode('revoke'); setSelectedPerms([]); }}
+                  onClick={() => {
+                    setMode('revoke');
+                    setSelectedPerms([]);
+                  }}
                   className={`flex-1 px-4 py-2 rounded-lg border transition-colors ${
-                    mode === 'revoke' 
-                      ? 'bg-red-600 text-white border-red-700' 
+                    mode === 'revoke'
+                      ? 'bg-red-600 text-white border-red-700'
                       : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
                   }`}
                 >
@@ -715,7 +992,9 @@ export default function PermissionsPage() {
               <div className="border border-gray-200 rounded-lg p-4">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-sm font-medium text-gray-700">
-                    {mode === 'grant' ? 'Available Permissions' : 'Current Direct Permissions'}
+                    {mode === 'grant'
+                      ? 'Available Permissions'
+                      : 'Current Direct Permissions'}
                   </span>
                   <span className="text-xs text-gray-500">
                     {selectedPerms.length} selected
@@ -735,18 +1014,25 @@ export default function PermissionsPage() {
                           type="checkbox"
                           className="mr-3"
                           checked={
-                            selectedPerms.length === permissionOptions.length &&
+                            selectedPerms.length ===
+                              permissionOptions.length &&
                             permissionOptions.length > 0
                           }
                           onChange={toggleAll}
                         />
-                        <label htmlFor="selectAll" className="text-sm font-medium text-gray-700">
+                        <label
+                          htmlFor="selectAll"
+                          className="text-sm font-medium text-gray-700"
+                        >
                           Select all permissions
                         </label>
                       </div>
-                      
+
                       {permissionOptions.map((p) => (
-                        <label key={p.code} className="flex items-center p-2 hover:bg-gray-50 rounded cursor-pointer">
+                        <label
+                          key={p.code}
+                          className="flex items-center p-2 hover:bg-gray-50 rounded cursor-pointer"
+                        >
                           <input
                             type="checkbox"
                             className="mr-3"
@@ -754,8 +1040,12 @@ export default function PermissionsPage() {
                             onChange={() => togglePerm(p.code)}
                           />
                           <div>
-                            <div className="font-mono text-sm font-medium text-gray-900">{p.code}</div>
-                            <div className="text-xs text-gray-600">{p.description}</div>
+                            <div className="font-mono text-sm font-medium text-gray-900">
+                              {p.code}
+                            </div>
+                            <div className="text-xs text-gray-600">
+                              {p.description}
+                            </div>
                           </div>
                         </label>
                       ))}
@@ -767,7 +1057,7 @@ export default function PermissionsPage() {
           </Modal>
 
           {/* Mobile Menu Button */}
-          <button 
+          <button
             onClick={() => setIsOpenSidebar(true)}
             className="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-orange-600 text-white rounded-full shadow-lg hover:bg-orange-700 transition-all flex items-center justify-center z-40"
           >

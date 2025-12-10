@@ -329,7 +329,7 @@ export default function VehicleListPage() {
                 onClick={() => printVehicleList(filtered as Vehicle[], showDeleted)}
               >
                 <Printer size={16} />
-                <span>Print All</span>
+                <span>Print</span>
               </button>
             </div>
           </div>

@@ -252,12 +252,15 @@ export function printUsageSlip(r: UsageRequest) {
   `;
   const fmt = (v:any)=> (v===null||v===undefined||v==='')?'-':String(v);
   const fmtD = (s?:string|null)=> s? new Date(s).toLocaleString(): '-';
+  const travelDates = r.returnDate && r.returnDate !== r.dateOfTravel
+    ? `${fmt(r.dateOfTravel)} → ${fmt(r.returnDate)}`
+    : fmt(r.dateOfTravel);
   const html = `<!doctype html><html><head><title>${r.requestCode}</title><style>${style}</style></head><body>
     <h2>Transport Slip • ${r.requestCode}</h2>
     <div class="grid">
       <div class="label">Applicant</div><div class="val">${fmt(r.applicantName)} (${fmt(r.employeeId)})</div>
       <div class="label">Department</div><div class="val">${fmt(r.department)}</div>
-      <div class="label">Travel</div><div class="val">${fmt(r.dateOfTravel)} • ${fmt(r.timeFrom)} – ${fmt(r.timeTo)}</div>
+      <div class="label">Travel</div><div class="val">${travelDates} • ${fmt(r.timeFrom)} – ${fmt(r.timeTo)}</div>
       <div class="label">Route</div><div class="val">${fmt(r.fromLocation)} → ${fmt(r.toLocation)}</div>
       <div class="label">Trip Description</div><div class="val">${fmt(r.officialDescription)}</div>
       <div class="label">Goods</div><div class="val">${fmt(r.goods)}</div>

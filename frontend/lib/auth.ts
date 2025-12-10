@@ -2,8 +2,7 @@
 import api from './api';
 
 export async function login(body: { username: string; password: string }) {
-  const response = await api.post('/auth/login', body);
-  return response.data;
+  await api.post('/auth/login', body);
 }
 
 export async function me() {
@@ -12,11 +11,9 @@ export async function me() {
 }
 
 export async function logout() {
-  const response = await api.post('/auth/logout');
-  return response.data;
+  await api.post('/auth/logout');
 }
 
 export async function changePassword(body: { oldPassword: string; newPassword: string }) {
-  const response = await api.post('/auth/change-password', body);
-  return response.data;
+  await api.post('/auth/change-password', body);
 }

@@ -9,10 +9,12 @@
   <packaging>pom</packaging>
 
   <modules>
-    <module>backend/service-registry</module>
-    <module>backend/api-gateway</module>
-    <module>backend/authservice</module>
-    <module>backend/transport-service</module> <!-- rename from Transport -->
+    <module>service-registry</module>
+    <module>api-gateway-service</module>
+    <module>authservice</module>
+    <module>Transport</module>
+    <module>marketingservice</module>
+    <module>notificationservice</module>
   </modules>
 
   <parent>
@@ -36,11 +38,6 @@
         <type>pom</type>
         <scope>import</scope>
       </dependency>
-
-      <dependency>
-    <groupId>org.springframework.cloud</groupId>
-    <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
-  </dependency>
     </dependencies>
   </dependencyManagement>
 </project>

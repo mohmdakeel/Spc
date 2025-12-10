@@ -1,11 +1,12 @@
 'use client';
 
 import * as React from 'react';
-import ApplicantSidebar from '../components/ApplicantSidebar';
 import { listMyRequests, listAllRequests } from '../../Transport/services/usageService';
 import type { UsageRequest } from '../../Transport/services/types';
 import { Th, Td } from '../../Transport/components/ThTd';
-import { Search, Printer, X } from 'lucide-react';
+import { Printer, X } from 'lucide-react';
+import WorkspaceSearchBar from '../../../../../components/workspace/WorkspaceSearchBar';
+import { printDocument, escapeHtml, guessPrintedBy } from '../../../../../lib/print';
 
 /* ------------ helpers ------------ */
 const fmtDT = (s?: string | null) => (s ? new Date(s).toLocaleString() : '—');
@@ -86,19 +87,28 @@ function extractOfficer(r: any): { withOfficer: boolean; name?: string; id?: str
   return { withOfficer: false };
 }
 
-/* print via hidden iframe */
-function printHtmlViaIframe(html: string) {
-  const iframe = document.createElement('iframe');
-  Object.assign(iframe.style, { position: 'fixed', right: '0', bottom: '0', width: '0', height: '0', border: '0' } as CSSStyleDeclaration);
-  document.body.appendChild(iframe);
-  const doc = iframe.contentWindow?.document;
-  if (!doc) { document.body.removeChild(iframe); return; }
-  doc.open(); doc.write(html); doc.close();
-  iframe.onload = () => {
-    try { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); } catch {}
-    setTimeout(() => { try { document.body.removeChild(iframe); } catch {} }, 1200);
-  };
-}
+const formatPrintValue = (value?: string | number | null) => {
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return escapeHtml(trimmed.length ? trimmed : '—');
+  }
+  return escapeHtml(String(value));
+};
+
+const MY_REQUESTS_PRINT_STYLES = `
+  .rq {
+    font-weight: 600;
+    color: #9a3412;
+  }
+  .sub {
+    color: #6b7280;
+    font-size: 0.78rem;
+  }
+  .mono {
+    font-family: 'JetBrains Mono', 'Fira Mono', Consolas, monospace;
+  }
+`;
 
 export default function RequestsPage() {
   const [items, setItems] = React.useState<UsageRequest[]>([]);
@@ -167,110 +177,151 @@ export default function RequestsPage() {
 
   const printAllCurrent = React.useCallback(() => {
     const rowsHtml = filtered
-      .map((r: any) => {
+      .map((r: any, index) => {
         const off = extractOfficer(r);
+        const officerText = off.withOfficer
+          ? `${formatPrintValue(off.name)}${off.id ? ` <span class="sub">(${formatPrintValue(off.id)})</span>` : ''}${
+              off.phone ? `, ${formatPrintValue(off.phone)}` : ''
+            }`
+          : '—';
         return `
-<tr>
-  <td><div class="rq">${r.requestCode || ''}</div><div class="sub">${appliedLabel(r)}</div></td>
-  <td>${r.applicantName || ''} <span class="sub">(${r.employeeId || ''})</span><div class="sub">${r.department || ''}</div></td>
-  <td class="center">${r.status || ''}</td>
-  <td><div>${r.dateOfTravel || ''}</div><div class="sub mono">${r.timeFrom || ''} – ${r.timeTo || ''} ${r.overnight ? '(overnight)' : ''}</div></td>
-  <td>${r.fromLocation || ''} → ${r.toLocation || ''}</td>
-  <td>${off.withOfficer ? `${off.name || '-'}${off.id ? ` <span class="sub">(${off.id})</span>` : ''}${off.phone ? `, ${off.phone}` : ''}` : '—'}</td>
-  <td><div>${purposeWithoutOfficer(r)}</div><div class="sub">${r.goods || '—'}</div></td>
-</tr>`;
+  <tr>
+    <td>
+      <div class="rq">${formatPrintValue(r.requestCode)}</div>
+      <div class="sub">${escapeHtml(appliedLabel(r))}</div>
+    </td>
+    <td>
+      ${formatPrintValue(r.applicantName)} <span class="sub">(${formatPrintValue(r.employeeId)})</span>
+      <div class="sub">${formatPrintValue(r.department)}</div>
+      <div class="sub">Account: ${formatPrintValue(r.createdBy)}</div>
+    </td>
+    <td class="center">${formatPrintValue(r.status)}</td>
+    <td>
+      <div>${formatPrintValue(r.dateOfTravel)}</div>
+      <div class="sub mono">${formatPrintValue(r.timeFrom)} – ${formatPrintValue(r.timeTo)} ${
+          r.overnight ? '(overnight)' : ''
+        }</div>
+    </td>
+    <td>${formatPrintValue(r.fromLocation)} → ${formatPrintValue(r.toLocation)}</td>
+    <td>${officerText}</td>
+    <td>
+      <div>${escapeHtml(purposeWithoutOfficer(r))}</div>
+      <div class="sub">${formatPrintValue(r.goods)}</div>
+    </td>
+  </tr>`;
       })
       .join('');
 
-    const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"/><title>Requests - Print</title><meta name="viewport" content="width=device-width, initial-scale=1"/>
-<style>
-:root{--fg:#111;--muted:#666;--head:#faf5f0}*{box-sizing:border-box}body{margin:0;padding:10mm;font-family:system-ui,Arial,sans-serif;color:var(--fg)}
-h3{margin:0 0 8px 0}.meta{margin:4px 0 8px 0;font-size:12px;color:var(--muted)}
-table{width:100%;border-collapse:collapse;table-layout:fixed}thead{display:table-header-group}
-th,td{border:1px solid #ddd;padding:6px 8px;vertical-align:top;font-size:12px}th{background:var(--head);text-align:left}
-.center{text-align:center}.sub{color:var(--muted);font-size:11px}.mono{font-family:ui-monospace,Menlo,Consolas,monospace}.rq{font-weight:600;color:#8b4513}
-col.c1{width:12%}col.c2{width:17%}col.c3{width:10%}col.c4{width:12%}col.c5{width:15%}col.c6{width:14%}col.c7{width:14%}
-@media print{@page{size:A4 landscape;margin:8mm}body{padding:0}}
-</style></head>
-<body>
-  <h3>Requests (Applicant-entered)</h3>
-  <div class="meta">Results: ${filtered.length}</div>
-  <table>
-    <colgroup><col class="c1"/><col class="c2"/><col class="c3"/><col class="c4"/><col class="c5"/><col class="c6"/><col class="c7"/></colgroup>
-    <thead><tr><th>RQ ID / Applied</th><th>Applicant / Dept</th><th class="center">Status</th><th>Travel</th><th>Route</th><th>Officer</th><th>Purpose / Goods</th></tr></thead>
-    <tbody>${rowsHtml || '<tr><td colspan="7">No data</td></tr>'}</tbody>
-  </table>
-  <script>addEventListener('load',()=>setTimeout(()=>{focus();print();},150));</script>
-</body></html>`;
-    printHtmlViaIframe(html);
+    const contentHtml = rowsHtml
+      ? `<table class="spc-table">
+          <thead>
+            <tr>
+              <th>RQ ID / Applied</th>
+              <th>Applicant / Dept</th>
+              <th>Status</th>
+              <th>Travel</th>
+              <th>Route</th>
+              <th>Officer</th>
+              <th>Purpose / Goods</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>`
+      : '<div class="spc-empty">No requests match the current filters.</div>';
+
+    printDocument({
+      title: 'Applicant Requests',
+      subtitle: `Records shown: ${filtered.length}`,
+      contentHtml,
+      pageOrientation: 'landscape',
+      printedBy: guessPrintedBy(),
+      extraCss: MY_REQUESTS_PRINT_STYLES,
+    });
   }, [filtered]);
 
   const printOne = React.useCallback((r: any) => {
     const off = extractOfficer(r);
-    const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"/><title>${r.requestCode || 'Request'} - Print</title><meta name="viewport" content="width=device-width, initial-scale=1"/>
-<style>*{box-sizing:border-box}body{margin:0;padding:12mm;font-family:system-ui,Arial,sans-serif;color:#111}
-h2{margin:0 0 12px 0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px;font-size:13px}
-.block{margin:8px 0 2px;font-weight:600;color:#8b4513}.sub{color:#666;font-size:12px}
-table{width:100%;border-collapse:collapse;margin-top:10px}th,td{border:1px solid #ddd;padding:6px 8px;font-size:12px;vertical-align:top}
-th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portrait;margin:10mm}body{padding:0}}</style></head>
-<body>
-  <h2>Transport Request • ${r.requestCode || ''}</h2>
-  <div class="grid">
-    <div><div class="block">Applicant Name</div>${r.applicantName || ''} <span class="sub">(${r.employeeId || ''})</span></div>
-    <div><div class="block">Status</div>${r.status || ''}</div>
-    <div><div class="block">Department</div>${r.department || ''}</div>
-    <div><div class="block">Applied</div>${appliedLabel(r)}</div>
-    <div><div class="block">Date of Travel</div>${r.dateOfTravel || ''}</div>
-    <div><div class="block">From Location</div>${r.fromLocation || ''}</div>
-    <div><div class="block">Time From</div>${r.timeFrom || ''}</div>
-    <div><div class="block">To Location</div>${r.toLocation || ''}</div>
-    <div><div class="block">Time To</div>${r.timeTo || ''} ${r.overnight ? '(overnight)' : ''}</div>
-  </div>
-  <table>
-    <tr><th>Official Trip Description</th><td>${purposeWithoutOfficer(r)}</td></tr>
-    <tr><th>Goods being transported (if any)</th><td>${r.goods || '—'}</td></tr>
-    <tr><th>Travelling Officer</th><td>${off.withOfficer ? `${off.name || '—'}${off.id ? ` (${off.id})` : ''}${off.phone ? `, ${off.phone}` : ''}` : '—'}</td></tr>
-    <tr><th>Pickup</th><td>${fmtDT(r.scheduledPickupAt)}</td></tr>
-    <tr><th>Return</th><td>${fmtDT(r.scheduledReturnAt)}</td></tr>
-    <tr><th>Gate Exit • Odometer</th><td>${fmtDT(r.gateExitAt)} • O ${r.exitOdometer ?? '—'}</td></tr>
-    <tr><th>Gate Entry • Odometer</th><td>${fmtDT(r.gateEntryAt)} • O ${r.entryOdometer ?? '—'}</td></tr>
-  </table>
-  <script>addEventListener('load',()=>setTimeout(()=>{focus();print();},150));</script>
-</body></html>`;
-    printHtmlViaIframe(html);
+    const officerDetails = off.withOfficer
+      ? `${formatPrintValue(off.name)}${off.id ? ` (${formatPrintValue(off.id)})` : ''}${
+          off.phone ? `, ${formatPrintValue(off.phone)}` : ''
+        }`
+      : '—';
+
+    const contentHtml = `
+      <div class="spc-section">
+        <p class="spc-section__title">Applicant Details</p>
+        <table class="spc-definition">
+          <tr><td>Applicant</td><td>${formatPrintValue(r.applicantName)} (${formatPrintValue(r.employeeId)})</td></tr>
+          <tr><td>Department</td><td>${formatPrintValue(r.department)}</td></tr>
+          <tr><td>Status</td><td>${formatPrintValue(r.status)}</td></tr>
+          <tr><td>Applied</td><td>${escapeHtml(appliedLabel(r))}</td></tr>
+          <tr><td>Submitted By</td><td>${formatPrintValue(r.createdBy)}</td></tr>
+        </table>
+      </div>
+      <div class="spc-section">
+        <p class="spc-section__title">Travel Plan</p>
+        <table class="spc-definition">
+          <tr><td>Date of Travel</td><td>${formatPrintValue(r.dateOfTravel)}</td></tr>
+          <tr><td>Time</td><td>${formatPrintValue(r.timeFrom)} – ${formatPrintValue(r.timeTo)} ${r.overnight ? '(overnight)' : ''}</td></tr>
+          <tr><td>Route</td><td>${formatPrintValue(r.fromLocation)} → ${formatPrintValue(r.toLocation)}</td></tr>
+          <tr><td>Pickup</td><td>${escapeHtml(fmtDT(r.scheduledPickupAt))}</td></tr>
+          <tr><td>Return</td><td>${escapeHtml(fmtDT(r.scheduledReturnAt))}</td></tr>
+        </table>
+      </div>
+      <div class="spc-section">
+        <p class="spc-section__title">Officer & Purpose</p>
+        <table class="spc-definition">
+          <tr><td>Travelling Officer</td><td>${officerDetails}</td></tr>
+          <tr><td>Official Description</td><td>${escapeHtml(purposeWithoutOfficer(r))}</td></tr>
+          <tr><td>Goods</td><td>${formatPrintValue(r.goods)}</td></tr>
+        </table>
+      </div>
+      <div class="spc-section">
+        <p class="spc-section__title">Gate</p>
+        <table class="spc-definition">
+          <tr><td>Exit</td><td>${escapeHtml(fmtDT(r.gateExitAt))} • O ${formatPrintValue(r.exitOdometer)}</td></tr>
+          <tr><td>Entry</td><td>${escapeHtml(fmtDT(r.gateEntryAt))} • O ${formatPrintValue(r.entryOdometer)}</td></tr>
+        </table>
+      </div>
+    `;
+
+    printDocument({
+      title: 'Transport Request',
+      subtitle: `Code: ${r.requestCode || '—'}`,
+      contentHtml,
+      printedBy: guessPrintedBy(),
+      extraCss: MY_REQUESTS_PRINT_STYLES,
+    });
   }, []);
 
   const COLS = React.useMemo(() => ['12%','17%','10%','12%','15%','14%','14%','6%'], []);
 
   return (
-    <div className="flex min-h-screen bg-orange-50">
-      <ApplicantSidebar />
-
-      <main className="min-w-0 p-3 md:p-4 flex-1 text-[13px]">
-        <div className="flex items-center justify-between mb-3">
-          <h1 className="text-sm md:text-base font-semibold text-orange-900">Requests</h1>
-          <div className="flex items-center gap-2">
-            <label className="relative">
-              <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search…"
-                className="pl-7 pr-2 py-1.5 rounded border border-orange-200 text-[12px] h-8 w-[240px] focus:outline-none focus:ring-1 focus:ring-orange-300"
-              />
-            </label>
-            <button
-              type="button"
-              onClick={printAllCurrent}
-              className="inline-flex items-center gap-1 px-3 h-8 rounded bg-orange-600 text-white hover:bg-orange-700 text-[12px]"
-              title="Print all (current filter)"
-            >
-              <Printer size={14} /> Print Page
-            </button>
-          </div>
+    <div className="space-y-4 text-[13px]">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Requests</p>
+          <h1 className="text-2xl font-bold text-orange-900">My submissions</h1>
+          <p className="text-sm text-gray-600">Search, print or drill into your transport requests.</p>
         </div>
+        <div className="flex w-full flex-col gap-2 lg:w-auto lg:flex-row lg:items-center">
+          <WorkspaceSearchBar
+            value={q}
+            onChange={setQ}
+            placeholder="Search code, applicant, dept, route…"
+            className="w-full lg:w-80"
+          />
+          <button
+            type="button"
+            onClick={printAllCurrent}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-600 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-orange-700"
+            title="Print all (current filter)"
+          >
+            <Printer size={14} />
+            Print
+          </button>
+        </div>
+      </div>
 
         {!ids.length && (
           <div className="mb-3 text-[11px] rounded bg-yellow-50 border border-yellow-200 text-yellow-800 px-2 py-1">
@@ -278,7 +329,7 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
           </div>
         )}
 
-        <div className="bg-white rounded-md border border-orange-200">
+        <div className="bg-white rounded-2xl border border-orange-200 shadow-sm overflow-x-auto">
           <table className="w-full table-fixed text-[12.5px] leading-[1.25]">
             <colgroup>{COLS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
             <thead className="bg-orange-50">
@@ -317,6 +368,7 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
                         <span className="text-gray-600 text-[11px]">({r.employeeId || '—'})</span>
                       </div>
                       <div className="text-[11px] text-gray-700">{r.department || '—'}</div>
+                      <div className="text-[10px] text-gray-500">Account: {r.createdBy || '—'}</div>
                     </Td>
 
                     <Td className="px-2 py-1 text-center align-top">
@@ -366,8 +418,6 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
             </tbody>
           </table>
         </div>
-      </main>
-
       {view && <DetailsModal request={view} onClose={() => setView(null)} />}
     </div>
   );
@@ -407,6 +457,13 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
                 Created {fmtDT((request as any).createdAt)}
                 {(request as any).updatedAt ? ` • Updated ${fmtDT((request as any).updatedAt)}` : ''}
               </div>
+            </section>
+            <section className="md:col-span-2 border border-orange-100 rounded-lg p-3">
+              <div className="text-orange-800 font-semibold mb-1">Account trail</div>
+              <div><b>Submitted by account:</b> {(request as any).createdBy || '—'}</div>
+              <div><b>Created at:</b> {fmtDT((request as any).createdAt)}</div>
+              <div><b>Last updated by:</b> {(request as any).updatedBy || '—'}</div>
+              <div><b>Updated at:</b> {(request as any).updatedAt ? fmtDT((request as any).updatedAt) : '—'}</div>
             </section>
 
             <section>

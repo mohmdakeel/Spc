@@ -1,7 +1,7 @@
 // app/dashboard/page.tsx
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, type CSSProperties } from 'react';
 import Topbar from '../../../components/Topbar';
 import Sidebar from '../../../components/Sidebar';
 import { useAuth } from '../../../hooks/useAuth';
@@ -14,7 +14,7 @@ import {
   Activity,
 } from 'lucide-react';
 
-import { AuditLog } from '../../../types';
+import { AuditLog, Registration, User as UserType } from '../../../types';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -27,8 +27,11 @@ export default function Dashboard() {
     users: 0,
   });
   const [statsLoading, setStatsLoading] = useState(true);
+  const [registrations, setRegistrations] = useState<Registration[]>([]);
+  const [usersList, setUsersList] = useState<UserType[]>([]);
 
   const [recentLogs, setRecentLogs] = useState<AuditLog[]>([]);
+  const [allLogs, setAllLogs] = useState<AuditLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(true);
   const [logsError, setLogsError] = useState('');
 
@@ -54,26 +57,23 @@ export default function Dashboard() {
 
     setStatsLoading(true);
     Promise.all([
-      api
-        .get('/registrations')
-        .then((res) =>
-          setStats((prev) => ({
-            ...prev,
-            employees: Array.isArray(res.data) ? res.data.length : 0,
-          })),
-        ),
-      api
-        .get('/users')
-        .then((res) =>
-          setStats((prev) => ({
-            ...prev,
-            users: Array.isArray(res.data) ? res.data.length : 0,
-          })),
-        ),
+      api.get<Registration[]>('/registrations'),
+      api.get<UserType[]>('/users'),
     ])
       .catch((err) => {
         console.error('Failed to load stats', err);
         setStats({ employees: 0, users: 0 });
+        setRegistrations([]);
+        setUsersList([]);
+      })
+      .then((results) => {
+        if (!results) return;
+        const [regres, userres] = results;
+        const regs = Array.isArray(regres?.data) ? regres.data : [];
+        const usr = Array.isArray(userres?.data) ? userres.data : [];
+        setRegistrations(regs);
+        setUsersList(usr);
+        setStats({ employees: regs.length, users: usr.length });
       })
       .finally(() => {
         setStatsLoading(false);
@@ -96,9 +96,10 @@ export default function Dashboard() {
     api
       .get<AuditLog[]>(endpoint)
       .then((res) => {
-        const allLogs = Array.isArray(res.data) ? res.data : [];
+        const logs = Array.isArray(res.data) ? res.data : [];
+        setAllLogs(logs);
         // just take the latest 5 (or fewer)
-        const latest = allLogs
+        const latest = logs
           .slice() // copy
           .sort(
             (a, b) =>
@@ -110,6 +111,7 @@ export default function Dashboard() {
       .catch((err) => {
         console.error('Failed to load recent logs', err);
         setRecentLogs([]);
+        setAllLogs([]);
         setLogsError(
           err?.response?.data?.message || 'Failed to load recent activity',
         );
@@ -118,6 +120,38 @@ export default function Dashboard() {
         setLogsLoading(false);
       });
   }, [user, isAdmin]);
+
+  // ========================
+  // ANALYTICS DATA
+  // ========================
+  const roleDistribution = useMemo(() => {
+    if (!usersList.length) return [];
+    const counter = new Map<string, number>();
+    usersList.forEach((u) => {
+      (u.roles || []).forEach((code) => {
+        counter.set(code, (counter.get(code) || 0) + 1);
+      });
+    });
+    return Array.from(counter.entries())
+      .map(([role, count]) => ({ role, count }))
+      .sort((a, b) => b.count - a.count);
+  }, [usersList]);
+
+  const departmentBreakdown = useMemo(() => {
+    if (!registrations.length) return [];
+    const counter = new Map<string, number>();
+    registrations.forEach((reg) => {
+      const dept = (reg.department || 'Unassigned').trim() || 'Unassigned';
+      counter.set(dept, (counter.get(dept) || 0) + 1);
+    });
+    return Array.from(counter.entries())
+      .map(([department, count]) => ({ department, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  }, [registrations]);
+
+  const roleMax = Math.max(...roleDistribution.map((item) => item.count), 1);
+  const deptMax = Math.max(...departmentBreakdown.map((item) => item.count), 1);
 
   // ========================
   // QUICK LINKS CONFIG
@@ -164,15 +198,15 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-orange-50 to-orange-100">
+    <div className="auth-shell">
       {/* Sidebar */}
       <Sidebar user={user} isOpen={isOpenSidebar} onClose={toggleSidebar} />
 
       {/* Main area */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="auth-shell__main overflow-hidden">
         <Topbar user={user} />
 
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="auth-shell__content">
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -186,7 +220,7 @@ export default function Dashboard() {
           {/* Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             {/* Employees */}
-            <div className="bg-white rounded-2xl shadow-lg p-6 border border-orange-200 hover:shadow-xl transition-all duration-300">
+            <div className="auth-card p-6 hover:shadow-xl transition-all duration-300">
               <div className="flex items-center justify-between mb-4">
                 <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
                   <Users className="w-6 h-6 text-orange-600" />
@@ -212,7 +246,10 @@ export default function Dashboard() {
             </div>
 
             {/* Users */}
-            <div className="bg-white rounded-2xl shadow-lg p-6 border border-blue-200 hover:shadow-xl transition-all duration-300">
+            <div
+              className="auth-card p-6 hover:shadow-xl transition-all duration-300"
+              style={{ '--auth-card-border': '#bfdbfe' } as CSSProperties}
+            >
               <div className="flex items-center justify-between mb-4">
                 <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
                   <User className="w-6 h-6 text-blue-600" />
@@ -259,8 +296,80 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {/* Analytics */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <div className="auth-card p-6 hover:shadow-xl transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">User Role Distribution</h2>
+                  <p className="text-sm text-gray-500">How system roles are assigned across all users</p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
+                  <Activity className="w-5 h-5 text-purple-600" />
+                </div>
+              </div>
+              {statsLoading ? (
+                <p className="text-sm text-gray-500">Loading role analytics…</p>
+              ) : roleDistribution.length ? (
+                <div className="space-y-3">
+                  {roleDistribution.slice(0, 5).map((item) => (
+                    <div key={item.role}>
+                      <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
+                        <span className="font-medium text-gray-900">{item.role}</span>
+                        <span>{item.count}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-gray-100">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-purple-500 to-purple-600"
+                          style={{ width: `${(item.count / roleMax) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">No role data available yet.</p>
+              )}
+            </div>
+
+            <div className="auth-card p-6 hover:shadow-xl transition-all duration-300">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">Top Departments</h2>
+                  <p className="text-sm text-gray-500">Employee distribution by department</p>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center">
+                  <Users className="w-5 h-5 text-orange-600" />
+                </div>
+              </div>
+              {statsLoading ? (
+                <p className="text-sm text-gray-500">Loading department analytics…</p>
+              ) : departmentBreakdown.length ? (
+                <div className="space-y-3">
+                  {departmentBreakdown.map((item) => (
+                    <div key={item.department}>
+                      <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
+                        <span className="font-medium text-gray-900">{item.department}</span>
+                        <span>{item.count}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-gray-100">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-orange-500 to-orange-600"
+                          style={{ width: `${(item.count / deptMax) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">No department data captured yet.</p>
+              )}
+            </div>
+          </div>
+
+
           {/* Quick Links */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 border border-orange-200">
+          <div className="auth-card p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-gray-900">Quick Actions</h2>
               <p className="text-sm text-gray-600">
@@ -299,7 +408,7 @@ export default function Dashboard() {
           </div>
 
           {/* Recent Activity (REAL DATA) */}
-          <div className="mt-8 bg-white rounded-2xl shadow-lg p-6 border border-orange-200">
+          <div className="mt-8 auth-card p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                 <HistoryIcon className="w-5 h-5 text-orange-600" />

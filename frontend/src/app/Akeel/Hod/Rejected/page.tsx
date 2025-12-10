@@ -2,11 +2,10 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import HODSidebar from '../components/HODSidebar';
 import { listByStatus } from '../../Transport/services/usageService';
 import type { UsageRequest } from '../../Transport/services/types';
 import { Th, Td } from '../../Transport/components/ThTd';
-import SearchBar from '../../Transport/components/SearchBar';
+import HODSearchBar from '../components/HODSearchBar';
 import { Printer, X } from 'lucide-react';
 
 /* ---------------- helpers ---------------- */
@@ -139,6 +138,32 @@ export default function HODRejectedPage() {
     });
   }, [rows, q]);
 
+  const monthlyRejected = useMemo(() => {
+    const map = new Map<number, { label: string; labelShort: string; count: number; order: number }>();
+    rows.forEach((r: any) => {
+      const raw = r.updatedAt || r.rejectedAt || r.createdAt;
+      if (!raw) return;
+      const d = new Date(raw);
+      if (Number.isNaN(d.getTime())) return;
+      const order = d.getFullYear() * 12 + d.getMonth();
+      const label = d.toLocaleString('default', { month: 'short', year: 'numeric' });
+      const shortLabel = d.toLocaleString('default', { month: 'short' });
+      const entry = map.get(order) ?? { label, labelShort: shortLabel, count: 0, order };
+      entry.count += 1;
+      map.set(order, entry);
+    });
+    return Array.from(map.values()).sort((a, b) => a.order - b.order).slice(-6);
+  }, [rows]);
+
+  const monthlyStats = useMemo(() => {
+    if (!monthlyRejected.length) return [];
+    const max = Math.max(...monthlyRejected.map((m) => m.count), 1);
+    return monthlyRejected.map((m) => ({
+      ...m,
+      pct: Math.max(8, (m.count / max) * 100),
+    }));
+  }, [monthlyRejected]);
+
   /* -------------------- PRINT (match table columns/order/labels) -------------------- */
   const printPage = useCallback(() => {
     const rowsHtml = filtered.map((r: any) => {
@@ -220,24 +245,54 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
 
   /* ======================= UI ======================= */
   return (
-    <div className="flex min-h-screen bg-orange-50">
-      <HODSidebar />
-
-      <main className="p-3 md:p-4 flex-1">
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="text-[14px] md:text-lg font-bold text-orange-900">Rejected</h1>
-          <div className="flex items-center gap-2">
-            <SearchBar value={q} onChange={setQ} placeholder="Search code, applicant, dept, route, officer, purpose…" className="h-8" />
+    <>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-2">
+          <div>
+            <h1 className="text-base md:text-lg font-bold text-orange-900">Rejected Requests</h1>
+            <p className="text-xs text-gray-600">Audit trail of every request rejected at any stage.</p>
+          </div>
+          <div className="flex flex-col gap-2 w-full md:w-auto md:flex-row md:items-center">
+            <HODSearchBar
+              value={q}
+              onChange={setQ}
+              placeholder="Search code, applicant, dept, route, officer, purpose…"
+              className="w-full md:w-72"
+            />
             <button
               type="button"
               onClick={printPage}
-              className="inline-flex items-center gap-1 px-2.5 h-8 rounded bg-orange-600 text-white hover:bg-orange-700 text-[12px]"
+              className="inline-flex items-center justify-center gap-1 px-3 h-11 md:h-10 rounded-lg bg-orange-600 text-white hover:bg-orange-700 text-xs font-semibold"
               title="Print current list"
             >
-              <Printer size={14} /> Print Page
+              <Printer size={14} /> Print
             </button>
           </div>
         </div>
+
+        {monthlyStats.length > 0 && (
+          <section className="hod-card bg-white border border-orange-200 rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-orange-600 font-semibold">Monthly analysis</p>
+                <h2 className="text-lg font-bold text-orange-900">Rejections trend (last {monthlyStats.length} months)</h2>
+              </div>
+              <span className="text-xs text-gray-600">Total {rows.length}</span>
+            </div>
+            <div className="flex items-end gap-2 h-36">
+              {monthlyStats.map((m) => (
+                <div key={m.label} className="flex-1 flex flex-col items-center gap-1">
+                  <div
+                    className="w-full rounded-t-full bg-gradient-to-b from-rose-400 to-rose-600 transition-all duration-300"
+                    style={{ height: `${m.pct}%` }}
+                    aria-label={`${m.label} rejections ${m.count}`}
+                  />
+                  <span className="text-[11px] font-semibold text-orange-900">{m.labelShort}</span>
+                  <span className="text-[10px] text-gray-600">{m.count}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         <div className="bg-white rounded-lg border border-orange-200 overflow-auto">
           {/* Order & labels MATCH Applicant & HOD Approved pages */}
@@ -358,7 +413,6 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
             </tbody>
           </table>
         </div>
-      </main>
 
       {/* Row-click details modal (no separate Details button) */}
       {view
@@ -367,7 +421,7 @@ th{background:#faf5f0;text-align:left;width:34%}@media print{@page{size:A4 portr
             document.body
           )
         : null}
-    </div>
+    </>
   );
 }
 

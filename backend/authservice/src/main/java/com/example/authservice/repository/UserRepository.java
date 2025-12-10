@@ -1,16 +1,21 @@
-// src/main/java/com/example/authservice/repository/UserRepository.java
 package com.example.authservice.repository;
 
 import com.example.authservice.model.User;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
+
 import java.util.*;
 
 public interface UserRepository extends JpaRepository<User, Long> {
 
   Optional<User> findByUsername(String username);
 
-  // Role codes for a user (ADMIN, HR, TRANSPORT, ...)
+  // ✅ add this so code can compile if later you want to search by email
+  Optional<User> findByEmail(String email);
+
+  Optional<User> findByEmailIgnoreCase(String email);
+
+  // list role codes for a given user
   @Query("""
     SELECT r.code
     FROM Role r
@@ -22,7 +27,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
   """)
   List<String> findAuthorities(@Param("uid") Long uid);
 
-  // Permission codes derived from roles (base set for "effective" permissions)
+  // collect permission codes through roles
   @Query("""
     SELECT DISTINCT p.code
     FROM Permission p
@@ -32,7 +37,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
   """)
   List<String> findRolePermissionCodes(@Param("uid") Long uid);
 
-  // (legacy alias)
+  // convenience: same result as above for older code paths
   @Query("""
     SELECT DISTINCT p.code
     FROM Permission p
@@ -42,7 +47,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
   """)
   List<String> findPermissionCodes(@Param("uid") Long uid);
 
-  // Users that currently have a specific role
+  // users by role (for dropdowns etc.)
   @Query("""
     SELECT u
     FROM User u

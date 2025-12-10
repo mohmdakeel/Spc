@@ -15,7 +15,6 @@ const http = axios.create({
   timeout: 20000,
 });
 
-// keep your interceptors (X-Actor/X-Role) if you want
 export default http;
 
 export function unwrapApi<T>(body: any): T {

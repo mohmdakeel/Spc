@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -28,9 +29,17 @@ public class DataSeeder implements CommandLineRunner {
 
   @Override
   public void run(String... args) {
+    seed();
+  }
+
+  @Transactional
+  public synchronized void seed() {
 
     // ===== 1. ROLES (only the roles you use) =====
     Role ADMIN            = role("ADMIN", "Administrator", "System admin");
+    Role AUTH_ADMIN       = role("AUTH_ADMIN", "Authentication Admin", "Admin limited to Auth service");
+    Role TRANSPORT_ADMIN  = role("TRANSPORT_ADMIN", "Transport Admin", "Manages transport module");
+    Role TRANSPORT        = role("TRANSPORT", "Transport Officer", "Transport-only staff");
     Role HRD              = role("HRD", "HR Department", "HR / HRD");
     Role HOD              = role("HOD", "Head of Dept", "Department head / manager");
     Role GM               = role("GM", "General Manager", "General manager");
@@ -48,6 +57,8 @@ public class DataSeeder implements CommandLineRunner {
     //
     // ADMIN: full power in both Auth + Transport
     grant(ADMIN, perms(GLOBAL5)); // all 5
+    grant(AUTH_ADMIN, perms(GLOBAL5));
+    grant(TRANSPORT_ADMIN, perms(GLOBAL5));
 
     // HRD: can view + update people data (but not delete users, not full system admin)
     grant(HRD, perms(List.of("READ", "UPDATE", "PRINT")));
@@ -59,6 +70,7 @@ public class DataSeeder implements CommandLineRunner {
 
     // VEHICLE_INCHARGE: can view/update vehicles, print reports
     grant(VEHICLE_INCHARGE, perms(List.of("READ", "UPDATE", "PRINT")));
+    grant(TRANSPORT, perms(List.of("READ", "UPDATE", "PRINT")));
 
     // GATE_SECURITY: can only read (like scanning, logs, etc.)
     grant(GATE_SECURITY, perms(List.of("READ")));
@@ -69,8 +81,8 @@ public class DataSeeder implements CommandLineRunner {
     // ===== 4. EMPLOYEE MASTER DATA (Registration table) =====
     // We create base employee records with EPF numbers
     upsertReg("EPF-0000", "System Admin",          "IT");
-    upsertReg("EPF-0001", "Admin One",             "IT");
-    upsertReg("EPF-0002", "Admin Two",             "IT");
+    upsertReg("EPF-0001", "Admin Backup One",      "IT");
+    upsertReg("EPF-0003", "Auth Service Admin",    "IT");
 
     upsertReg("EPF-1001", "HRD Person",            "HR");
     upsertReg("EPF-2001", "Head Of Dept User",     "Production");
@@ -78,13 +90,15 @@ public class DataSeeder implements CommandLineRunner {
     upsertReg("EPF-4001", "Company Chairman",      "Board");
 
     upsertReg("EPF-5001", "Vehicle Incharge User", "Transport");
+    upsertReg("EPF-5002", "Transport Admin User",  "Transport");
+    upsertReg("EPF-5003", "Transport Officer",     "Transport");
     upsertReg("EPF-6001", "Gate Security One",     "Security");
 
     upsertReg("EPF-7001", "Normal Staff User",     "Operations");
 
     Registration rAdmin0   = regRepo.findByEpfNoAndDeletedFalse("EPF-0000").orElseThrow();
-    Registration rAdmin1   = regRepo.findByEpfNoAndDeletedFalse("EPF-0001").orElseThrow();
-    Registration rAdmin2   = regRepo.findByEpfNoAndDeletedFalse("EPF-0002").orElseThrow();
+    Registration rAuthAdmin= regRepo.findByEpfNoAndDeletedFalse("EPF-0003").orElseThrow();
+    Registration rTransportAdmin = regRepo.findByEpfNoAndDeletedFalse("EPF-5002").orElseThrow();
 
     Registration rHRD      = regRepo.findByEpfNoAndDeletedFalse("EPF-1001").orElseThrow();
     Registration rHOD      = regRepo.findByEpfNoAndDeletedFalse("EPF-2001").orElseThrow();
@@ -92,6 +106,7 @@ public class DataSeeder implements CommandLineRunner {
     Registration rChair    = regRepo.findByEpfNoAndDeletedFalse("EPF-4001").orElseThrow();
 
     Registration rVehicle  = regRepo.findByEpfNoAndDeletedFalse("EPF-5001").orElseThrow();
+    Registration rTransportStaff = regRepo.findByEpfNoAndDeletedFalse("EPF-5003").orElseThrow();
     Registration rGate     = regRepo.findByEpfNoAndDeletedFalse("EPF-6001").orElseThrow();
 
     Registration rStaff    = regRepo.findByEpfNoAndDeletedFalse("EPF-7001").orElseThrow();
@@ -100,7 +115,7 @@ public class DataSeeder implements CommandLineRunner {
     //
     // NOTE: username + password (dev only). You can change these later.
 
-    // admin / admin123456  → ADMIN
+    // admin / admin123  → ADMIN
     if (userRepo.findByUsername("admin").isEmpty()) {
       User u0 = userRepo.save(User.builder()
           .epfNo(rAdmin0.getEpfNo())
@@ -109,40 +124,40 @@ public class DataSeeder implements CommandLineRunner {
           .fullName("System Admin")
           .department(rAdmin0.getDepartment())
           .active(true)
-          .password(encoder.encode("admin123456"))
+          .password(encoder.encode("admin123"))
           .addedDateTime(LocalDateTime.now())
           .build());
       link(u0, ADMIN);
     }
 
-    // admin1 / Admin1@123  → ADMIN
-    if (userRepo.findByUsername("admin1").isEmpty()) {
-      User u1 = userRepo.save(User.builder()
-          .epfNo(rAdmin1.getEpfNo())
-          .username("admin1")
-          .email("admin1@spc.lk")
-          .fullName("Admin One")
-          .department(rAdmin1.getDepartment())
+    // authadmin / AuthAdmin@123 → AUTH_ADMIN
+    if (userRepo.findByUsername("authadmin").isEmpty()) {
+      User auth = userRepo.save(User.builder()
+          .epfNo(rAuthAdmin.getEpfNo())
+          .username("authadmin")
+          .email("authadmin@spc.lk")
+          .fullName("Auth Service Admin")
+          .department(rAuthAdmin.getDepartment())
           .active(true)
-          .password(encoder.encode("Admin1@123"))
+          .password(encoder.encode("AuthAdmin@123"))
           .addedDateTime(LocalDateTime.now())
           .build());
-      link(u1, ADMIN);
+      link(auth, AUTH_ADMIN);
     }
 
-    // admin2 / Admin2@123  → ADMIN
-    if (userRepo.findByUsername("admin2").isEmpty()) {
-      User u2 = userRepo.save(User.builder()
-          .epfNo(rAdmin2.getEpfNo())
-          .username("admin2")
-          .email("admin2@spc.lk")
-          .fullName("Admin Two")
-          .department(rAdmin2.getDepartment())
+    // tadmin / TAdmin@123 → TRANSPORT_ADMIN
+    if (userRepo.findByUsername("tadmin").isEmpty()) {
+      User tAdmin = userRepo.save(User.builder()
+          .epfNo(rTransportAdmin.getEpfNo())
+          .username("tadmin")
+          .email("tadmin@spc.lk")
+          .fullName("Transport Admin User")
+          .department(rTransportAdmin.getDepartment())
           .active(true)
-          .password(encoder.encode("Admin2@123"))
+          .password(encoder.encode("TAdmin@123"))
           .addedDateTime(LocalDateTime.now())
           .build());
-      link(u2, ADMIN);
+      link(tAdmin, TRANSPORT_ADMIN);
     }
 
     // hrd / Hrd@123  → HRD
@@ -218,6 +233,21 @@ public class DataSeeder implements CommandLineRunner {
           .addedDateTime(LocalDateTime.now())
           .build());
       link(uVeh, VEHICLE_INCHARGE);
+    }
+
+    // transport1 / Transport@123 → TRANSPORT
+    if (userRepo.findByUsername("transport1").isEmpty()) {
+      User uTrans = userRepo.save(User.builder()
+          .epfNo(rTransportStaff.getEpfNo())
+          .username("transport1")
+          .email("transport1@spc.lk")
+          .fullName("Transport Officer")
+          .department(rTransportStaff.getDepartment())
+          .active(true)
+          .password(encoder.encode("Transport@123"))
+          .addedDateTime(LocalDateTime.now())
+          .build());
+      link(uTrans, TRANSPORT);
     }
 
     // gate1 / Gate1@123 → GATE_SECURITY

@@ -14,18 +14,6 @@ const http = axios.create({
   timeout: 20000,
 });
 
-/** Attach X-Actor / X-Role from localStorage (client only) */
-http.interceptors.request.use((cfg) => {
-  if (typeof window !== "undefined") {
-    const actor = localStorage.getItem("actor") || "web";
-    const role = localStorage.getItem("role") || "";
-    cfg.headers = cfg.headers || {};
-    (cfg.headers as any)["X-Actor"] = actor;
-    if (role) (cfg.headers as any)["X-Role"] = role;
-  }
-  return cfg;
-});
-
 export default http;
 
 export function unwrapApi<T>(body: any): T {

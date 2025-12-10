@@ -2,11 +2,10 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import ManagementSidebar from '../components/ManagementSidebar';
 import { listByStatus } from '../../Transport/services/usageService';
 import type { UsageRequest } from '../../Transport/services/types';
 import { Th, Td } from '../../Transport/components/ThTd';
-import SearchBar from '../../Transport/components/SearchBar';
+import WorkspaceSearchBar from '../../../../../components/workspace/WorkspaceSearchBar';
 import { Printer, X } from 'lucide-react';
 
 /* ---------------- helpers (same style as HOD Pending) ---------------- */
@@ -212,63 +211,68 @@ th{background:#faf5f0;text-align:left;width:34%}
 
   /* ---------------- UI ---------------- */
   return (
-    <div className="flex min-h-screen bg-orange-50">
-      <ManagementSidebar />
-
-      <main className="p-3 md:p-4 flex-1">
-        <div className="flex items-center justify-between mb-2">
+    <div className="space-y-4 p-3 md:p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
           <h1 className="text-[14px] font-bold text-orange-900">Rejected Requests</h1>
-          <div className="flex items-center gap-2">
-            <SearchBar value={q} onChange={setQ} placeholder="Search code, applicant, dept, route, officer, purpose…" className="h-8" />
-            <button
-              type="button"
-              onClick={printPage}
-              className="inline-flex items-center gap-1 px-2.5 h-8 rounded bg-orange-600 text-white hover:bg-orange-700 text-[12px]"
-              title="Print current list"
-            >
-              <Printer size={14} /> Print Page
-            </button>
-          </div>
+          <p className="text-xs text-gray-500">Requests declined during management review.</p>
         </div>
+        <div className="flex items-center gap-2 w-full lg:w-auto">
+          <WorkspaceSearchBar
+            value={q}
+            onChange={setQ}
+            placeholder="Search code, applicant, dept, route, officer, purpose…"
+            className="w-full lg:w-72"
+          />
+          <button
+            type="button"
+            onClick={printPage}
+            className="inline-flex items-center gap-1 px-3 h-10 rounded-xl bg-orange-600 text-white hover:bg-orange-700 text-sm"
+            title="Print current list"
+          >
+            <Printer size={14} /> Print
+          </button>
+        </div>
+      </div>
 
-        <div className="bg-white rounded-lg border border-orange-200 overflow-x-hidden overflow-y-auto">
-          {/* hydration-safe colgroup */}
-          <table className="w-full table-fixed text-[10.5px] leading-[1.15]">
-            <colgroup>{COLS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
-            <thead className="bg-orange-50">
-              <tr className="text-[9.5px]">
-                <Th className="px-2 py-1 text-left">RQ ID / Applied</Th>
-                <Th className="px-2 py-1 text-left">Applicant / Dept</Th>
-                <Th className="px-2 py-1 text-center">Status</Th>
-                <Th className="px-2 py-1 text-left">Travel</Th>
-                <Th className="px-2 py-1 text-left">Route</Th>
-                <Th className="px-2 py-1 text-left">Officer</Th>
-                <Th className="px-2 py-1 text-left">Purpose / Goods</Th>
-                <Th className="px-2 py-1 text-center">Actions</Th>
+      <div className="bg-white rounded-lg border border-orange-200 overflow-x-hidden overflow-y-auto">
+        {/* hydration-safe colgroup */}
+        <table className="w-full table-fixed text-[10.5px] leading-[1.15]">
+          <colgroup>{COLS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
+          <thead className="bg-orange-50">
+            <tr className="text-[9.5px]">
+              <Th className="px-2 py-1 text-left">RQ ID / Applied</Th>
+              <Th className="px-2 py-1 text-left">Applicant / Dept</Th>
+              <Th className="px-2 py-1 text-center">Status</Th>
+              <Th className="px-2 py-1 text-left">Travel</Th>
+              <Th className="px-2 py-1 text-left">Route</Th>
+              <Th className="px-2 py-1 text-left">Officer</Th>
+              <Th className="px-2 py-1 text-left">Purpose / Goods</Th>
+              <Th className="px-2 py-1 text-center">Actions</Th>
+            </tr>
+          </thead>
+
+          <tbody className="divide-y">
+            {loading && (
+              <tr>
+                <Td colSpan={8} className="px-2 py-6 text-center text-gray-500">Loading…</Td>
               </tr>
-            </thead>
+            )}
 
-            <tbody className="divide-y">
-              {loading && (
-                <tr>
-                  <Td colSpan={8} className="px-2 py-6 text-center text-gray-500">Loading…</Td>
-                </tr>
-              )}
+            {!loading && filtered.map((r: any) => {
+              const off = extractOfficer(r);
+              const rowKey = String(r?.id ?? r?.requestCode ?? `${r?.employeeId}-${r?.dateOfTravel}-${r?.timeFrom}`);
 
-              {!loading && filtered.map((r: any) => {
-                const off = extractOfficer(r);
-                const rowKey = String(r?.id ?? r?.requestCode ?? `${r?.employeeId}-${r?.dateOfTravel}-${r?.timeFrom}`);
-
-                return (
-                  <tr
-                    key={rowKey}
-                    className="align-top hover:bg-orange-50/40 cursor-pointer"
-                    onClick={() => setView(r)}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setView(r); } }}
-                    role="button"
-                    tabIndex={0}
-                    title="Click for full details"
-                  >
+              return (
+                <tr
+                  key={rowKey}
+                  className="align-top hover:bg-orange-50/40 cursor-pointer"
+                  onClick={() => setView(r)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setView(r); } }}
+                  role="button"
+                  tabIndex={0}
+                  title="Click for full details"
+                >
                     {/* RQ / Applied */}
                     <Td className="px-2 py-1">
                       <div className="font-semibold text-orange-900 truncate">{r.requestCode || '—'}</div>
@@ -341,7 +345,6 @@ th{background:#faf5f0;text-align:left;width:34%}
             </tbody>
           </table>
         </div>
-      </main>
 
       {/* Details modal — basic only */}
       {view
@@ -428,5 +431,5 @@ function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: ()
         </div>
       </div>
     </div>
-  );
+  );  
 }

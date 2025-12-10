@@ -1,11 +1,11 @@
 'use client';
 
 import * as React from 'react';
-import ManagementSidebar from '../components/ManagementSidebar';
 import type { UsageRequest } from '../../Transport/services/types';
 import { listByStatus, listAllRequests } from '../../Transport/services/usageService';
 import { Th, Td } from '../../Transport/components/ThTd';
-import { Search, Printer, X } from 'lucide-react';
+import { Printer, X } from 'lucide-react';
+import WorkspaceSearchBar from '../../../../../components/workspace/WorkspaceSearchBar';
 
 /* ---------------- helpers (same look & feel as your HOD track page) ---------------- */
 const fmtDT = (s?: string | null) => (s ? new Date(s).toLocaleString() : '—');
@@ -209,107 +209,103 @@ th,td{border:1px solid #ddd;padding:6px 8px;font-size:12px;vertical-align:top}th
   }, []);
 
   return (
-    <div className="flex min-h-screen bg-orange-50">
-      <ManagementSidebar />
-
-      <main className="p-3 md:p-4 flex-1 text-[13px] min-w-0">
-        <div className="flex items-center justify-between mb-3">
+    <div className="space-y-4 p-3 md:p-4 text-[13px] min-w-0">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
           <h1 className="text-sm md:text-base font-semibold text-orange-900">Track Request (Management — Post-HOD)</h1>
-          <div className="flex items-center gap-2">
-            <label className="relative">
-              <Search size={14} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search…"
-                className="pl-7 pr-2 py-1.5 rounded border border-orange-200 text-[12px] h-8 w-[240px] focus:outline-none focus:ring-1 focus:ring-orange-300"
-              />
-            </label>
-            <button
-              type="button"
-              onClick={printAllCurrent}
-              className="inline-flex items-center gap-1 px-3 h-8 rounded bg-orange-600 text-white hover:bg-orange-700 text-[12px]"
-              title="Print all (current filter)"
-            >
-              <Printer size={14} /> Print Page
-            </button>
-          </div>
+          <p className="text-xs text-gray-500">Monitor assignments, schedule, and gate activity.</p>
         </div>
+        <div className="flex items-center gap-2 w-full lg:w-auto">
+          <WorkspaceSearchBar
+            value={q}
+            onChange={setQ}
+            placeholder="Search code, vehicle, driver, gate…"
+            className="w-full lg:w-72"
+          />
+          <button
+            type="button"
+            onClick={printAllCurrent}
+            className="inline-flex items-center gap-1 px-3 h-10 rounded-xl bg-orange-600 text-white hover:bg-orange-700 text-sm"
+            title="Print current list"
+          >
+            <Printer size={14} /> Print
+          </button>
+        </div>
+      </div>
 
-        <div className="bg-white rounded-md border border-orange-200">
-          <table className="w-full table-fixed text-[12.5px] leading-[1.25]">
-            <colgroup>{COLS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
-            <thead className="bg-orange-50">
-              <tr className="text-[12px]">
-                <Th className="px-2 py-1 text-left">RQ ID / Applied</Th>
-                <Th className="px-2 py-1 text-center">Status</Th>
-                <Th className="px-2 py-1 text-left">Assigned</Th>
-                <Th className="px-2 py-1 text-left">Schedule</Th>
-                <Th className="px-2 py-1 text-left">Gate</Th>
-                <Th className="px-2 py-1 text-center">Print</Th>
+      <div className="bg-white rounded-md border border-orange-200">
+        <table className="w-full table-fixed text-[12.5px] leading-[1.25]">
+          <colgroup>{COLS.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
+          <thead className="bg-orange-50">
+            <tr className="text-[12px]">
+              <Th className="px-2 py-1 text-left">RQ ID / Applied</Th>
+              <Th className="px-2 py-1 text-center">Status</Th>
+              <Th className="px-2 py-1 text-left">Assigned</Th>
+              <Th className="px-2 py-1 text-left">Schedule</Th>
+              <Th className="px-2 py-1 text-left">Gate</Th>
+              <Th className="px-2 py-1 text-center">Print</Th>
+            </tr>
+          </thead>
+
+          <tbody className="divide-y">
+            {loading && (<tr><Td colSpan={6} className="px-2 py-6 text-center text-gray-500">Loading…</Td></tr>)}
+
+            {!loading && list.map((r: any) => (
+              <tr
+                key={String(r?.id ?? r?.requestCode)}
+                className="align-top hover:bg-orange-50/40 cursor-pointer"
+                onClick={() => setView(r)}
+                title="Click to view row details"
+              >
+                {/* RQ / Applied */}
+                <Td className="px-2 py-1 whitespace-normal break-words">
+                  <div className="font-semibold text-orange-900">{r.requestCode || '—'}</div>
+                  <div className="text-[11px] text-gray-600">{appliedLabel(r)}</div>
+                </Td>
+
+                {/* Status */}
+                <Td className="px-2 py-1 text-center align-top">
+                  <div className="flex items-start justify-center min-w-0">{chipStatus(r.status)}</div>
+                </Td>
+
+                {/* Assigned */}
+                <Td className="px-2 py-1 whitespace-normal break-words">
+                  <div>{r.assignedVehicleNumber || '—'}</div>
+                  <div className="text-[11px] text-gray-700">
+                    {r.assignedDriverName || '—'}{r.assignedDriverPhone ? ` (${r.assignedDriverPhone})` : ''}
+                  </div>
+                </Td>
+
+                {/* Schedule */}
+                <Td className="px-2 py-1 whitespace-normal break-words">
+                  <div>P: {fmtDT(r.scheduledPickupAt)}</div>
+                  <div className="text-[11px] text-gray-700">R: {fmtDT(r.scheduledReturnAt)}</div>
+                </Td>
+
+                {/* Gate */}
+                <Td className="px-2 py-1 whitespace-normal break-words">
+                  <div>Ex {fmtDT(r.gateExitAt)} <span className="text-[11px] text-gray-600">• O {r.exitOdometer ?? '—'}</span></div>
+                  <div>En {fmtDT(r.gateEntryAt)} <span className="text-[11px] text-gray-600">• O {r.entryOdometer ?? '—'}</span></div>
+                </Td>
+
+                {/* Print */}
+                <Td className="px-2 py-1 text-center" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    className="inline-flex items-center justify-center w-7 h-7 rounded bg-orange-600 text-white hover:bg-orange-700"
+                    title="Print this row"
+                    onClick={() => printOne(r)}
+                  >
+                    <Printer size={13} />
+                  </button>
+                </Td>
               </tr>
-            </thead>
+            ))}
 
-            <tbody className="divide-y">
-              {loading && (<tr><Td colSpan={6} className="px-2 py-6 text-center text-gray-500">Loading…</Td></tr>)}
-
-              {!loading && list.map((r: any) => (
-                <tr
-                  key={String(r?.id ?? r?.requestCode)}
-                  className="align-top hover:bg-orange-50/40 cursor-pointer"
-                  onClick={() => setView(r)}
-                  title="Click to view row details"
-                >
-                  {/* RQ / Applied */}
-                  <Td className="px-2 py-1 whitespace-normal break-words">
-                    <div className="font-semibold text-orange-900">{r.requestCode || '—'}</div>
-                    <div className="text-[11px] text-gray-600">{appliedLabel(r)}</div>
-                  </Td>
-
-                  {/* Status */}
-                  <Td className="px-2 py-1 text-center align-top">
-                    <div className="flex items-start justify-center min-w-0">{chipStatus(r.status)}</div>
-                  </Td>
-
-                  {/* Assigned */}
-                  <Td className="px-2 py-1 whitespace-normal break-words">
-                    <div>{r.assignedVehicleNumber || '—'}</div>
-                    <div className="text-[11px] text-gray-700">
-                      {r.assignedDriverName || '—'}{r.assignedDriverPhone ? ` (${r.assignedDriverPhone})` : ''}
-                    </div>
-                  </Td>
-
-                  {/* Schedule */}
-                  <Td className="px-2 py-1 whitespace-normal break-words">
-                    <div>P: {fmtDT(r.scheduledPickupAt)}</div>
-                    <div className="text-[11px] text-gray-700">R: {fmtDT(r.scheduledReturnAt)}</div>
-                  </Td>
-
-                  {/* Gate */}
-                  <Td className="px-2 py-1 whitespace-normal break-words">
-                    <div>Ex {fmtDT(r.gateExitAt)} <span className="text-[11px] text-gray-600">• O {r.exitOdometer ?? '—'}</span></div>
-                    <div>En {fmtDT(r.gateEntryAt)} <span className="text-[11px] text-gray-600">• O {r.entryOdometer ?? '—'}</span></div>
-                  </Td>
-
-                  {/* Print */}
-                  <Td className="px-2 py-1 text-center" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      type="button"
-                      className="inline-flex items-center justify-center w-7 h-7 rounded bg-orange-600 text-white hover:bg-orange-700"
-                      title="Print this row"
-                      onClick={() => printOne(r)}
-                    >
-                      <Printer size={13} />
-                    </button>
-                  </Td>
-                </tr>
-              ))}
-
-              {!loading && !list.length && (<tr><Td colSpan={6} className="px-2 py-6 text-center text-gray-500">No requests found.</Td></tr>)}
-            </tbody>
-          </table>
-        </div>
-      </main>
+            {!loading && !list.length && (<tr><Td colSpan={6} className="px-2 py-6 text-center text-gray-500">No requests found.</Td></tr>)}
+          </tbody>
+        </table>
+      </div>
 
       {view && <DetailsModal request={view} onClose={() => setView(null)} />}
     </div>

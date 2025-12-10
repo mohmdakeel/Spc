@@ -8,12 +8,14 @@ import 'react-toastify/dist/ReactToastify.css';
 import Topbar from '../../../../components/Topbar';      // path from this file
 import Sidebar from './components/SideBar';           // adjust if your SideBar lives elsewhere
 import { useAuth } from '../../../../hooks/useAuth';
+import RequireRole from '../../../../components/guards/RequireRole';
 
 export default function TransportLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuth(); // ← get the real logged-in user
 
   return (
-    <div className="flex h-screen bg-orange-50 overflow-hidden">
+    <RequireRole roles={['ADMIN', 'TRANSPORT_ADMIN', 'TRANSPORT']}>
+      <div className="flex h-screen bg-orange-50 overflow-hidden">
       {/* Left nav */}
       <Sidebar />
 
@@ -44,5 +46,6 @@ export default function TransportLayout({ children }: { children: React.ReactNod
         style={{ zIndex: 10000 }}
       />
     </div>
+    </RequireRole>
   );
 }

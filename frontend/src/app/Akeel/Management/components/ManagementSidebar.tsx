@@ -1,49 +1,55 @@
 'use client';
 
-import React from 'react';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, ListChecks, CheckCircle2, XCircle, Briefcase, Search } from 'lucide-react';
+import { Home, ListChecks, CheckCircle2, XCircle, Search, FolderHeart } from 'lucide-react';
+
+const MENU = [
+  { label: 'Dashboard', icon: Home, to: '/Akeel/Management' },
+  { label: 'Pending', icon: ListChecks, to: '/Akeel/Management/Pending' },
+  { label: 'Approved', icon: CheckCircle2, to: '/Akeel/Management/Approved' },
+  { label: 'Rejected', icon: XCircle, to: '/Akeel/Management/Rejected' },
+  { label: 'Track Request', icon: Search, to: '/Akeel/Management/Track' },
+];
 
 export default function ManagementSidebar() {
-  const [collapsed, setCollapsed] = React.useState(false);
   const router = useRouter();
-  const path = usePathname();
-  const go = (p: string) => router.push(p);
-  const isActive = (p: string) => path === p || path?.startsWith(p + '/');
+  const pathname = usePathname();
 
-  const Item = ({ to, icon, label }: { to: string; icon: React.ReactNode; label: string }) => (
-    <button
-      onClick={() => go(to)}
-      className={`w-full px-3 py-2 rounded flex items-center gap-2 ${
-        isActive(to) ? 'bg-orange-600 text-white' : 'hover:bg-orange-200'
-      }`}
-    >
-      {icon}
-      {!collapsed && label}
-    </button>
-  );
+  const isActive = (to: string) => pathname === to || pathname.startsWith(`${to}/`);
 
   return (
-    <aside className={`${collapsed ? 'w-20' : 'w-64'} h-screen bg-orange-100 p-4 transition-all`}>
-      <div className="flex items-center gap-2 mb-6">
-        <Briefcase className="text-orange-600" />
-        {!collapsed && <h1 className="font-bold">Management</h1>}
+    <aside className="hod-sidebar w-[260px] shrink-0 h-screen sticky top-0 bg-orange-100 border-r border-orange-200 flex flex-col p-4">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-11 h-11 rounded-2xl border border-orange-200 bg-white flex items-center justify-center shadow-sm">
+          <Image src="/spclogopic.png" width={32} height={32} alt="SPC" className="object-contain" priority />
+        </div>
+        <div className="min-w-0">
+          <h1 className="font-bold text-sm text-orange-900 leading-tight truncate">SPC Management</h1>
+          <p className="text-xs text-orange-700/70 truncate">Transport Oversight</p>
+        </div>
       </div>
 
-      <button
-        onClick={() => setCollapsed((c) => !c)}
-        className="mb-4 w-full bg-orange-200 rounded py-2 text-sm"
-      >
-        {collapsed ? 'Expand' : 'Collapse'}
-      </button>
-
-      <nav className="space-y-1">
-        <Item to="/Akeel/Management"           icon={<Home size={18} />}         label="Dashboard" />
-        <Item to="/Akeel/Management/Pending"   icon={<ListChecks size={18} />}   label="Pending Approvals" />
-        <Item to="/Akeel/Management/Approved"  icon={<CheckCircle2 size={18} />} label="Approved" />
-        <Item to="/Akeel/Management/Rejected"  icon={<XCircle size={18} />}      label="Rejected" />
-        <Item to="/Akeel/Management/Track"     icon={<Search size={18} />}       label="Track Request" />
+      <nav className="space-y-1 flex-1">
+        {MENU.map(({ label, icon: Icon, to }) => (
+          <button
+            key={label}
+            onClick={() => router.push(to)}
+            className={`w-full px-3 py-2 rounded flex items-center gap-2 text-sm transition ${
+              isActive(to) ? 'bg-orange-600 text-white shadow' : 'text-orange-900 hover:bg-orange-200'
+            }`}
+          >
+            <Icon size={18} />
+            <span className="truncate">{label}</span>
+          </button>
+        ))}
       </nav>
+
+      <div className="pt-4 mt-6 border-t border-orange-200 space-y-2 text-xs text-orange-700/80">
+        <p className="flex items-center gap-2">
+          <FolderHeart size={14} />
+        </p>
+      </div>
     </aside>
   );
 }

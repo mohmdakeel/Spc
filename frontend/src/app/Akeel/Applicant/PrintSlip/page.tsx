@@ -1,511 +1,361 @@
-// 'use client';
+'use client';
 
-// import * as React from 'react';
-// import ApplicantSidebar from '../components/ApplicantSidebar';
-// import { listMyRequests } from '../../Transport/services/usageService';
-// import type { UsageRequest } from '../../Transport/services/types';
-// import { Th, Td } from '../../Transport/components/ThTd';
-// import { Printer, Search, X } from 'lucide-react';
+import * as React from 'react';
+import { Printer } from 'lucide-react';
+import { listMyRequests } from '../../Transport/services/usageService';
+import type { UsageRequest } from '../../Transport/services/types';
+import { Th, Td } from '../../Transport/components/ThTd';
+import WorkspaceSearchBar from '../../../../../components/workspace/WorkspaceSearchBar';
+import { printDocument, escapeHtml, guessPrintedBy } from '../../../../../lib/print';
 
-// /* ---------------- helpers ---------------- */
-// const fmtDT = (s?: string | null) => (s ? new Date(s).toLocaleString() : '-');
+const READY_STATUSES = ['APPROVED', 'SCHEDULED', 'DISPATCHED', 'COMPLETED'];
+const fmtDT = (s?: string | null) => (s ? new Date(s).toLocaleString() : '—');
 
-// const chip = (s: string) => (
-//   <span className="inline-block text-[8.5px] px-1 py-[1px] rounded bg-orange-100 text-orange-800 leading-none">
-//     {s}
-//   </span>
-// );
+const extractOfficer = (r?: Partial<UsageRequest> | null) => {
+  if (!r) return { withOfficer: false };
+  const anyr = r as any;
+  if (anyr.travelWithOfficer || anyr.officerName || anyr.officerId) {
+    return { withOfficer: true, name: anyr.officerName || undefined, id: anyr.officerId || undefined };
+  }
+  const text = `${anyr?.officialDescription ?? ''}\n${anyr?.remarks ?? ''}`;
+  const m = /Travelling Officer:\s*([^\(\n,]+)?(?:\s*\((?:Employee\s*ID|ID)\s*:\s*([^)]+)\))?/i.exec(text);
+  if (m) return { withOfficer: true, name: m[1]?.trim(), id: m[2]?.trim() };
+  return { withOfficer: false };
+};
 
-// /** Safely extract officer details from explicit fields or parse fallback text */
-// function extractOfficer(
-//   r?: Partial<UsageRequest> | null
-// ): { withOfficer: boolean; name?: string; id?: string } {
-//   if (!r) return { withOfficer: false };
-//   const anyr = r as any;
-//   if (anyr.travelWithOfficer || anyr.officerName || anyr.officerId) {
-//     return {
-//       withOfficer: !!(anyr.travelWithOfficer || anyr.officerName || anyr.officerId),
-//       name: anyr.officerName || undefined,
-//       id: anyr.officerId || undefined,
-//     };
-//   }
-//   const text = `${anyr?.officialDescription ?? ''}\n${anyr?.remarks ?? ''}`;
-//   const m = /Travelling Officer:\s*([^\(\n,]+)?(?:\s*\(Employee ID:\s*([^)]+)\))?/i.exec(text);
-//   if (m) return { withOfficer: true, name: m[1]?.trim(), id: m[2]?.trim() };
-//   return { withOfficer: false };
-// }
+const formatPrintValue = (value?: string | number | null) => {
+  if (value === null || value === undefined) return '—';
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return escapeHtml(trimmed.length ? trimmed : '—');
+  }
+  return escapeHtml(String(value));
+};
 
-// /** Compose a stable key for a row, even if id is missing */
-// function rowKey(r: any, i: number): string {
-//   return String(r?.id ?? r?.requestCode ?? `${r?.employeeId ?? 'row'}-${r?.dateOfTravel ?? ''}-${i}`);
-// }
+const SLIP_PRINT_STYLES = `
+  .rq {
+    font-weight: 600;
+    color: #9a3412;
+  }
+  .sub {
+    color: #6b7280;
+    font-size: 0.78rem;
+  }
+  .mono {
+    font-family: 'JetBrains Mono', 'Fira Mono', Consolas, monospace;
+  }
+`;
 
-// /* -------- iframe-only print helper (no new tab / about:blank) -------- */
-// function printHtmlViaIframe(html: string) {
-//   const iframe = document.createElement('iframe');
-//   Object.assign(iframe.style, { position: 'fixed', right: '0', bottom: '0', width: '0', height: '0', border: '0' });
-//   document.body.appendChild(iframe);
+export default function ApplicantPrintSlipPage() {
+  const [items, setItems] = React.useState<UsageRequest[]>([]);
+  const [employeeId, setEmployeeId] = React.useState('');
+  const [search, setSearch] = React.useState('');
+  const [loading, setLoading] = React.useState(true);
 
-//   const doc = iframe.contentWindow?.document;
-//   if (!doc) { document.body.removeChild(iframe); return; }
-//   doc.open(); doc.write(html); doc.close();
+  React.useEffect(() => {
+    const id =
+      (typeof window !== 'undefined' && (localStorage.getItem('employeeId') || localStorage.getItem('actor'))) || '';
+    setEmployeeId(id || '');
+    if (!id) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
 
-//   iframe.onload = () => {
-//     try { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); } catch {}
-//     setTimeout(() => { try { document.body.removeChild(iframe); } catch {} }, 1200);
-//   };
-// }
+    (async () => {
+      setLoading(true);
+      let all: UsageRequest[] = [];
+      let page = 0;
+      let totalPages = 1;
+      try {
+        while (page < totalPages) {
+          const resp = await listMyRequests(id, page, 100);
+          all = all.concat(resp?.content || []);
+          totalPages = (resp?.totalPages as number) ?? 1;
+          page = ((resp?.number as number) ?? page) + 1;
+        }
+        all.sort((a: any, b: any) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0));
+      } finally {
+        setItems(all);
+        setLoading(false);
+      }
+    })();
+  }, []);
 
-// /* ---------------- page ---------------- */
-// export default function ApplicantPrintSlipPage() {
-//   const [items, setItems] = React.useState<UsageRequest[]>([]);
-//   const [employeeId, setEmployeeId] = React.useState('');
-//   const [q, setQ] = React.useState('');
-//   const [view, setView] = React.useState<UsageRequest | null>(null);
+  const ready = React.useMemo(() => items.filter((r) => READY_STATUSES.includes(r?.status || '')), [items]);
 
-//   React.useEffect(() => {
-//     const id =
-//       (typeof window !== 'undefined' && (localStorage.getItem('employeeId') || localStorage.getItem('actor'))) ||
-//       '';
-//     setEmployeeId(id);
-//     if (!id) return;
+  const filtered = React.useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return ready;
+    return ready.filter((r: any) => {
+      const off = extractOfficer(r);
+      return [
+        r?.requestCode,
+        r?.status,
+        r?.applicantName,
+        r?.employeeId,
+        r?.fromLocation,
+        r?.toLocation,
+        r?.assignedVehicleNumber,
+        r?.assignedDriverName,
+        r?.dateOfTravel,
+        off.name,
+        off.id,
+      ]
+        .map((v) => (v ?? '').toString().toLowerCase())
+        .join(' ')
+        .includes(term);
+    });
+  }, [ready, search]);
 
-//     let cancelled = false;
-//     (async () => {
-//       try {
-//         const seen = new Set<string>();
-//         const mkKey = (r: any) =>
-//           String(r?.id ?? r?.requestCode ?? `${r?.employeeId ?? 'row'}|${r?.dateOfTravel ?? ''}|${r?.createdAt ?? ''}`);
+  const printAllCurrent = React.useCallback(() => {
+    const rows = filtered
+      .map((r: any) => {
+        const off = extractOfficer(r);
+        const officerLine = off.withOfficer
+          ? `${formatPrintValue(off.name)} <span class="sub">(${formatPrintValue(off.id)})</span>`
+          : '—';
+        const applied = escapeHtml(r?.appliedDate ?? (r?.createdAt ? fmtDT(r.createdAt) : '—'));
+        return `
+  <tr>
+    <td>
+      <div class="rq">${formatPrintValue(r.requestCode)}</div>
+      <div class="sub">${applied}</div>
+    </td>
+    <td>
+      <div><strong>Applicant:</strong> ${formatPrintValue(r.applicantName)} <span class="sub">(${formatPrintValue(r.employeeId)})</span></div>
+      <div><strong>Officer:</strong> ${officerLine}</div>
+    </td>
+    <td>${formatPrintValue(r.fromLocation)} → ${formatPrintValue(r.toLocation)}</td>
+    <td>
+      <div>${formatPrintValue(r.assignedVehicleNumber)}</div>
+      <div class="sub">${formatPrintValue(r.assignedDriverName)}</div>
+    </td>
+    <td>
+      <div>${formatPrintValue(r.dateOfTravel)}</div>
+      <div class="sub mono">${formatPrintValue(r.timeFrom)} – ${formatPrintValue(r.timeTo)} ${r.overnight ? '(overnight)' : ''}</div>
+    </td>
+    <td class="center">${formatPrintValue(r.status)}</td>
+  </tr>`;
+      })
+      .join('');
 
-//         let all: UsageRequest[] = [];
-//         let page = 0;
-//         let total = 1;
+    const contentHtml = rows
+      ? `<table class="spc-table">
+          <thead>
+            <tr>
+              <th>RQ ID / Applied</th>
+              <th>People</th>
+              <th>Route</th>
+              <th>Vehicle</th>
+              <th>Travel</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>`
+      : '<div class="spc-empty">No requests ready for slips.</div>';
 
-//         while (!cancelled && page < total) {
-//           const p: any = await listMyRequests(id, page, 100);
-//           const batch: any[] = Array.isArray(p?.content) ? p.content : [];
-//           if (!batch.length) break;
+    printDocument({
+      title: 'Requests Ready for Slip',
+      subtitle: `Results: ${filtered.length}`,
+      contentHtml,
+      pageOrientation: 'landscape',
+      printedBy: guessPrintedBy(),
+      extraCss: SLIP_PRINT_STYLES,
+    });
+  }, [filtered]);
 
-//           for (const item of batch) {
-//             if (!item || typeof item !== 'object') continue;
-//             const k = mkKey(item);
-//             if (!seen.has(k)) {
-//               seen.add(k);
-//               all.push(item as UsageRequest);
-//             }
-//           }
+  const printOne = React.useCallback((r: UsageRequest) => {
+    const off = extractOfficer(r);
+    const officerLine = off.withOfficer
+      ? `${formatPrintValue(off.name)}${off.id ? ` (${formatPrintValue(off.id)})` : ''}`
+      : '—';
 
-//           total = Number.isFinite(p?.totalPages) ? p.totalPages : 1;
-//           const current = Number.isFinite(p?.number) ? p.number : page;
-//           page = current + 1;
-//         }
+    const contentHtml = `
+      <div class="spc-section">
+        <p class="spc-section__title">Applicant & Status</p>
+        <table class="spc-definition">
+          <tr><td>Applicant</td><td>${formatPrintValue(r.applicantName)} (${formatPrintValue(r.employeeId)})</td></tr>
+          <tr><td>Status</td><td>${formatPrintValue(r.status)}</td></tr>
+          <tr><td>Officer</td><td>${officerLine}</td></tr>
+        </table>
+      </div>
+      <div class="spc-section">
+        <p class="spc-section__title">Route & Travel</p>
+        <table class="spc-definition">
+          <tr><td>Route</td><td>${formatPrintValue(r.fromLocation)} → ${formatPrintValue(r.toLocation)}</td></tr>
+          <tr><td>Travel</td><td>${formatPrintValue(r.dateOfTravel)} • ${formatPrintValue(r.timeFrom)} – ${formatPrintValue(r.timeTo)} ${
+            r.overnight ? '(overnight)' : ''
+          }</td></tr>
+        </table>
+      </div>
+      <div class="spc-section">
+        <p class="spc-section__title">Assignment & Schedule</p>
+        <table class="spc-definition">
+          <tr><td>Vehicle</td><td>${formatPrintValue(r.assignedVehicleNumber)}</td></tr>
+          <tr><td>Driver</td><td>${formatPrintValue(r.assignedDriverName)}${
+            r.assignedDriverPhone ? ` (${formatPrintValue(r.assignedDriverPhone)})` : ''
+          }</td></tr>
+          <tr><td>Pickup</td><td>${escapeHtml(fmtDT(r.scheduledPickupAt))}</td></tr>
+          <tr><td>Return</td><td>${escapeHtml(fmtDT(r.scheduledReturnAt))}</td></tr>
+          <tr><td>Gate / Odometer</td><td>Exit: ${escapeHtml(fmtDT(r.gateExitAt))} • O ${formatPrintValue(r.exitOdometer)}<br/>Entry: ${escapeHtml(
+            fmtDT(r.gateEntryAt)
+          )} • O ${formatPrintValue(r.entryOdometer)}</td></tr>
+        </table>
+      </div>
+    `;
 
-//         // newest first by createdAt
-//         all.sort((a: any, b: any) => {
-//           const ta = a?.createdAt ? Date.parse(a.createdAt) : 0;
-//           const tb = b?.createdAt ? Date.parse(b.createdAt) : 0;
-//           return tb - ta;
-//         });
+    printDocument({
+      title: 'Transport Request Slip',
+      subtitle: `Code: ${r?.requestCode || '—'}`,
+      contentHtml,
+      printedBy: guessPrintedBy(),
+      extraCss: SLIP_PRINT_STYLES,
+    });
+  }, []);
 
-//         if (!cancelled) setItems(all);
-//       } catch {
-//         if (!cancelled) setItems([]);
-//       }
-//     })();
 
-//     return () => { cancelled = true; };
-//   }, []);
+  return (
+    <div className="space-y-4 text-[13px]">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-orange-700">Print slips</p>
+          <h1 className="text-2xl font-bold text-orange-900">Ready for dispatch</h1>
+          <p className="text-sm text-gray-600">Only approved, scheduled or completed requests appear here.</p>
+        </div>
+        <div className="flex w-full flex-col gap-2 lg:w-auto lg:flex-row lg:items-center">
+          <WorkspaceSearchBar
+            value={search}
+            onChange={setSearch}
+            placeholder="Search code, applicant, route…"
+            className="w-full lg:w-72"
+          />
+          <button
+            type="button"
+            onClick={printAllCurrent}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-orange-600 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-orange-700"
+            title="Print all (current filter)"
+          >
+            <Printer size={14} />
+            Print
+          </button>
+        </div>
+      </div>
 
-//   // Only slips that make sense to print
-//   const ready = React.useMemo(
-//     () => items.filter((r) => r && ['APPROVED', 'SCHEDULED', 'DISPATCHED', 'COMPLETED'].includes(r.status)),
-//     [items]
-//   );
+      {!employeeId && (
+        <div className="text-xs text-yellow-800 bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2">
+          Submit a request first to save your Employee ID locally, then slips will appear here.
+        </div>
+      )}
 
-//   const filtered = React.useMemo(() => {
-//     const s = q.trim().toLowerCase();
-//     if (!s) return ready;
-//     return ready.filter((r: any) => {
-//       if (!r) return false;
-//       const off = extractOfficer(r);
-//       return [
-//         r.requestCode, r.status, r.applicantName, r.employeeId, off.name, off.id,
-//         r.fromLocation, r.toLocation, r.assignedVehicleNumber, r.assignedDriverName, r.dateOfTravel,
-//       ].map((x) => (x ?? '').toString().toLowerCase()).join(' ').includes(s);
-//     });
-//   }, [ready, q]);
+      <div className="bg-white rounded-2xl border border-orange-200 shadow-sm overflow-x-auto">
+        <table className="w-full table-fixed text-[12px] leading-tight">
+          <colgroup>
+            <col className="w-32" />
+            <col className="w-60" />
+            <col className="w-44" />
+            <col className="w-36" />
+            <col className="w-40" />
+            <col className="w-36" />
+          </colgroup>
+          <thead className="bg-orange-50">
+            <tr className="text-[12px]">
+              <Th className="px-2 py-1 text-left">RQ ID / Applied</Th>
+              <Th className="px-2 py-1 text-left">People</Th>
+              <Th className="px-2 py-1 text-left">Route</Th>
+              <Th className="px-2 py-1 text-left">Vehicle</Th>
+              <Th className="px-2 py-1 text-left">Travel</Th>
+              <Th className="px-2 py-1 text-center">Status / Print</Th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {loading && (
+              <tr>
+                <Td colSpan={6} className="px-2 py-6 text-center text-gray-500">
+                  Loading…
+                </Td>
+              </tr>
+            )}
 
-//   /* -------- Print all current rows (compact table) -------- */
-//   const printAllCurrent = React.useCallback(() => {
-//     const rowsHtml = filtered.map((r: any) => {
-//       const applied = (r as any)?.appliedDate ?? (r?.createdAt ? fmtDT(r.createdAt) : '-');
-//       const off = extractOfficer(r);
-//       return `
-// <tr>
-//   <td><div class="rq">${r?.requestCode || ''}</div><div class="sub">${applied}</div></td>
-//   <td>
-//     <div><b>Applicant:</b> ${r?.applicantName || ''} <span class="sub">(${r?.employeeId || ''})</span></div>
-//     <div><b>Officer:</b> ${off.withOfficer ? `${off.name || '-'} <span class="sub">(${off.id || '-'})</span>` : '—'}</div>
-//   </td>
-//   <td>${r?.dateOfTravel || ''}<div class="sub mono">${r?.timeFrom || ''} – ${r?.timeTo || ''} ${r?.overnight ? '(overnight)' : ''}</div></td>
-//   <td>${r?.fromLocation || ''} → ${r?.toLocation || ''}</td>
-//   <td>
-//     <div>${r?.assignedVehicleNumber || '—'}</div>
-//     <div class="sub">${r?.assignedDriverName || '—'}</div>
-//   </td>
-//   <td>
-//     <div>P: ${fmtDT(r?.scheduledPickupAt)}</div>
-//     <div class="sub">R: ${fmtDT(r?.scheduledReturnAt)}</div>
-//   </td>
-//   <td class="center">${r?.status || ''}</td>
-// </tr>`;
-//     }).join('');
+            {!loading &&
+              filtered.map((r: any, i: number) => {
+                const off = extractOfficer(r);
+                const key =
+                  r?.id ??
+                  r?.requestCode ??
+                  `${r?.employeeId ?? 'row'}|${r?.dateOfTravel ?? ''}|${r?.timeFrom ?? ''}|${r?.createdAt ?? ''}|${i}`;
+                return (
+                  <tr key={String(key)} className="align-top hover:bg-orange-50/40">
+                    <Td className="px-2 py-1">
+                      <div className="font-semibold text-orange-900 truncate">{r?.requestCode || '—'}</div>
+                      <div className="text-[11px] text-gray-600 truncate">
+                        {r?.appliedDate ?? (r?.createdAt ? fmtDT(r.createdAt) : '—')}
+                      </div>
+                    </Td>
+                    <Td className="px-2 py-1">
+                      <div className="truncate">
+                        <span className="font-medium text-orange-900">{r?.applicantName || '—'}</span>{' '}
+                        <span className="text-gray-600 text-[11px]">({r?.employeeId || '—'})</span>
+                      </div>
+                      <div className="text-[11px] text-gray-700 truncate">
+                        <span className="font-medium">Officer:</span>{' '}
+                        {off.withOfficer ? (
+                          <>
+                            {off.name || '-'}
+                            <span className="text-gray-600 text-[10px]"> ({off.id || '-'})</span>
+                          </>
+                        ) : (
+                          '—'
+                        )}
+                      </div>
+                    </Td>
+                    <Td className="px-2 py-1">
+                      <div className="truncate">{(r?.fromLocation || '—') + ' → ' + (r?.toLocation || '—')}</div>
+                    </Td>
+                    <Td className="px-2 py-1">
+                      <div>{r?.assignedVehicleNumber || '—'}</div>
+                      <div className="text-[11px] text-gray-700 truncate">{r?.assignedDriverName || '—'}</div>
+                    </Td>
+                    <Td className="px-2 py-1">
+                      <div>{r?.dateOfTravel || '—'}</div>
+                      <div className="text-[11px] text-gray-600">
+                        <span className="font-mono">{r?.timeFrom || '—'}</span>–
+                        <span className="font-mono">{r?.timeTo || '—'}</span> {r?.overnight ? '(overnight)' : ''}
+                      </div>
+                    </Td>
+                    <Td className="px-2 py-1 text-center">
+                      <div className="flex flex-col items-center gap-2">
+                        <span className="inline-flex items-center justify-center rounded bg-orange-100 px-2 py-[2px] text-[11px] text-orange-800">
+                          {(r?.status || '—').replaceAll('_', ' ')}
+                        </span>
+                        <button
+                          type="button"
+                          className="inline-flex items-center justify-center w-7 h-7 rounded bg-orange-600 text-white hover:bg-orange-700"
+                          title="Print this slip"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            printOne(r);
+                          }}
+                        >
+                          <Printer size={13} />
+                        </button>
+                      </div>
+                    </Td>
+                  </tr>
+                );
+              })}
 
-//     const html = `<!DOCTYPE html>
-// <html>
-// <head>
-//   <meta charset="utf-8" />
-//   <title>Print Slips - List</title>
-//   <meta name="viewport" content="width=device-width, initial-scale=1" />
-//   <style>
-//     :root { --fg:#111; --muted:#666; --head:#faf5f0; }
-//     * { box-sizing: border-box; }
-//     html, body { width: 100%; height: 100%; }
-//     body { margin: 0; padding: 10mm; font-family: system-ui, Arial, sans-serif; color: var(--fg); }
-//     h3 { margin: 0 0 8px 0; }
-//     .meta { margin: 4px 0 8px 0; font-size: 11px; color: var(--muted); }
-//     table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-//     thead { display: table-header-group; }
-//     tr, td, th { page-break-inside: avoid; break-inside: avoid; }
-//     th, td { border: 1px solid #ddd; padding: 6px 8px; vertical-align: top; font-size: 11px; }
-//     th { background: var(--head); text-align: left; }
-//     .center { text-align: center; }
-//     .sub { color: var(--muted); font-size: 10px; }
-//     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-//     .rq { font-weight: 600; color: #8b4513; }
-//     col.c1{width:13%}col.c2{width:22%}col.c3{width:14%}col.c4{width:18%}col.c5{width:13%}col.c6{width:12%}col.c7{width:8%}
-//     @media print { @page { size: A4 landscape; margin: 8mm; } body { padding: 0; } }
-//   </style>
-// </head>
-// <body>
-//   <h3>Transport Requests Ready to Print</h3>
-//   <div class="meta">Results: ${filtered.length}</div>
-//   <table>
-//     <colgroup><col class="c1"/><col class="c2"/><col class="c3"/><col class="c4"/><col class="c5"/><col class="c6"/><col class="c7"/></colgroup>
-//     <thead>
-//       <tr>
-//         <th>RQ ID / Applied</th>
-//         <th>People</th>
-//         <th>Travel</th>
-//         <th>Route</th>
-//         <th>Assigned</th>
-//         <th>Schedule</th>
-//         <th class="center">Status</th>
-//       </tr>
-//     </thead>
-//     <tbody>${rowsHtml || '<tr><td colspan="7">No data</td></tr>'}</tbody>
-//   </table>
-//   <script>addEventListener('load',()=>setTimeout(()=>{focus();print();},150));</script>
-// </body>
-// </html>`;
-//     printHtmlViaIframe(html);
-//   }, [filtered]);
-
-//   /* -------- Print one slip (detailed, A4 portrait) -------- */
-//   const printOneSlip = React.useCallback((r: any) => {
-//     const off = extractOfficer(r);
-//     const html = `<!DOCTYPE html>
-// <html>
-// <head>
-//   <meta charset="utf-8" />
-//   <title>${r?.requestCode || 'Request'} - Slip</title>
-//   <meta name="viewport" content="width=device-width, initial-scale=1" />
-//   <style>
-//     :root { --fg:#111; --muted:#666; --head:#faf5f0; }
-//     * { box-sizing: border-box; }
-//     html, body { width: 100%; height: 100%; }
-//     body { margin: 0; padding: 12mm; font-family: system-ui, Arial, sans-serif; color: var(--fg); }
-//     h2 { margin: 0 0 12px 0; }
-//     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; font-size: 12px; }
-//     .block { margin: 8px 0 2px; font-weight: 600; color: #8b4513; }
-//     .sub { color: var(--muted); font-size: 11px; }
-//     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-//     th, td { border: 1px solid #ddd; padding: 6px 8px; font-size: 12px; vertical-align: top; }
-//     th { background: var(--head); text-align: left; width: 30%; }
-//     @media print { @page { size: A4 portrait; margin: 10mm; } body { padding: 0; } }
-//   </style>
-// </head>
-// <body>
-//   <h2>Transport Request • ${r?.requestCode || ''}</h2>
-//   <div class="grid">
-//     <div><div class="block">Applicant</div>${r?.applicantName || ''} <span class="sub">(${r?.employeeId || ''})</span></div>
-//     <div><div class="block">Status</div>${r?.status || ''}</div>
-
-//     <div><div class="block">Travelling Officer</div>${off.withOfficer ? `${off.name || '-'} <span class="sub">(${off.id || '-'})</span>` : '—'}</div>
-//     <div><div class="block">Department</div>${r?.department || ''}</div>
-
-//     <div><div class="block">Travel</div>${r?.dateOfTravel || ''} • ${r?.timeFrom || ''} – ${r?.timeTo || ''} ${r?.overnight ? '(overnight)' : ''}</div>
-//     <div><div class="block">Route</div>${r?.fromLocation || ''} → ${r?.toLocation || ''}</div>
-//   </div>
-
-//   <table>
-//     <tr><th>Vehicle</th><td>${r?.assignedVehicleNumber || '—'}</td></tr>
-//     <tr><th>Driver</th><td>${r?.assignedDriverName || '—'} ${r?.assignedDriverPhone ? `(${r.assignedDriverPhone})` : ''}</td></tr>
-//     <tr><th>Schedule</th><td>P: ${fmtDT(r?.scheduledPickupAt)}<br/>R: ${fmtDT(r?.scheduledReturnAt)}</td></tr>
-//     <tr><th>Gate / Odometer</th><td>
-//       Exit: ${fmtDT(r?.gateExitAt)} • O ${r?.exitOdometer ?? '-'}<br/>
-//       Entry: ${fmtDT(r?.gateEntryAt)} • O ${r?.entryOdometer ?? '-'}
-//     </td></tr>
-//     <tr><th>Purpose</th><td>${r?.officialDescription || '—'}</td></tr>
-//     <tr><th>Goods</th><td>${r?.goods || '—'}</td></tr>
-//   </table>
-
-//   <script>addEventListener('load',()=>setTimeout(()=>{focus();print();},150));</script>
-// </body>
-// </html>`;
-//     printHtmlViaIframe(html);
-//   }, []);
-
-//   return (
-//     <div className="flex min-h-screen bg-orange-50">
-//       <ApplicantSidebar />
-//       <main className="p-2 md:p-3 flex-1">
-//         <div className="flex items-center justify-between mb-2">
-//           <h1 className="text-[12px] font-semibold text-orange-900">Print Slips</h1>
-
-//           <div className="flex items-center gap-2">
-//             <label className="relative">
-//               <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
-//               <input
-//                 value={q}
-//                 onChange={(e) => setQ(e.target.value)}
-//                 placeholder="Search…"
-//                 className="pl-6 pr-2 py-1 rounded border border-orange-200 text-[11px] h-7 w-[200px] focus:outline-none focus:ring-1 focus:ring-orange-300"
-//               />
-//             </label>
-
-//             <button
-//               type="button"
-//               onClick={printAllCurrent}
-//               disabled={!filtered.length}
-//               className="inline-flex items-center gap-1 px-2.5 h-7 rounded bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-60 text-[11px]"
-//               title="Print all rows"
-//             >
-//               <Printer size={13} />
-//               Print Page
-//             </button>
-//           </div>
-//         </div>
-
-//         {!employeeId && (
-//           <div className="mb-2 text-[10px] rounded bg-yellow-50 border border-yellow-200 text-yellow-800 px-2 py-1">
-//             Submit a request first to save your Employee ID, then return here.
-//           </div>
-//         )}
-
-//         <div className="bg-white rounded-md border border-orange-200 overflow-auto">
-//           {/* fixed-width columns – keep colgroup on a single line to avoid whitespace text nodes */}
-//           <table className="w-full table-fixed text-[9.5px] leading-[1.15]">
-//             <colgroup><col className="w-28"/><col className="w-52"/><col className="w-36"/><col className="w-44"/><col className="w-40"/><col className="w-40"/><col className="w-20"/><col className="w-20"/></colgroup>
-
-//             <thead className="bg-orange-50">
-//               <tr className="text-[9px]">
-//                 <Th className="px-2 py-1 text-left">Code / Applied</Th>
-//                 <Th className="px-2 py-1 text-left">People</Th>
-//                 <Th className="px-2 py-1 text-left">Travel</Th>
-//                 <Th className="px-2 py-1 text-left">Route</Th>
-//                 <Th className="px-2 py-1 text-left">Assigned</Th>
-//                 <Th className="px-2 py-1 text-left">Schedule</Th>
-//                 <Th className="px-2 py-1 text-center">Status</Th>
-//                 <Th className="px-2 py-1 text-center">Print</Th>
-//               </tr>
-//             </thead>
-
-//             <tbody className="divide-y">
-//               {filtered.map((r, i) => {
-//                 if (!r) return null;
-//                 const applied = (r as any)?.appliedDate ?? (r.createdAt ? fmtDT(r.createdAt) : '-');
-//                 const off = extractOfficer(r);
-//                 return (
-//                   <tr
-//                     key={rowKey(r, i)}
-//                     className="align-top hover:bg-orange-50/40 cursor-pointer"
-//                     onClick={() => setView(r)} // row click → open modal
-//                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setView(r); }}
-//                     tabIndex={0}
-//                     role="button"
-//                     title="Click to view details"
-//                   >
-//                     <Td className="px-2 py-1">
-//                       <div className="font-semibold text-orange-900 truncate" title={r.requestCode || ''}>
-//                         {r.requestCode || '—'}
-//                       </div>
-//                       <div className="text-[8.5px] text-gray-600 truncate" title={applied}>
-//                         {applied}
-//                       </div>
-//                     </Td>
-
-//                     <Td className="px-2 py-1">
-//                       <div className="truncate" title={`${r.applicantName || ''} (${r.employeeId || ''})`}>
-//                         <span className="font-medium text-orange-900">Applicant:</span> {r.applicantName || '—'}
-//                         <span className="text-gray-600 text-[8.5px]"> ({r.employeeId || '—'})</span>
-//                       </div>
-//                       <div
-//                         className="text-[9px] text-gray-700 truncate"
-//                         title={off.withOfficer ? `${off.name || '-'} (${off.id || '-'})` : '—'}
-//                       >
-//                         <span className="font-medium">Officer:</span>{' '}
-//                         {off.withOfficer ? (
-//                           <>
-//                             {off.name || '-'}
-//                             <span className="text-gray-600 text-[8.5px]"> ({off.id || '-'})</span>
-//                           </>
-//                         ) : '—'}
-//                       </div>
-//                     </Td>
-
-//                     <Td className="px-2 py-1">
-//                       <div className="truncate" title={r.dateOfTravel || ''}>
-//                         {r.dateOfTravel || '—'}
-//                       </div>
-//                       <div className="text-[8.5px] text-gray-600">
-//                         <span className="font-mono">{r.timeFrom || '—'}</span>–<span className="font-mono">{r.timeTo || '—'}</span>{' '}
-//                         {r.overnight ? '(overnight)' : ''}
-//                       </div>
-//                     </Td>
-
-//                     <Td className="px-2 py-1">
-//                       <div className="truncate" title={`${r.fromLocation || ''} → ${r.toLocation || ''}`}>
-//                         {(r.fromLocation || '—')} → {(r.toLocation || '—')}
-//                       </div>
-//                     </Td>
-
-//                     <Td className="px-2 py-1">
-//                       <div className="font-medium truncate" title={r.assignedVehicleNumber || '—'}>
-//                         {r.assignedVehicleNumber || '—'}
-//                       </div>
-//                       <div className="text-[8.5px] text-gray-600 truncate" title={r.assignedDriverName || '—'}>
-//                         {r.assignedDriverName || '—'}
-//                       </div>
-//                     </Td>
-
-//                     <Td className="px-2 py-1">
-//                       <div className="truncate" title={fmtDT(r.scheduledPickupAt)}>
-//                         P: {fmtDT(r.scheduledPickupAt)}
-//                       </div>
-//                       <div className="text-[8.5px] text-gray-600 truncate" title={fmtDT(r.scheduledReturnAt)}>
-//                         R: {fmtDT(r.scheduledReturnAt)}
-//                       </div>
-//                     </Td>
-
-//                     <Td className="px-2 py-1 text-center">{chip(r.status || '—')}</Td>
-
-//                     {/* row print button (doesn't bubble to row click) */}
-//                     <Td className="px-2 py-1 text-center">
-//                       <button
-//                         className="inline-flex items-center justify-center w-6 h-6 rounded bg-orange-600 text-white hover:bg-orange-700"
-//                         onClick={(e) => { e.stopPropagation(); printOneSlip(r); }}
-//                         title="Print slip"
-//                       >
-//                         <Printer size={12} />
-//                       </button>
-//                     </Td>
-//                   </tr>
-//                 );
-//               })}
-
-//               {!filtered.length && (
-//                 <tr>
-//                   <Td colSpan={8} className="text-center text-gray-500 py-6">
-//                     Nothing to print
-//                   </Td>
-//                 </tr>
-//               )}
-//             </tbody>
-//           </table>
-//         </div>
-//       </main>
-
-//       {view && <DetailsModal request={view} onClose={() => setView(null)} />}
-//     </div>
-//   );
-// }
-
-// /* --- Compact details modal (opened by row click) --- */
-// function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: () => void }) {
-//   const off = extractOfficer(request);
-//   return (
-//     <div
-//       className="fixed inset-0 bg-black/40 grid place-items-center z-50 p-3"
-//       onClick={onClose}
-//       onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}
-//       role="dialog"
-//       aria-modal="true"
-//     >
-//       <div
-//         className="bg-white rounded-lg shadow-xl w-full max-w-2xl overflow-hidden"
-//         onClick={(e) => e.stopPropagation()}
-//       >
-//         <div className="flex items-center justify-between px-3 py-2 border-b bg-orange-50">
-//           <h3 className="font-bold text-orange-900 text-[11px]">Request • {request?.requestCode || '—'}</h3>
-//           <button className="p-1 rounded hover:bg-orange-100" onClick={onClose} aria-label="Close">
-//             <X size={13} />
-//           </button>
-//         </div>
-
-//         <div className="p-3 text-[10px] leading-tight space-y-3">
-//           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-//             <section>
-//               <div className="text-orange-800 font-semibold mb-1">People</div>
-//               <div className="truncate">
-//                 <span className="font-medium text-orange-900">Applicant:</span> {request?.applicantName || '—'}
-//                 <span className="text-gray-600 text-[9px]"> ({request?.employeeId || '—'})</span>
-//               </div>
-//               <div className="truncate">
-//                 <span className="font-medium">Officer:</span>{' '}
-//                 {off.withOfficer ? (
-//                   <>
-//                     {off.name || '-'} <span className="text-gray-600 text-[9px]">({off.id || '-'})</span>
-//                   </>
-//                 ) : '—'}
-//               </div>
-//             </section>
-
-//             <section>
-//               <div className="text-orange-800 font-semibold mb-1">Status & Dates</div>
-//               <div><b>Status:</b> {request?.status || '—'}</div>
-//               <div>
-//                 <b>Applied:</b> {(request as any)?.appliedDate ?? (request?.createdAt ? fmtDT(request.createdAt) : '—')}
-//               </div>
-//             </section>
-
-//             <section>
-//               <div className="text-orange-800 font-semibold mb-1">Travel</div>
-//               <div><b>Date:</b> {request?.dateOfTravel || '—'}</div>
-//               <div><b>Time:</b> {request?.timeFrom || '—'} – {request?.timeTo || '—'} {request?.overnight ? '(overnight)' : ''}</div>
-//             </section>
-
-//             <section>
-//               <div className="text-orange-800 font-semibold mb-1">Route</div>
-//               <div className="truncate">{request?.fromLocation || '—'} → {request?.toLocation || '—'}</div>
-//             </section>
-
-//             <section>
-//               <div className="text-orange-800 font-semibold mb-1">Assignment</div>
-//               <div><b>Vehicle:</b> {request?.assignedVehicleNumber || '-'}</div>
-//               <div><b>Driver:</b> {request?.assignedDriverName || '-'}</div>
-//               <div><b>Pickup:</b> {fmtDT(request?.scheduledPickupAt)}</div>
-//               <div><b>Return:</b> {fmtDT(request?.scheduledReturnAt)}</div>
-//             </section>
-
-//             <section className="md:col-span-2">
-//               <div className="text-orange-800 font-semibold mb-1">Purpose / Goods</div>
-//               <div>{request?.officialDescription || '—'}</div>
-//               <div className="text-gray-700">{request?.goods || '—'}</div>
-//             </section>
-//           </div>
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
+            {!loading && !filtered.length && (
+              <tr>
+                <Td colSpan={6} className="px-2 py-6 text-center text-gray-500">
+                  No printable requests.
+                </Td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

@@ -2,15 +2,18 @@
 import { NextResponse, NextRequest } from 'next/server';
 
 const COOKIE_NAME = 'SPC_JWT';
-const PUBLIC = new Set<string>([
-  '/', '/login', '/_next', '/favicon.ico', '/assets', '/public'
-]);
+const PUBLIC = new Set<string>(['/', '/login', '/_next', '/favicon.ico', '/assets', '/public']);
+const PROXY_PREFIXES = ['/aapi', '/tapi'];
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // allow public assets & login
-  if ([...PUBLIC].some(p => pathname === p || pathname.startsWith(p + '/'))) {
+  if ([...PUBLIC].some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+    return NextResponse.next();
+  }
+
+  if (PROXY_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
     return NextResponse.next();
   }
 

@@ -1,4 +1,5 @@
 'use client';
+
 import { ReactNode } from 'react';
 import { X } from 'lucide-react';
 
@@ -15,34 +16,36 @@ interface ModalProps {
   showFooter?: boolean;
 }
 
-export default function Modal({ 
-  isOpen, 
-  onClose, 
-  title, 
-  onSubmit, 
-  children, 
+export default function Modal({
+  isOpen,
+  onClose,
+  title,
+  onSubmit,
+  children,
   submitText = 'Submit',
   cancelText = 'Cancel',
   size = 'md',
   loading = false,
-  showFooter = true
+  showFooter = true,
 }: ModalProps) {
   if (!isOpen) return null;
 
-  const sizeClasses = {
+  const sizeClasses: Record<string, string> = {
     sm: 'max-w-sm',
     md: 'max-w-lg',
     lg: 'max-w-2xl',
-    xl: 'max-w-4xl'
+    xl: 'max-w-5xl', // wider for details/long form
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className={`bg-white rounded-xl shadow-xl w-full ${sizeClasses[size]} max-h-[85vh] overflow-hidden flex flex-col`}>
+      <div
+        className={`bg-white rounded-xl shadow-xl w-full ${sizeClasses[size]} max-h-[80vh] overflow-hidden flex flex-col`}
+      >
         {/* Header */}
         <div className="flex justify-between items-center p-4 border-b border-orange-200 bg-orange-50">
           <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-          <button 
+          <button
             onClick={onClose}
             className="p-1 hover:bg-orange-100 rounded transition-colors text-gray-500 hover:text-gray-700"
           >
@@ -51,9 +54,7 @@ export default function Modal({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4">
-          {children}
-        </div>
+        <div className="flex-1 overflow-y-auto p-4">{children}</div>
 
         {/* Footer */}
         {showFooter && onSubmit && (

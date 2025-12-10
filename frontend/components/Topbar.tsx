@@ -2,10 +2,12 @@
 'use client';
 
 import React from 'react';
-import { LogOut, User as UserIcon, Settings } from 'lucide-react';
+import Link from 'next/link';
+import { LogOut, Settings, Building2, Sun, Moon, UserCircle2, Bell } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { logout } from '../lib/auth';
 import { useAuth } from '../hooks/useAuth';
+import { useTheme } from './ThemeProvider';
 
 type UIUser = {
   fullName?: string;
@@ -20,14 +22,8 @@ interface TopbarProps {
 
 export default function Topbar({ user: propUser }: TopbarProps) {
   const router = useRouter();
-
-  // fall back to context (guarded)
-  let ctxUser: UIUser = null;
-  try {
-    ({ user: ctxUser } = useAuth());
-  } catch {
-    ctxUser = null;
-  }
+  const { theme, toggleTheme } = useTheme();
+  const { user: ctxUser } = useAuth();
   const user = propUser ?? ctxUser ?? null;
 
   const displayName =
@@ -48,63 +44,74 @@ export default function Topbar({ user: propUser }: TopbarProps) {
   };
 
   return (
-    <nav className="bg-gradient-to-r from-orange-500 to-orange-600 text-white p-4 flex justify-between items-center shadow-lg border-b border-orange-400">
-      {/* Left: Brand */}
-      <div className="flex items-center space-x-4">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-            <span className="text-lg font-bold text-white">🚗</span>
-          </div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">State Printing Corporation ERP Sytem</h1>
-            <p className="text-orange-100 text-sm">Welcome back, {displayName}</p>
+    <header className="hod-app-bar bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md border-b border-orange-400">
+      <div className="mx-auto w-full px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-4">
+        <div className="flex items-center gap-3 flex-1">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+              <Building2 className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-orange-100 font-semibold">SPC Authservice</p>
+              <h1 className="text-lg md:text-xl font-bold leading-tight">Administration Workspace</h1>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Right: Actions */}
-      <div className="flex items-center space-x-4">
-        <button
-          onClick={() => router.push('/settings')}
-          className="p-2 hover:bg-white/20 rounded-lg transition-all duration-200 group"
-          title="Settings"
-        >
-          <Settings className="w-5 h-5 group-hover:scale-110 transition-transform" />
-        </button>
-
-        <div className="flex items-center space-x-3 bg-white/10 rounded-lg px-3 py-2">
+        <div className="flex items-center gap-3">
           <button
-            onClick={() => router.push('/profile')}
-            className="flex items-center space-x-3 hover:bg-white/20 rounded-lg transition-all duration-200 p-1"
+            type="button"
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            onClick={toggleTheme}
+            className="p-2 rounded-full hover:bg-white/20 transition"
           >
-            <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center overflow-hidden border-2 border-white/30">
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+
+          <button
+            type="button"
+            aria-label="Notifications"
+            className="p-2 rounded-full hover:bg-white/20 transition"
+          >
+            <Bell size={18} />
+          </button>
+
+          <button
+            onClick={() => router.push('/settings')}
+            className="p-2 rounded-full hover:bg-white/20 transition"
+            aria-label="Settings"
+          >
+            <Settings size={18} />
+          </button>
+
+          <Link
+            href="/profile"
+            className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full border border-white/20 hover:bg-white/20 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            <span className="relative inline-flex items-center justify-center w-10 h-10 rounded-full border border-white/40 bg-white/10 overflow-hidden">
               {user?.imageUrl ? (
-                <img
-                  src={user.imageUrl}
-                  alt={displayName}
-                  className="w-full h-full object-cover"
-                />
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={user.imageUrl} alt={displayName} className="w-full h-full object-cover" />
               ) : (
-                <UserIcon className="w-4 h-4 text-white" />
+                <UserCircle2 size={26} className="text-white" />
               )}
+            </span>
+            <div className="hidden sm:block text-xs leading-tight">
+              <p className="font-semibold">{displayName}</p>
+              {usernameLine ? <p className="text-orange-100">{usernameLine}</p> : null}
+              <p className="text-orange-100/80 text-[10px] tracking-wide">Auth Admin</p>
             </div>
-            <div className="text-left">
-              <p className="text-sm font-semibold leading-none">{displayName}</p>
-              {usernameLine && (
-                <p className="text-xs text-orange-100 leading-none mt-1">{usernameLine}</p>
-              )}
-            </div>
+          </Link>
+
+          <button
+            onClick={handleLogout}
+            className="bg-white/20 hover:bg-white hover:text-orange-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-all duration-200 font-medium border border-white/30 hover:border-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            <LogOut className="w-4 h-4" />
+            <span>Logout</span>
           </button>
         </div>
-
-        <button
-          onClick={handleLogout}
-          className="bg-white/20 hover:bg-white hover:text-orange-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-all duration-200 font-medium border border-white/30 hover:border-white group"
-        >
-          <LogOut className="w-4 h-4 group-hover:scale-110 transition-transform" />
-          <span>Logout</span>
-        </button>
       </div>
-    </nav>
+    </header>
   );
 }

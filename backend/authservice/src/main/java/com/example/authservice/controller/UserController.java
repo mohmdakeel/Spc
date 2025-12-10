@@ -1,7 +1,6 @@
 package com.example.authservice.controller;
 
-import com.example.authservice.dto.AssignRoleRequest;
-import com.example.authservice.dto.CreateUserFromEmployeeRequest;
+import com.example.authservice.dto.*;
 import com.example.authservice.model.AuditLog;
 import com.example.authservice.model.User;
 import com.example.authservice.repository.RegistrationRepository;
@@ -9,8 +8,10 @@ import com.example.authservice.repository.UserRepository;
 import com.example.authservice.service.UserService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.*;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
 
@@ -23,19 +24,22 @@ public class UserController {
   private final UserRepository users;
   private final RegistrationRepository regs;
 
-  // small DTO for PUT /users/{id}
+  // -----------------------------------------------------------------
+  // DTOs
+  // -----------------------------------------------------------------
   @Data
   public static class UpdateUserRequest {
     private String email;
   }
 
-  // ===== LIST USERS =====
-  // who can view the user list in UI
+  // -----------------------------------------------------------------
+  // LIST USERS
+  // -----------------------------------------------------------------
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HRD','ROLE_HOD','ROLE_GM','ROLE_CHAIRMAN')")
   @GetMapping
-  public List<Map<String,Object>> list() {
+  public ResponseEntity<ApiResponse<List<Map<String, Object>>>> list() {
     var all = service.list();
-    var out = new ArrayList<Map<String,Object>>(all.size());
+    var out = new ArrayList<Map<String, Object>>(all.size());
 
     for (User u : all) {
       String imageUrl = null;
@@ -44,8 +48,8 @@ public class UserController {
         if (reg != null) imageUrl = reg.getImageUrl();
       }
 
-      var roleCodes = users.findAuthorities(u.getId());                // e.g. ["ADMIN","HRD"]
-      var perms     = service.effectivePermissionCodes(u.getId());     // e.g. ["READ","UPDATE"]
+      var roleCodes = users.findAuthorities(u.getId());
+      var perms = service.effectivePermissionCodes(u.getId());
 
       out.add(Map.of(
           "id", u.getId(),
@@ -59,188 +63,198 @@ public class UserController {
           "permissions", perms == null ? List.of() : perms
       ));
     }
-    return out;
+    return ResponseEntity.ok(ApiResponse.ok(out));
   }
 
-  // ===== USERS BY ROLE (for dropdowns etc.)
-  // ADMIN or HRD can view this
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HRD')")
-  @GetMapping("/by-role/{roleCode}")
-  public List<Map<String,Object>> byRole(@PathVariable String roleCode) {
-    var list = users.findUsersByRoleCode(roleCode);
-    var out = new ArrayList<Map<String,Object>>(list.size());
-    for (User u : list) {
-      out.add(Map.of(
-          "id", u.getId(),
-          "username", Optional.ofNullable(u.getUsername()).orElse(""),
-          "fullName", Optional.ofNullable(u.getFullName()).orElse("")
-      ));
-    }
-    return out;
-  }
-
-  // ===== CREATE USER FROM EMPLOYEE (query param style)
-  // ONLY ADMIN or HRD can create new accounts
+  // -----------------------------------------------------------------
+  // CREATE USER FROM EMPLOYEE
+  // -----------------------------------------------------------------
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HRD')")
   @PostMapping("/create-from-employee")
-  public User create(
-      @RequestParam("epfNo") String epfNo,
+  @ResponseStatus(HttpStatus.CREATED)
+  public ApiResponse<User> createFromEmployee(
+      @RequestParam String epfNo,
       @RequestBody CreateUserFromEmployeeRequest req
   ) {
-    return service.createFromEmployee(epfNo, req);
+    User user = service.createFromEmployee(epfNo, req);
+    return ApiResponse.ok(user);
   }
 
-  // (legacy path version, still allowed)
-  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HRD')")
-  @PostMapping("/create-from-employee/{epfNo}")
-  public User createLegacy(
-      @PathVariable String epfNo,
-      @RequestBody CreateUserFromEmployeeRequest req
-  ) {
-    return service.createFromEmployee(epfNo, req);
-  }
-
-  // ===== UPDATE BASIC USER FIELDS (email, etc.)
-  // ADMIN or HRD allowed to edit basic info
+  // -----------------------------------------------------------------
+  // UPDATE USER (email)
+  // -----------------------------------------------------------------
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HRD')")
   @PutMapping("/{id}")
-  public void updateUser(
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public ApiResponse<Void> updateUser(
       @PathVariable Long id,
       @RequestBody UpdateUserRequest body
   ) {
     service.updateUserBasic(id, body.getEmail());
+    return ApiResponse.ok(null);
   }
 
-  // ===== ASSIGN ROLE TO USER =====
-  // ONLY ADMIN can assign roles
+  // -----------------------------------------------------------------
+  // ASSIGN ROLE
+  // -----------------------------------------------------------------
   @PreAuthorize("hasAuthority('ROLE_ADMIN')")
   @PostMapping("/{id}/assign-role")
-  public void assignRole(
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public ApiResponse<Void> assignRole(
       @PathVariable Long id,
       @RequestBody AssignRoleRequest req
   ) {
     service.assignRole(id, req.getRoleCode());
+    return ApiResponse.ok(null);
   }
 
-  // ===== TRANSFER ROLE (ADMIN ONLY) =====
+  // -----------------------------------------------------------------
+  // TRANSFER ROLE
+  // -----------------------------------------------------------------
   @PreAuthorize("hasAuthority('ROLE_ADMIN')")
   @PostMapping("/{fromUserId}/transfer-role/{toUserId}/{roleCode}")
-  public void transferRole(
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public ApiResponse<Void> transferRole(
       @PathVariable Long fromUserId,
       @PathVariable Long toUserId,
       @PathVariable String roleCode
   ) {
     service.transferRole(fromUserId, toUserId, roleCode);
+    return ApiResponse.ok(null);
   }
 
-  @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-  @PostMapping("/{fromUserId}/transfer-role-to-employee/{epfNo}/{roleCode}")
-  public void transferRoleToEmployee(
-      @PathVariable Long fromUserId,
-      @PathVariable String epfNo,
-      @PathVariable String roleCode
-  ) {
-    var to = service.list().stream()
-        .filter(u -> epfNo.equals(u.getEpfNo()))
-        .findFirst()
-        .orElseThrow();
-    service.transferRole(fromUserId, to.getId(), roleCode);
+  // -----------------------------------------------------------------
+  // ADMIN RESET PASSWORD
+  // -----------------------------------------------------------------
+  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HRD')")
+  @PostMapping("/{id}/reset-password")
+  public ApiResponse<Map<String, String>> adminResetPassword(@PathVariable Long id) {
+    String newPassword = service.adminResetPassword(id);
+    return ApiResponse.ok(Map.of("newPassword", newPassword));
   }
 
-  // ===== PER-USER PERMISSION OVERRIDES (ADMIN ONLY) =====
+  // -----------------------------------------------------------------
+  // LOCK / UNLOCK / ACTIVATE / DEACTIVATE
+  // -----------------------------------------------------------------
+  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HRD')")
+  @PostMapping("/{id}/lock")
+  public ApiResponse<Void> lock(@PathVariable Long id) {
+    service.lockUser(id);
+    return ApiResponse.ok(null);
+  }
+
+  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HRD')")
+  @PostMapping("/{id}/unlock")
+  public ApiResponse<Void> unlock(@PathVariable Long id) {
+    service.unlockUser(id);
+    return ApiResponse.ok(null);
+  }
+
+  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HRD')")
+  @PostMapping("/{id}/deactivate")
+  public ApiResponse<Void> deactivate(@PathVariable Long id) {
+    service.deactivateUser(id);
+    return ApiResponse.ok(null);
+  }
+
+  @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HRD')")
+  @PostMapping("/{id}/activate")
+  public ApiResponse<Void> activate(@PathVariable Long id) {
+    service.activateUser(id);
+    return ApiResponse.ok(null);
+  }
+
+  // -----------------------------------------------------------------
+  // PERMISSIONS: GRANT / REVOKE
+  // -----------------------------------------------------------------
   @PreAuthorize("hasAuthority('ROLE_ADMIN')")
   @PostMapping("/{id}/permissions/grant/{permCode}")
-  public void grantUserPermAlias(
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public ApiResponse<Void> grantUserPermission(
       @PathVariable Long id,
       @PathVariable String permCode
   ) {
     service.grantUserPermission(id, permCode);
+    return ApiResponse.ok(null);
   }
 
   @PreAuthorize("hasAuthority('ROLE_ADMIN')")
   @PostMapping("/{id}/permissions/revoke/{permCode}")
-  public void revokeUserPermAlias(
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public ApiResponse<Void> revokeUserPermission(
       @PathVariable Long id,
       @PathVariable String permCode
   ) {
     service.revokeUserPermission(id, permCode);
+    return ApiResponse.ok(null);
   }
 
-  // short aliases
-  @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-  @PostMapping("/{id}/grant/{permCode}")
-  public void grantUserPerm(
-      @PathVariable Long id,
-      @PathVariable String permCode
-  ) {
-    service.grantUserPermission(id, permCode);
-  }
-
-  @PreAuthorize("hasAuthority('ROLE_ADMIN')")
-  @PostMapping("/{id}/revoke/{permCode}")
-  public void revokeUserPerm(
-      @PathVariable Long id,
-      @PathVariable String permCode
-  ) {
-    service.revokeUserPermission(id, permCode);
-  }
-
-  // ===== PERMISSION VIEWS =====
-  // direct overrides: ADMIN only
+  // -----------------------------------------------------------------
+  // PERMISSION VIEWS
+  // -----------------------------------------------------------------
   @PreAuthorize("hasAuthority('ROLE_ADMIN')")
   @GetMapping("/{id}/permissions/direct")
-  public List<String> directGrants(@PathVariable Long id) {
-    return service.directGrantCodes(id);
+  public ApiResponse<List<String>> directPermissions(@PathVariable Long id) {
+    return ApiResponse.ok(service.directGrantCodes(id));
   }
 
-  // effective permissions: ADMIN or HRD can inspect
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HRD')")
   @GetMapping("/{id}/permissions/effective")
-  public List<String> effectivePerms(@PathVariable Long id) {
-    return service.effectivePermissionCodes(id);
+  public ApiResponse<List<String>> effectivePermissions(@PathVariable Long id) {
+    return ApiResponse.ok(service.effectivePermissionCodes(id));
   }
 
-  // ===== DELETE USER =====
+  // -----------------------------------------------------------------
+  // DELETE USER
+  // -----------------------------------------------------------------
   @PreAuthorize("hasAuthority('ROLE_ADMIN')")
   @DeleteMapping("/{id}")
-  public void delete(@PathVariable Long id) {
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public ApiResponse<Void> delete(@PathVariable Long id) {
     service.delete(id);
+    return ApiResponse.ok(null);
   }
 
-  // ===== HISTORY =====
-  // anyone logged-in can get THEIR OWN history
+  // -----------------------------------------------------------------
+  // AUDIT HISTORY
+  // -----------------------------------------------------------------
   @PreAuthorize("isAuthenticated()")
   @GetMapping("/history/me")
-  public List<AuditLog> myHistory() {
-    return service.myHistory();
+  public ApiResponse<List<AuditLog>> myHistory() {
+    return ApiResponse.ok(service.myHistory());
   }
 
-  // ADMIN can read full audit
   @PreAuthorize("hasAuthority('ROLE_ADMIN')")
   @GetMapping("/history")
-  public List<AuditLog> allHistory() {
-    return service.allHistory();
+  public ApiResponse<List<AuditLog>> allHistory() {
+    return ApiResponse.ok(service.allHistory());
   }
 
-  // ===== EXPORT USERS (ADMIN / HRD) =====
+  // -----------------------------------------------------------------
+  // EXPORT USERS
+  // -----------------------------------------------------------------
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HRD')")
   @GetMapping("/export")
-  public List<User> export() {
-    return service.list();
+  public ApiResponse<List<User>> export() {
+    return ApiResponse.ok(service.list());
   }
 
-  // ===== LEGACY HELPERS (ADMIN / HRD) =====
+  // -----------------------------------------------------------------
+  // LEGACY HELPERS (by username) — ONLY ONCE
+  // -----------------------------------------------------------------
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HRD')")
   @GetMapping("/{username}/permissions")
-  public List<String> getUserPermissions(@PathVariable String username) {
-    var u = users.findByUsername(username).orElseThrow();
-    return service.effectivePermissionCodes(u.getId());
+  public ApiResponse<List<String>> getUserPermissions(@PathVariable String username) {
+    var u = users.findByUsername(username)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+    return ApiResponse.ok(service.effectivePermissionCodes(u.getId()));
   }
 
   @PreAuthorize("hasAnyAuthority('ROLE_ADMIN','ROLE_HRD')")
   @GetMapping("/{username}/roles")
-  public List<String> getUserRoles(@PathVariable String username) {
-    var u = users.findByUsername(username).orElseThrow();
-    return users.findAuthorities(u.getId());
+  public ApiResponse<List<String>> getUserRoles(@PathVariable String username) {
+    var u = users.findByUsername(username)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
+    return ApiResponse.ok(users.findAuthorities(u.getId()));
   }
 }
