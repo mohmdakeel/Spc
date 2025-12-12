@@ -1,5 +1,12 @@
 /** @type {import('next').NextConfig} */
+// Force lightningcss to use WASM (avoid missing native binary on this platform)
+process.env.CSS_TRANSFORMER_WASM = 'true';
+
 const nextConfig = {
+  // Disable lightningcss (native binary missing on this platform); fall back to PostCSS
+  experimental: {
+    optimizeCss: false,
+  },
   async rewrites() {
     return [
       // Auth service ↔ Spring Boot @8083

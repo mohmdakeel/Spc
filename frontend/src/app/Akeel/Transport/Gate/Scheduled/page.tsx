@@ -5,6 +5,7 @@ import { listByStatus, gateExit, gateEntry } from '../../services/usageService';
 import type { UsageRequest } from '../../services/types';
 import GateExitEntryModal from '../../components/GateExitEntryModal';
 import { toast } from 'react-toastify';
+import { login } from '../../../../../lib/auth';
 
 const fmtDT = (s?: string | null) => (s ? new Date(s).toLocaleString() : '-');
 
@@ -89,9 +90,11 @@ export default function GateScheduledPage() {
           onClose={()=>setOpenExitFor(null)}
           onSubmit={async (p)=>{
             try{
+              const username = typeof window !== 'undefined' ? window.localStorage.getItem('username') : null;
+              if (!username) throw new Error('Session user missing. Please re-login.');
+              await login({ username, password: p.password });
               await gateExit(openExitFor.id, {
                 odometerStartKm: p.odometer ?? undefined,
-                fuelBefore: p.fuel ?? undefined,
                 remarks: p.remarks ?? undefined
               });
               toast.success('Exit logged'); setOpenExitFor(null); load();
@@ -106,9 +109,11 @@ export default function GateScheduledPage() {
           onClose={()=>setOpenEntryFor(null)}
           onSubmit={async (p)=>{
             try{
+              const username = typeof window !== 'undefined' ? window.localStorage.getItem('username') : null;
+              if (!username) throw new Error('Session user missing. Please re-login.');
+              await login({ username, password: p.password });
               await gateEntry(openEntryFor.id, {
                 odometerEndKm: p.odometer ?? undefined,
-                fuelAfter: p.fuel ?? undefined,
                 remarks: p.remarks ?? undefined
               });
               toast.success('Entry logged'); setOpenEntryFor(null); load();

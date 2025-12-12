@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import type { UsageRequest } from '../../Transport/services/types';
+import type { UsageRequest, RequestStatus } from '../../Transport/services/types';
 import { Th, Td } from '../../Transport/components/ThTd';
 import HODSearchBar from '../components/HODSearchBar';
 import { Printer, X, RefreshCw } from 'lucide-react';
@@ -109,6 +109,15 @@ const COLS = [
   '6%',  // Print
 ] as const;
 
+/* include all post-HOD states so older approvals (now approved/scheduled/returned) still appear */
+const POST_HOD_STATUSES: RequestStatus[] = [
+  'PENDING_MANAGEMENT',
+  'APPROVED',
+  'SCHEDULED',
+  'DISPATCHED',
+  'RETURNED',
+];
+
 /* ======================= Page ======================= */
 export default function HODApprovedHistoryPage() {
   const [items, setItems] = useState<UsageRequest[]>([]);
@@ -121,8 +130,19 @@ export default function HODApprovedHistoryPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await listByStatus('PENDING_MANAGEMENT'); // items already approved by HOD
-      setItems(data || []);
+      const buckets = await Promise.all(POST_HOD_STATUSES.map((s) => listByStatus(s)));
+      const merged = buckets.flat().filter(Boolean) as UsageRequest[];
+
+      const seen = new Set<string>();
+      const unique = merged.filter((r: any) => {
+        const key = String(r?.id ?? r?.requestCode ?? '');
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      unique.sort((a, b) => (Date.parse((b as any)?.createdAt ?? '') || 0) - (Date.parse((a as any)?.createdAt ?? '') || 0));
+      setItems(unique);
     } catch (err: any) {
       console.warn('Failed to load HOD approved list', err);
       setError(err?.message || 'Unable to load approved requests right now.');

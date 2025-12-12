@@ -1,5 +1,5 @@
 // lib/api.ts
-import axios from 'axios';
+import axios, { type AxiosResponse } from 'axios';
 
 /**
  * DEV mode:
@@ -13,11 +13,14 @@ import axios from 'axios';
 const rawBase = (process.env.NEXT_PUBLIC_AUTH_BASE || '').replace(/\/$/, '');
 const baseURL = rawBase ? `${rawBase}/api` : '/aapi';
 
+// Keep API calls responsive (default 10s; clamp env override to 15s max)
+const timeoutMs = Math.min(Number(process.env.NEXT_PUBLIC_API_TIMEOUT) || 10_000, 15_000);
+
 const api = axios.create({
   baseURL,
   withCredentials: true, // <-- send SPC_JWT cookie to backend
   headers: { 'Content-Type': 'application/json' },
-  timeout: 15000,
+  timeout: timeoutMs,
 });
 
 // Request interceptor (optional hook point)
@@ -60,15 +63,50 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    if (error.response?.status === 401) {
-      // Token missing / expired -> go to login
-      if (
-        typeof window !== 'undefined' &&
-        !window.location.pathname.startsWith('/login')
-      ) {
+    const status = error.response?.status;
+    const code = error.code;
+    const message = (error?.message || '').toLowerCase();
+
+    // Unauthenticated → bounce to login quickly
+    if (status === 401) {
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
         window.location.href = '/login';
       }
+
+      // Resolve with a benign response so callers don’t throw a runtime error
+      const safeResponse: AxiosResponse = {
+        status: status ?? 0,
+        statusText: 'Unauthorized',
+        data: null,
+        headers: error.response?.headers ?? {},
+        config: error.config,
+        request: error.request,
+      };
+      return Promise.resolve(safeResponse);
     }
+
+    // Forbidden → bounce to login to avoid getting stuck on 403 page
+    if (status === 403) {
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login';
+      }
+      return Promise.reject(error);
+    }
+
+    // Timeouts / network hiccups → return a benign response so UI can stay responsive
+    if (code === 'ECONNABORTED' || message.includes('timeout')) {
+      console.warn('API timeout – returning empty response to keep UI responsive');
+      const safeResponse: AxiosResponse = {
+        status: status ?? 0,
+        statusText: 'Request Timeout',
+        data: null,
+        headers: error.response?.headers ?? {},
+        config: error.config,
+        request: error.request,
+      };
+      return Promise.resolve(safeResponse);
+    }
+
     return Promise.reject(error);
   }
 );

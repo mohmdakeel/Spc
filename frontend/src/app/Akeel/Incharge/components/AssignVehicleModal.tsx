@@ -6,7 +6,8 @@ import {
 } from 'lucide-react';
 import { fetchVehicles } from '../../Transport/services/VehicleService';
 import { fetchDrivers } from '../../Transport/services/driverService';
-import type { Vehicle, Driver, UsageRequest } from '../../Transport/services/types';
+import { fetchVehicleAvailability } from '../../Transport/services/availabilityService';
+import type { Vehicle, Driver, UsageRequest, BusyWindow } from '../../Transport/services/types';
 import { assignVehicle, type AssignPayload } from '../../Transport/services/usageService';
 
 /* ---------------- helpers for Officer parsing / cleaning ---------------- */
@@ -72,16 +73,80 @@ export default function AssignVehicleModal({
   const [openDropdown, setOpenDropdown] = useState<'vehicle' | 'driver' | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [availableSet, setAvailableSet] = useState<Set<string> | null>(null);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
 
   // derived officer info (explicit or parsed from purpose/remarks)
   const off = useMemo(() => extractOfficer(request), [request]);
+
+  const buildDateTime = (date?: string | null, time?: string | null) => {
+    if (!date || !time) return '';
+    const t = time.length === 5 ? `${time}` : time.slice(0, 5);
+    return `${date}T${t}`;
+  };
 
   useEffect(() => {
     if (!open) return;
     fetchVehicles().then(setVehicles).catch(() => setVehicles([]));
     fetchDrivers().then(setDrivers).catch(() => setDrivers([]));
+
+    // Reset form each time the modal opens so stale selections are cleared
+    setVehicleNumber(defaultValues?.vehicleNumber || request.assignedVehicleNumber || '');
+    setDriverName(defaultValues?.driverName || request.assignedDriverName || '');
+    setDriverPhone(defaultValues?.driverPhone || request.assignedDriverPhone || '');
+    const startDate = request.dateOfTravel;
+    const endDate = request.returnDate || request.dateOfTravel;
+    setPickupAt(defaultValues?.pickupAt || request.scheduledPickupAt || buildDateTime(startDate, request.timeFrom));
+    setExpectedReturnAt(defaultValues?.expectedReturnAt || request.scheduledReturnAt || buildDateTime(endDate, request.timeTo));
+    setInstructions(defaultValues?.instructions || '');
     setErr(null);
-  }, [open]);
+    setAvailableSet(null);
+  }, [open, request, defaultValues]);
+
+  const parseLocal = (val?: string) => {
+    if (!val) return null;
+    const d = new Date(val);
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
+
+  const overlaps = (win: BusyWindow, start: Date, end: Date) => {
+    const a = new Date(win.from);
+    const b = new Date(win.to);
+    if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return true;
+    return start < b && end > a;
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const start = parseLocal(pickupAt);
+    const end = parseLocal(expectedReturnAt);
+    if (!start || !end || end <= start) {
+      setAvailableSet(null);
+      return;
+    }
+
+    const date = pickupAt.split('T')[0] || '';
+    const from = pickupAt.split('T')[1]?.slice(0,5) || '';
+    const to = expectedReturnAt.split('T')[1]?.slice(0,5) || '';
+
+    setAvailabilityLoading(true);
+    fetchVehicleAvailability({ date, from, to })
+      .then((list) => {
+        if (!Array.isArray(list) || !list.length) {
+          setAvailableSet(null);
+          return;
+        }
+        const ok = new Set<string>();
+        for (const v of list) {
+          const busy = (v.busy || []) as BusyWindow[];
+          const conflict = busy.some((bw) => overlaps(bw, start, end));
+          if (!conflict && v.vehicleNumber) ok.add(v.vehicleNumber);
+        }
+        setAvailableSet(ok);
+      })
+      .catch(() => setAvailableSet(null))
+      .finally(() => setAvailabilityLoading(false));
+  }, [open, pickupAt, expectedReturnAt]);
 
   const filteredVehicles = useMemo(() => {
     const q = vehicleQuery.trim().toLowerCase();
@@ -146,13 +211,22 @@ export default function AssignVehicleModal({
         </div>
 
         {/* Full Request Details (now with parsed Officer + cleaned Purpose) */}
-        <div className="px-5 py-4 bg-orange-50/30 border-b text-sm grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="px-5 py-4 bg-orange-50/30 border-b text-sm grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="md:col-span-3 flex flex-wrap gap-3 text-xs">
+            <span className="px-2 py-1 rounded bg-white border text-orange-800 font-semibold">Code: {request.requestCode}</span>
+            <span className="px-2 py-1 rounded bg-white border text-orange-800">Applied: {request.appliedDate || '—'}</span>
+            <span className="px-2 py-1 rounded bg-white border text-orange-800">Status: {request.status || 'APPROVED'}</span>
+          </div>
           <div><b>Applicant:</b> {request.applicantName} ({request.employeeId})</div>
           <div><b>Department:</b> {request.department || '—'}</div>
-          <div><b>Date:</b> {request.dateOfTravel}</div>
-          <div><b>Time:</b> {request.timeFrom} – {request.timeTo} {request.overnight ? '(overnight)' : ''}</div>
-          <div className="md:col-span-2"><b>Route:</b> {request.fromLocation} → {request.toLocation}</div>
-          <div className="md:col-span-2"><b>Purpose:</b> {purposeWithoutOfficer(request)}</div>
+          <div><b>Overnight:</b> {request.overnight ? 'Yes' : 'No'}</div>
+          <div className="md:col-span-2">
+            <b>Travel Dates:</b>{' '}
+            {request.dateOfTravel} → {request.returnDate || request.dateOfTravel}
+          </div>
+          <div><b>Time Window:</b> {request.timeFrom} – {request.timeTo}</div>
+          <div><b>From / To:</b> {request.fromLocation} → {request.toLocation}</div>
+          <div className="md:col-span-3"><b>Purpose:</b> {purposeWithoutOfficer(request)}</div>
           <div><b>Goods:</b> {request.goods || '—'}</div>
           <div className="md:col-span-2">
             <b>Officer:</b>{' '}
@@ -160,10 +234,46 @@ export default function AssignVehicleModal({
               ? <>{off.name || '—'}{off.id ? ` (${off.id})` : ''}{off.phone ? ` • ${off.phone}` : ''}</>
               : '—'}
           </div>
+          {'remarks' in request && (
+            <div className="md:col-span-3">
+              <b>Remarks:</b> {(request as any).remarks || '—'}
+            </div>
+          )}
         </div>
 
         {/* Body */}
         <div className="p-5 space-y-5">
+          {/* Schedule first (drives availability filtering) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              {L('Pickup At *')}
+              <input
+                type="datetime-local"
+                className="w-full border border-orange-200 rounded px-3 py-2"
+                value={pickupAt}
+                onChange={e => setPickupAt(e.target.value)}
+              />
+            </div>
+            <div>
+              {L('Expected Return *')}
+              <input
+                type="datetime-local"
+                className="w-full border border-orange-200 rounded px-3 py-2"
+                value={expectedReturnAt}
+                onChange={e => setExpectedReturnAt(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Availability hint */}
+          <div className="text-xs text-gray-600">
+            {availabilityLoading
+              ? 'Checking vehicle availability…'
+              : availableSet
+                ? `Showing vehicles available for ${pickupAt || 'start'} → ${expectedReturnAt || 'end'}.`
+                : 'Showing all vehicles (enter both date/time to filter availability).'}
+          </div>
+
           {/* Vehicle Dropdown */}
           <div className="relative">
             {L('Vehicle *')}
@@ -186,7 +296,9 @@ export default function AssignVehicleModal({
                     onChange={e => setVehicleQuery(e.target.value)}
                   />
                 </div>
-                {filteredVehicles.map(v => (
+                {filteredVehicles
+                  .filter(v => !availableSet || availableSet.has(v.vehicleNumber))
+                  .map(v => (
                   <div
                     key={v.id}
                     className="px-3 py-2 hover:bg-orange-50 cursor-pointer text-sm"

@@ -2,25 +2,23 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { Home, PlusCircle, ListChecks, MapPin, BarChart3, Car, UserCircle, Settings, LogOut } from 'lucide-react';
+import Link from 'next/link';
+import { Home, PlusCircle, ListChecks, MapPin, BarChart3, UserCircle, Settings, LogOut } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { logout } from '../../../../../lib/auth';
+
+const NAV_ITEMS = [
+  { label: 'Dashboard',     icon: <Home size={18} />,       to: '/Akeel/Applicant' },
+  { label: 'New Request',   icon: <PlusCircle size={18} />, to: '/Akeel/Applicant/NewRequest' },
+  { label: 'Requests',      icon: <ListChecks size={18} />, to: '/Akeel/Applicant/MyRequests' },
+  { label: 'Track Request', icon: <MapPin size={18} />,     to: '/Akeel/Applicant/Track' },
+  { label: 'Reports',       icon: <BarChart3 size={18} />,  to: '/Akeel/Applicant/Reports' },
+];
 
 export default function ApplicantSidebar() {
   const router = useRouter();
   const path = usePathname();
-  const go = (p: string) => router.push(p);
   const is = (p: string) => path === p || path?.startsWith(p + '/');
-
-  const Item = ({ label, icon, to }: { label: string; icon: React.ReactNode; to: string }) => (
-    <button
-      onClick={() => go(to)}
-      className={`hod-sidebar__item ${is(to) ? 'is-active' : ''}`}
-    >
-      {icon}
-      <span className="truncate">{label}</span>
-    </button>
-  );
 
   const handleLogout = async () => {
     await logout();
@@ -49,28 +47,29 @@ export default function ApplicantSidebar() {
       </div>
 
       <nav className="space-y-1 flex-1">
-        <Item label="Dashboard"     icon={<Home size={18} />}       to="/Akeel/Applicant" />
-        <Item label="New Request"   icon={<PlusCircle size={18} />} to="/Akeel/Applicant/NewRequest" />
-        <Item label="Requests"      icon={<ListChecks size={18} />} to="/Akeel/Applicant/MyRequests" />
-        <Item label="Track Request" icon={<MapPin size={18} />}     to="/Akeel/Applicant/Track" />
-        <Item label="Reports"       icon={<BarChart3 size={18} />}  to="/Akeel/Applicant/Reports" />
+        {NAV_ITEMS.map((item) => (
+          <Link
+            key={item.to}
+            href={item.to}
+            prefetch={false}
+            className={`hod-sidebar__item ${is(item.to) ? 'is-active' : ''}`}
+            aria-current={is(item.to) ? 'page' : undefined}
+          >
+            {item.icon}
+            <span className="truncate">{item.label}</span>
+          </Link>
+        ))}
       </nav>
 
       <div className="pt-4 mt-6 border-t border-orange-200 space-y-2">
-        <button
-          onClick={() => go('/Akeel/Applicant/Profile')}
-          className="hod-sidebar__link"
-        >
+        <Link href="/Akeel/Applicant/Profile" prefetch={false} className="hod-sidebar__link">
           <UserCircle size={18} />
           <span>Profile</span>
-        </button>
-        <button
-          onClick={() => go('/Akeel/Applicant/Settings')}
-          className="hod-sidebar__link"
-        >
+        </Link>
+        <Link href="/Akeel/Applicant/Settings" prefetch={false} className="hod-sidebar__link">
           <Settings size={18} />
           <span>Settings</span>
-        </button>
+        </Link>
         <button
           onClick={handleLogout}
           className="hod-sidebar__danger"

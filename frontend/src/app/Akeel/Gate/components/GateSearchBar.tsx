@@ -15,11 +15,13 @@ type Props = {
  */
 export default function GateSearchBar({ value, onChange, placeholder, className }: Props) {
   return (
-    <SearchBar
-      value={value}
-      onChange={onChange}
-      placeholder={placeholder}
-      className={`h-8 min-w-[220px] ${className || ''}`}
-    />
+    <div className={`w-full sm:w-72 ${className || ''}`}>
+      <SearchBar
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className="w-full h-9"
+      />
+    </div>
   );
 }

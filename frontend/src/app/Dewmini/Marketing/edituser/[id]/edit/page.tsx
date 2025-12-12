@@ -115,6 +115,7 @@ export default function UserEditPage() {
         password,
         ...rest
       } = formData;
+      void _omitId;
 
       const payload: any = { ...rest };
       if (password && password.trim().length > 0) {

@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Th, Td } from '../../Transport/components/ThTd';
-import SearchBar from '../../Transport/components/SearchBar';
+import SearchBar from '../components/SearchBar';
 import type { UsageRequest } from '../../Transport/services/types';
 import { listByStatus } from '../../Transport/services/usageService';
 import { Clock3, Car, UserRound } from 'lucide-react';
@@ -22,10 +22,28 @@ const matchesQuery = (q: string) => (r: UsageRequest) =>
     r.dateOfTravel,
     r.timeFrom,
     r.timeTo,
+    r.gateExitAt,
   ]
     .map((x) => (x ?? '').toString().toLowerCase())
     .join(' ')
     .includes(q.trim().toLowerCase());
+
+const startIsoFor = (r: UsageRequest) =>
+  r.gateExitAt ||
+  r.scheduledPickupAt ||
+  (r.dateOfTravel && r.timeFrom ? `${r.dateOfTravel}T${r.timeFrom}` : null);
+
+const startLabel = (r: UsageRequest) => fmtDT(startIsoFor(r));
+
+const elapsedLabel = (startIso?: string | null, now?: Date | null) => {
+  if (!startIso || !now) return '—';
+  const ms = now.getTime() - new Date(startIso).getTime();
+  if (Number.isNaN(ms) || ms < 0) return '—';
+  const mins = Math.floor(ms / 60000);
+  const hours = Math.floor(mins / 60);
+  const rem = mins % 60;
+  return hours ? `${hours}h ${rem}m` : `${rem}m`;
+};
 
 /* ---------------- page ---------------- */
 export default function InchargeActiveVehiclesPage() {
@@ -75,7 +93,7 @@ export default function InchargeActiveVehiclesPage() {
           value={q}
           onChange={setQ}
           placeholder="Search code, vehicle, driver, route…"
-          className="h-8"
+          className="w-full sm:w-72"
         />
       </div>
 
@@ -96,7 +114,7 @@ export default function InchargeActiveVehiclesPage() {
                 <Th className="px-2 py-1 text-left">RQ Code</Th>
                 <Th className="px-2 py-1 text-left">Vehicle</Th>
                 <Th className="px-2 py-1 text-left">Driver</Th>
-                <Th className="px-2 py-1 text-left">Exit Time</Th>
+                <Th className="px-2 py-1 text-left">Started / Elapsed</Th>
                 <Th className="px-2 py-1 text-left">Exit Odo</Th>
                 <Th className="px-2 py-1 text-left">Route</Th>
               </tr>
@@ -142,7 +160,10 @@ export default function InchargeActiveVehiclesPage() {
                   <Td className="px-2 py-1">
                     <div className="inline-flex items-center gap-1">
                       <Clock3 size={12} className="text-orange-700" />
-                      <span>{fmtDT(r.gateExitAt)}</span>
+                      <span>{startLabel(r)}</span>
+                    </div>
+                    <div className="text-[9px] text-emerald-700 font-semibold">
+                      Elapsed: {elapsedLabel(startIsoFor(r), now)}
                     </div>
                   </Td>
 

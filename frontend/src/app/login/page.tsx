@@ -1,9 +1,10 @@
 // app/login/page.tsx
 'use client';
-import { useState } from 'react';
-import { login, me } from '../../../lib/auth';
+import { useEffect, useState } from 'react';
+import { login, me, prewarmAuthCaches } from '../../../lib/auth';
 import { pickHomeFor } from '../../../lib/authz';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Image from 'next/image';
 import { Car, Shield, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
@@ -15,6 +16,55 @@ export default function LoginPage() {
   const router = useRouter();
   const params = useSearchParams();
 
+  // Preload likely landing pages so navigation feels instant
+  useEffect(() => {
+    router.prefetch('/dashboard');
+    router.prefetch('/maindashboard');
+  }, [router]);
+
+  const hardNavigate = (dest: string) => {
+    if (typeof window !== 'undefined') {
+      window.location.href = dest;
+    } else {
+      router.push(dest);
+    }
+  };
+
+  const redirectAfterLogin = async (next: string | null) => {
+    // If caller explicitly asked for a path, honor it immediately.
+    if (next) {
+      hardNavigate(next);
+      return;
+    }
+
+    // Otherwise pick the right home based on the user profile.
+    try {
+      const profile = await me();
+      const preferred = profile ? pickHomeFor(profile) : null;
+      const target = preferred && preferred !== '/login' ? preferred : '/dashboard';
+
+      hardNavigate(target);
+    } catch {
+      hardNavigate('/dashboard');
+    }
+  };
+
+  // If already authenticated (cookie present), skip the form and go where you should
+  useEffect(() => {
+    (async () => {
+      try {
+        const profile = await me();
+        if (profile) {
+          // prime caches in background to keep navigation snappy
+          prewarmAuthCaches().catch(() => {});
+          redirectAfterLogin(params.get('next'));
+        }
+      } catch {
+        // ignore and let user log in
+      }
+    })();
+  }, [params]);
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr(null);
@@ -22,11 +72,9 @@ export default function LoginPage() {
     
     try {
       await login({ username: identifier, password });
-      const u = await me();
-      const next = params.get('next');
-      
-      // Use the enhanced routing logic
-      router.replace(next || pickHomeFor(u));
+      // kick off background prefetch for fast first navigation
+      prewarmAuthCaches().catch(() => {});
+      redirectAfterLogin(params.get('next'));
     } catch (e: any) {
       setErr(e?.message || 'Login failed. Please check your credentials.');
     } finally {
@@ -39,13 +87,24 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-orange-100 p-6">
-      <div className="w-full max-w-md">
+    <main className="relative min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-white to-orange-100 p-6 overflow-hidden">
+      <div
+        className="absolute inset-0 opacity-10 bg-[url('/spclogopic.png')] bg-center bg-no-repeat bg-contain pointer-events-none"
+        aria-hidden
+      />
+      <div className="w-full max-w-md relative">
         {/* Brand Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="w-12 h-12 bg-orange-600 rounded-xl flex items-center justify-center shadow-lg">
-              <Shield className="w-6 h-6 text-white" />
+            <div className="w-12 h-12 bg-white rounded-xl border border-orange-200 flex items-center justify-center shadow-lg overflow-hidden">
+              <Image
+                src="/spclogopic.png"
+                alt="State Printing Corporation logo"
+                width={48}
+                height={48}
+                className="object-contain"
+                priority
+              />
             </div>
             <h1 className="text-2xl font-bold text-gray-900">State Printing Corporation</h1>
           </div>
@@ -100,6 +159,7 @@ export default function LoginPage() {
                   type="button"
                   onClick={togglePasswordVisibility}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>

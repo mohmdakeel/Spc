@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import type { UsageRequest } from '../../Transport/services/types';
+import type { UsageRequest, RequestStatus } from '../../Transport/services/types';
 import { listByStatus, listAllRequests } from '../../Transport/services/usageService';
 import { Th, Td } from '../../Transport/components/ThTd';
 import { Printer, X } from 'lucide-react';
@@ -30,14 +30,20 @@ function toArray(maybe: any): any[] {
   return [];
 }
 
-/** statuses that indicate "HOD has approved / moved forward" */
-const ALLOWED = new Set([
+/** statuses that indicate "HOD has approved / moved forward" (include later states too) */
+const POST_HOD_STATUSES: RequestStatus[] = [
   'PENDING_MANAGEMENT',
-  'PENDING MANAGMENT', // spelling variants
-  'SENT_TO_MANAGEMENT',
   'APPROVED',
-  'ASSIGNED',
-  'COMPLETED',
+  'SCHEDULED',
+  'DISPATCHED',
+  'RETURNED',
+];
+const STATUS_VARIANTS = ['PENDING MANAGMENT', 'SENT_TO_MANAGEMENT']; // legacy spellings/labels
+const ALLOWED = new Set<string>([
+  ...POST_HOD_STATUSES,
+  ...STATUS_VARIANTS,
+  'ASSIGNED',   // kept for backward compatibility (older data)
+  'COMPLETED',  // kept for backward compatibility (older data)
 ]);
 
 /* readable + non-overflowing status chip */
@@ -58,7 +64,7 @@ function chipStatus(raw?: string) {
     cls = orange;
     if (s.startsWith('PENDING')) label = 'PENDING MGMT';
     if (s.startsWith('SENT'))    label = 'SENT TO MGMT';
-  } else if (s === 'APPROVED' || s === 'ASSIGNED' || s === 'COMPLETED') {
+  } else if (s === 'APPROVED' || s === 'ASSIGNED' || s === 'COMPLETED' || s === 'SCHEDULED' || s === 'DISPATCHED' || s === 'RETURNED') {
     cls = green;
   } else if (s === 'REJECTED') {
     cls = red;
@@ -111,13 +117,11 @@ export default function HODTrackPage() {
     (async () => {
       setLoading(true);
       try {
-        const statuses = [
-          'PENDING_MANAGEMENT',
-          'PENDING MANAGMENT',
-          'SENT_TO_MANAGEMENT',
-          'APPROVED',
-          'ASSIGNED',
-          'COMPLETED',
+        const statuses: Array<RequestStatus | string> = [
+          ...POST_HOD_STATUSES,
+          ...STATUS_VARIANTS,
+          'ASSIGNED',   // compatibility
+          'COMPLETED',  // compatibility
         ];
         const buckets: any[][] = [];
         for (const st of statuses) {

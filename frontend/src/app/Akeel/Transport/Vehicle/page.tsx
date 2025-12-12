@@ -22,6 +22,7 @@ import EntityModal from '../components/EntityModal';
 import DeleteConfirmModal from '../components/DeleteConfirmModal';
 import { Th, Td } from '../components/ThTd';
 import type { Vehicle, VehicleStatus } from '../services/types';
+import { useAuth } from '../../../../../hooks/useAuth';
 
 /* one-view switch */
 function useMediaQuery(query: string) {
@@ -51,10 +52,37 @@ const HEAD_PY = 'py-2';
 const fmtDate = (s?: string | null) => (s ? new Date(s).toLocaleDateString() : '-');
 const fmtDateTime = (s?: string | Date | null) => (s ? new Date(s as any).toLocaleString() : '-');
 const fmt = (v: unknown) => (v == null || v === '' ? '-' : String(v));
+const odoText = (v: Vehicle, multiline = false) => {
+  const reg = v.registeredKm ?? v.totalKmDriven;
+  const cur = v.totalKmDriven;
+  if (multiline) {
+    return (
+      <div className="leading-tight text-[11px] text-gray-800">
+        <div className="font-medium">Reg: {reg ?? '—'}</div>
+        <div className="font-semibold text-orange-900">Current: {cur ?? '—'}</div>
+      </div>
+    );
+  }
+  if (reg != null && cur != null) {
+    return reg === cur ? String(cur) : `${reg} / ${cur}`;
+  }
+  if (reg != null) return String(reg);
+  if (cur != null) return String(cur);
+  return '—';
+};
 
 export default function VehicleListPage() {
   const router = useRouter();
   const isMdUp = useMediaQuery('(min-width: 768px)');
+  const { user } = useAuth();
+
+  const roles = (user?.roles || []).map(r => r.toUpperCase());
+  const perms = (user?.permissions || []).map(p => p.toUpperCase());
+  const isAdmin = roles.some(r => ['ADMIN', 'TRANSPORT_ADMIN'].includes(r));
+  const canCreate = isAdmin || perms.includes('CREATE');
+  const canUpdate = isAdmin || perms.includes('UPDATE');
+  const canDelete = isAdmin || perms.includes('DELETE');
+  const canPrint  = isAdmin || perms.includes('PRINT') || perms.includes('READ');
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [deletedVehicles, setDeletedVehicles] = useState<Vehicle[]>([]);
@@ -67,6 +95,7 @@ export default function VehicleListPage() {
   const [showForm, setShowForm] = useState<false | 'add' | 'edit'>(false);
   const [editing, setEditing] = useState<Vehicle | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Vehicle | null>(null);
+  const [statusFilter, setStatusFilter] = useState<VehicleStatus | 'ALL'>('ALL');
 
   const load = async () => {
     setLoading(true);
@@ -89,14 +118,18 @@ export default function VehicleListPage() {
   const filtered = useMemo(() => {
     const data = Array.isArray(list) ? list : [];
     const q = search.trim().toLowerCase();
-    if (!q) return data;
-    return data.filter((v) =>
+    const statusFiltered = statusFilter === 'ALL'
+      ? data
+      : data.filter(v => (v.status || 'AVAILABLE').toUpperCase() === statusFilter.toUpperCase());
+
+    if (!q) return statusFiltered;
+    return statusFiltered.filter((v) =>
       [
         v.vehicleNumber, v.vehicleType, v.brand, v.model, v.chassisNumber, v.engineNumber,
-        v.manufactureDate, v.totalKmDriven, v.fuelEfficiency, v.presentCondition, v.status,
+        v.manufactureDate, v.registeredKm, v.totalKmDriven, v.fuelEfficiency, v.presentCondition, v.status,
       ].map((x) => (x ?? '').toString().toLowerCase()).join(' ').includes(q)
     );
-  }, [list, search]);
+  }, [list, search, statusFilter]);
 
   useEffect(() => { setPage(1); }, [showDeleted, search]);
 
@@ -148,6 +181,7 @@ export default function VehicleListPage() {
   };
 
   const onAddSubmit = async (payload: Partial<Vehicle>, files?: File[] | FileList) => {
+    if (!canCreate) { toast.error('You do not have permission to add vehicles.'); return; }
     try {
       const hasFiles = !!files && (Array.isArray(files) ? files.length > 0 : files.length > 0);
       if (hasFiles) await createVehicleWithImages(payload, files as any);
@@ -161,6 +195,7 @@ export default function VehicleListPage() {
   };
 
   const onEditSubmit = async (payload: Partial<Vehicle>) => {
+    if (!canUpdate) { toast.error('You do not have permission to update vehicles.'); return; }
     try {
       if (!editing || editing.id == null) throw new Error('No vehicle selected for editing');
       await updateVehicle(editing.id, payload);
@@ -174,6 +209,7 @@ export default function VehicleListPage() {
   };
 
   const onDelete = async () => {
+    if (!canDelete) { toast.error('You do not have permission to delete vehicles.'); return; }
     if (!deleteTarget || deleteTarget.id == null) return;
     try {
       await deleteVehicle(deleteTarget.id);
@@ -242,7 +278,10 @@ export default function VehicleListPage() {
         <div><span className="text-gray-500">Chassis:</span> {fmt(v.chassisNumber)}</div>
         <div><span className="text-gray-500">Engine:</span> {fmt(v.engineNumber)}</div>
         <div><span className="text-gray-500">Mfg:</span> {fmtDate(v.manufactureDate)}</div>
-        <div><span className="text-gray-500">KM:</span> {fmt(v.totalKmDriven)}</div>
+        <div>
+          <span className="text-gray-500">Odo:</span>
+          <div className="ml-1 inline-block align-middle">{odoText(v, true)}</div>
+        </div>
         <div><span className="text-gray-500">Fuel:</span> {fmt(v.fuelEfficiency)}</div>
         <div className="col-span-2"><span className="text-gray-500">Cond.:</span> {fmt(v.presentCondition)}</div>
       </div>
@@ -313,17 +352,33 @@ export default function VehicleListPage() {
                 Deleted
                 <span className="ml-2 text-[10px] sm:text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded-full">{deletedVehicles.length}</span>
               </button>
-            </div>
+          </div>
 
-            <div className="flex-1" />
-            <div className="flex flex-wrap items-center gap-2">
+          <div className="flex-1" />
+          <div className="flex flex-wrap items-center gap-2">
+            {!showDeleted && (
+              <div className="flex items-center gap-1 bg-orange-50 border border-orange-200 px-2 py-1.5 rounded-lg text-xs sm:text-sm text-orange-800 shadow-sm">
+                {(['ALL','AVAILABLE','IN_SERVICE','UNDER_REPAIR','RETIRED'] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setStatusFilter(s as VehicleStatus | 'ALL')}
+                    className={`px-2 py-1 rounded transition-colors ${statusFilter === s ? 'bg-orange-600 text-white' : 'hover:bg-orange-100'}`}
+                  >
+                    {s.replace('_',' ')}
+                  </button>
+                ))}
+              </div>
+            )}
+            {canCreate && !showDeleted && (
               <button
                 className="flex items-center gap-2 bg-orange-600 text-white px-3 py-2 rounded-lg hover:bg-orange-700 shadow-sm transition-colors text-xs sm:text-sm"
                 onClick={() => { setEditing(null); setShowForm('add'); }}
               >
                 <Plus size={16} />
-                <span>Add Vehicle</span>
-              </button>
+                  <span>Add Vehicle</span>
+                </button>
+            )}
+            {canPrint && (
               <button
                 className="flex items-center gap-2 bg-orange-100 text-orange-700 border border-orange-200 px-3 py-2 rounded-lg hover:bg-orange-200 shadow-sm transition-colors text-xs sm:text-sm"
                 onClick={() => printVehicleList(filtered as Vehicle[], showDeleted)}
@@ -331,8 +386,9 @@ export default function VehicleListPage() {
                 <Printer size={16} />
                 <span>Print</span>
               </button>
-            </div>
+            )}
           </div>
+        </div>
 
           <SearchBar value={search} onChange={setSearch} placeholder="Search any field (Number, Type, Brand, Model…)" />
         </div>
@@ -368,11 +424,11 @@ export default function VehicleListPage() {
                   <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Chassis</Th>
                   <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Engine</Th>
                   <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Mfg Date</Th>
-                  <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>KM</Th>
+                  <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>Odo (reg / current)</Th>
                   <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>Fuel</Th>
                   <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Condition</Th>
                   <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Status</Th>
-                  {!showDeleted && <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>Actions</Th>}
+                  {!showDeleted && (canUpdate || canDelete || canPrint) && <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>Actions</Th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-orange-100">
@@ -392,29 +448,31 @@ export default function VehicleListPage() {
                     <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT} truncate`} title={fmt(v.chassisNumber)}>{fmt(v.chassisNumber)}</Td>
                     <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT} truncate`} title={fmt(v.engineNumber)}>{fmt(v.engineNumber)}</Td>
                     <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT}`}>{fmtDate(v.manufactureDate)}</Td>
-                    <Td className={`text-center ${ROW_PX} ${ROW_PY} ${ROW_TEXT}`}>{fmt(v.totalKmDriven)}</Td>
+                    <Td className={`text-center ${ROW_PX} ${ROW_PY} ${ROW_TEXT}`}>{odoText(v, true)}</Td>
                     <Td className={`text-center ${ROW_PX} ${ROW_PY} ${ROW_TEXT}`}>{fmt(v.fuelEfficiency)}</Td>
                     <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT} truncate`} title={fmt(v.presentCondition)}>{fmt(v.presentCondition)}</Td>
-                    <Td className={`${ROW_PX} ${ROW_PY}`} onClick={(e) => e.stopPropagation()}>
-                      <div className="flex justify-center">
-                        <StatusPill
-                          mode="vehicle"
-                          value={v.status ?? undefined}
-                          editable={!showDeleted}
-                          onChange={(s) => onChangeStatus(v, s as VehicleStatus)}
-                        />
-                      </div>
-                    </Td>
-                    {!showDeleted && (
+                  <Td className={`${ROW_PX} ${ROW_PY}`} onClick={(e) => e.stopPropagation()}>
+                    <div className="flex justify-center">
+                      <StatusPill
+                        mode="vehicle"
+                        value={v.status ?? undefined}
+                        editable={!showDeleted && canUpdate}
+                        onChange={(s) => onChangeStatus(v, s as VehicleStatus)}
+                      />
+                    </div>
+                  </Td>
+                    {!showDeleted && (canUpdate || canDelete || canPrint) && (
                       <Td className={`text-center ${ROW_PX} ${ROW_PY}`} onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
-                          <button
-                            className="w-6 h-6 grid place-items-center rounded text-orange-600 hover:bg-orange-100 transition-colors"
-                            title="Print"
-                            onClick={(e) => { e.stopPropagation(); printVehicle(v); }}
-                          >
-                            <Printer size={12} />
-                          </button>
+                          {canPrint && (
+                            <button
+                              className="w-6 h-6 grid place-items-center rounded text-orange-600 hover:bg-orange-100 transition-colors"
+                              title="Print"
+                              onClick={(e) => { e.stopPropagation(); printVehicle(v); }}
+                            >
+                              <Printer size={12} />
+                            </button>
+                          )}
                           <button
                             className="w-6 h-6 grid place-items-center rounded text-orange-600 hover:bg-orange-100 transition-colors"
                             title="History"
@@ -422,20 +480,24 @@ export default function VehicleListPage() {
                           >
                             <HistoryIcon size={12} />
                           </button>
-                          <button
-                            className="w-6 h-6 grid place-items-center rounded text-green-600 hover:bg-green-100 transition-colors"
-                            title="Edit"
-                            onClick={(e) => { e.stopPropagation(); setEditing(v); setShowForm('edit'); }}
-                          >
-                            <Edit size={12} />
-                          </button>
-                          <button
-                            className="w-6 h-6 grid place-items-center rounded text-red-600 hover:bg-red-100 transition-colors"
-                            title="Delete"
-                            onClick={(e) => { e.stopPropagation(); setDeleteTarget(v); }}
-                          >
-                            <Trash2 size={12} />
-                          </button>
+                          {canUpdate && (
+                            <button
+                              className="w-6 h-6 grid place-items-center rounded text-green-600 hover:bg-green-100 transition-colors"
+                              title="Edit"
+                              onClick={(e) => { e.stopPropagation(); setEditing(v); setShowForm('edit'); }}
+                            >
+                              <Edit size={12} />
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button
+                              className="w-6 h-6 grid place-items-center rounded text-red-600 hover:bg-red-100 transition-colors"
+                              title="Delete"
+                              onClick={(e) => { e.stopPropagation(); setDeleteTarget(v); }}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
                         </div>
                       </Td>
                     )}
@@ -481,7 +543,8 @@ export default function VehicleListPage() {
             { label: 'Chassis Number', value: selected.chassisNumber ?? '-' },
             { label: 'Engine Number', value: selected.engineNumber ?? '-' },
             { label: 'Manufacture Date', value: fmtDate(selected.manufactureDate ?? undefined) },
-            { label: 'Total KM Driven', value: selected.totalKmDriven ?? '-' },
+            { label: 'Registered KM', value: selected.registeredKm ?? selected.totalKmDriven ?? '-' },
+            { label: 'Current KM', value: selected.totalKmDriven ?? '-' },
             { label: 'Fuel Efficiency', value: selected.fuelEfficiency ?? '-' },
             { label: 'Condition', value: selected.presentCondition ?? '-' },
             { label: 'Status', value: selected.status ?? '-' },

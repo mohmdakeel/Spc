@@ -8,8 +8,6 @@ import {
   Mail,
   User,
   Building2,
-  Phone,
-  MapPin,
   Save,
   Key,
   Eye,

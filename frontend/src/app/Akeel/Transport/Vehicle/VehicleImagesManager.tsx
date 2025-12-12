@@ -1,6 +1,7 @@
 'use client';
+/* eslint-disable @next/next/no-img-element */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Upload, Trash2, Images } from 'lucide-react';
 import { toast } from 'react-toastify';
 import type { EntityId, VehicleImage } from '../services/types';
@@ -17,7 +18,7 @@ export default function VehicleImagesManager({ vehicleId }: { vehicleId: EntityI
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const list = await listVehicleImages(vehicleId);
@@ -27,9 +28,9 @@ export default function VehicleImagesManager({ vehicleId }: { vehicleId: EntityI
     } finally {
       setLoading(false);
     }
-  }
+  }, [vehicleId]);
 
-  useEffect(() => { load(); }, [vehicleId]);
+  useEffect(() => { load(); }, [load]);
 
   async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
     if (!e.target.files || e.target.files.length === 0) return;

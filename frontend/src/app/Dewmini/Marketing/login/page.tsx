@@ -49,7 +49,7 @@ export default function LoginPage() {
         try {
           const data = await res.json();
           if (data?.message) message = data.message;
-        } catch (_) {}
+      } catch {}
         throw new Error(message);
       }
 

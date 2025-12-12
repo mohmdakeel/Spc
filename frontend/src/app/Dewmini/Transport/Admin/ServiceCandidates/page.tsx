@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { toast } from 'react-toastify';
 import {
   ArrowLeft,
@@ -84,7 +83,6 @@ export default function ServiceCandidatesPage() {
   // ==== History state ====
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyList, setHistoryList] = useState<ChangeHistory[]>([]);
-  const [selectedCandidate, setSelectedCandidate] = useState<ServiceCandidate | null>(null);
 
   // ---- Fetch ----
   const loadCandidates = async () => {
@@ -116,8 +114,6 @@ export default function ServiceCandidatesPage() {
         return;
       }
       setHistoryList(data);
-      const selected = candidates.find((c) => c.id === id) ?? null;
-      setSelectedCandidate(selected);
       setHistoryOpen(true);
     } catch (err: any) {
       toast.error(err?.message ?? 'Failed to load candidate history');
@@ -352,12 +348,13 @@ export default function ServiceCandidatesPage() {
 
                         <td className="border px-2 py-1 text-xs text-center">
                           <button
-  onClick={() => router.push(`/Dewmini/Transport/Admin/ServiceCandidateHistoryPage?id=${c.id}`)}
-  className="px-1 text-orange-600 hover:text-orange-800"
-  title="History"
->
-  <HistoryIcon size={14} />
-</button>
+                            type="button"
+                            onClick={() => handleOpenHistory(c.id)}
+                            className="px-1 text-orange-600 hover:text-orange-800"
+                            title="History"
+                          >
+                            <HistoryIcon size={14} />
+                          </button>
 
                         </td>
                       </tr>

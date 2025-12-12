@@ -7,6 +7,7 @@ import type { UsageRequest } from '../../Transport/services/types';
 import { Th, Td } from '../../Transport/components/ThTd';
 import WorkspaceSearchBar from '../../../../../components/workspace/WorkspaceSearchBar';
 import { printDocument, escapeHtml, guessPrintedBy } from '../../../../../lib/print';
+import { readCache, writeCache } from '../../../../../lib/cache';
 
 const fmtDT = (s?: string | null) => (s ? new Date(s).toLocaleString() : '—');
 
@@ -54,10 +55,16 @@ const SEARCH_PRINT_STYLES = `
 `;
 
 export default function ApplicantSearchPage() {
-  const [items, setItems] = React.useState<UsageRequest[]>([]);
-  const [employeeId, setEmployeeId] = React.useState('');
+  const bootstrapId =
+    typeof window !== 'undefined'
+      ? (localStorage.getItem('employeeId') || localStorage.getItem('actor') || '')
+      : '';
+  const cached = bootstrapId ? readCache<UsageRequest[]>(`cache:applicant:requests:${bootstrapId}`) || [] : [];
+
+  const [items, setItems] = React.useState<UsageRequest[]>(cached);
+  const [employeeId, setEmployeeId] = React.useState(bootstrapId);
   const [search, setSearch] = React.useState('');
-  const [loading, setLoading] = React.useState(true);
+  const [loading, setLoading] = React.useState(!cached.length);
 
   React.useEffect(() => {
     const id =
@@ -83,6 +90,7 @@ export default function ApplicantSearchPage() {
         }
         all.sort((a: any, b: any) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0));
       } finally {
+        writeCache(`cache:applicant:requests:${id}`, all);
         setItems(all);
         setLoading(false);
       }
@@ -121,7 +129,7 @@ export default function ApplicantSearchPage() {
 
   const printAllCurrent = React.useCallback(() => {
     const rows = filtered
-      .map((r: any, index) => {
+      .map((r: any) => {
         const off = extractOfficer(r);
         const officerText = off.withOfficer
           ? `${formatPrintValue(off.name)} <span class="sub">(${formatPrintValue(off.id)})</span>${

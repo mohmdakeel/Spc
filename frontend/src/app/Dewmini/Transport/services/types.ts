@@ -52,6 +52,8 @@ export interface Vehicle extends AuditFields {
   chassisNumber?: string | null;
   engineNumber?: string | null;
   manufactureDate?: ISODateString | null;
+  /** Registered odometer at onboarding */
+  registeredKm?: number | null;
   totalKmDriven?: number | null;
   fuelEfficiency?: number | null; // km/l
   presentCondition?: string | null;

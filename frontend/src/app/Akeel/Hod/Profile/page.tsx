@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { useAuth } from '../../../../../hooks/useAuth';
 import api from '../../../../../lib/api';
 import { Save, User, Mail, Key, Camera, Eye, EyeOff, Loader2 } from 'lucide-react';
@@ -149,7 +150,14 @@ export default function HodProfilePage() {
         <div className="flex items-center gap-4">
           <div className="w-20 h-20 rounded-full border-4 border-orange-200 overflow-hidden bg-orange-50 flex items-center justify-center">
             {user.imageUrl ? (
-              <img src={user.imageUrl} alt={user.fullName || user.username || 'HOD'} className="w-full h-full object-cover" />
+              <Image
+                src={user.imageUrl}
+                alt={user.fullName || user.username || 'HOD'}
+                width={80}
+                height={80}
+                className="w-full h-full object-cover"
+                unoptimized
+              />
             ) : (
               <User className="w-8 h-8 text-orange-400" />
             )}

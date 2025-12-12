@@ -83,20 +83,6 @@ function extractOfficer(r: any): { withOfficer: boolean; name?: string; id?: str
   return { withOfficer: false };
 }
 
-function saveMyApproval(req: UsageRequest, remarks?: string) {
-  if (typeof window === 'undefined') return;
-  try {
-    const key = 'hodApprovedHistory';
-    const curr = JSON.parse(localStorage.getItem(key) || '[]');
-    const now = new Date().toISOString();
-    const next = [
-      { id: req.id, requestCode: req.requestCode, approvedAt: now, remarks: remarks || '', snapshot: req },
-      ...curr.filter((x: any) => x?.id !== req.id),
-    ].slice(0, 300);
-    localStorage.setItem(key, JSON.stringify(next));
-  } catch {}
-}
-
 const chip = (s: string) => (
   <span className="inline-block text-[10px] px-1.5 py-[2px] rounded bg-orange-100 text-orange-800 leading-none">
     {s}

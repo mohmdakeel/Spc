@@ -2,30 +2,23 @@
 
 import React from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Home, ListChecks, CheckCircle2, XCircle, Briefcase, MapPin, UserCircle, Settings, LogOut } from 'lucide-react';
+import { Home, ListChecks, CheckCircle2, XCircle, MapPin, UserCircle, Settings, LogOut } from 'lucide-react';
 import { logout } from '../../../../../lib/auth';
+
+const NAV_ITEMS = [
+  { to: '/Akeel/Hod', label: 'Dashboard', icon: <Home size={18} /> },
+  { to: '/Akeel/Hod/Pending', label: 'Pending Approvals', icon: <ListChecks size={18} /> },
+  { to: '/Akeel/Hod/Approved', label: 'Approved', icon: <CheckCircle2 size={18} /> },
+  { to: '/Akeel/Hod/Rejected', label: 'Rejected', icon: <XCircle size={18} /> },
+  { to: '/Akeel/Hod/Track', label: 'Track by Request ID', icon: <MapPin size={18} /> },
+];
 
 export default function HODSidebar() {
   const router = useRouter();
   const path = usePathname();
-  const go = (p: string) => router.push(p);
   const isActive = (p: string) => path === p || path?.startsWith(p + '/');
-
-  const Item = ({ to, icon, label }: { to: string; icon: React.ReactNode; label: string }) => {
-    const active = isActive(to);
-    return (
-      <button
-        onClick={() => go(to)}
-        className={`hod-sidebar__item ${active ? 'is-active' : ''}`}
-        title={label}
-        aria-current={active ? 'page' : undefined}
-      >
-        {icon}
-        <span className="truncate">{label}</span>
-      </button>
-    );
-  };
 
   const handleLogout = async () => {
     try {
@@ -58,28 +51,32 @@ export default function HODSidebar() {
       </div>
 
       <nav className="space-y-1 flex-1">
-        <Item to="/Akeel/Hod"           icon={<Home size={18} />}        label="Dashboard" />
-        <Item to="/Akeel/Hod/Pending"   icon={<ListChecks size={18} />}  label="Pending Approvals" />
-        <Item to="/Akeel/Hod/Approved"  icon={<CheckCircle2 size={18} />} label="Approved" />
-        <Item to="/Akeel/Hod/Rejected"  icon={<XCircle size={18} />}     label="Rejected" />
-        <Item to="/Akeel/Hod/Track"     icon={<MapPin size={18} />}      label="Track by Request ID" />
+        {NAV_ITEMS.map((item) => {
+          const active = isActive(item.to);
+          return (
+            <Link
+              key={item.to}
+              href={item.to}
+              prefetch={false}
+              className={`hod-sidebar__item ${active ? 'is-active' : ''}`}
+              aria-current={active ? 'page' : undefined}
+            >
+              {item.icon}
+              <span className="truncate">{item.label}</span>
+            </Link>
+          );
+        })}
       </nav>
 
       <div className="pt-4 mt-6 border-t border-orange-200 space-y-2">
-        <button
-          onClick={() => go('/Akeel/Hod/Profile')}
-          className="hod-sidebar__link"
-        >
+        <Link href="/Akeel/Hod/Profile" prefetch={false} className="hod-sidebar__link">
           <UserCircle size={18} />
           <span>Profile</span>
-        </button>
-        <button
-          onClick={() => go('/Akeel/Hod/Settings')}
-          className="hod-sidebar__link"
-        >
+        </Link>
+        <Link href="/Akeel/Hod/Settings" prefetch={false} className="hod-sidebar__link">
           <Settings size={18} />
           <span>Settings</span>
-        </button>
+        </Link>
         <button
           onClick={handleLogout}
           className="hod-sidebar__danger"

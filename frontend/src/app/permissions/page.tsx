@@ -6,6 +6,7 @@ import Sidebar from '../../../components/Sidebar';
 import Modal from '../../../components/Modal';
 import api from '../../../lib/api';
 import { useAuth } from '../../../hooks/useAuth';
+import { readCache, writeCache } from '../../../lib/cache';
 import {
   CheckCircle,
   XCircle,
@@ -47,7 +48,13 @@ export default function PermissionsPage() {
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isOpenSidebar, setIsOpenSidebar] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const cachedRoles = readCache<Role[]>('cache:auth:roles') || [];
+  const cachedPerms = readCache<Perm[]>('cache:auth:perms') || [];
+  const cachedUsers = readCache<UserRow[]>('cache:auth:users') || [];
+
+  const hasCached = cachedRoles.length && cachedPerms.length && cachedUsers.length;
+  const [loading, setLoading] = useState(!hasCached);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   function showSuccess(msg: string) {
     setSuccessMessage(msg);
@@ -58,9 +65,9 @@ export default function PermissionsPage() {
   }
 
   // ================= DATA FROM BACKEND =================
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [allPerms, setAllPerms] = useState<Perm[]>([]);
-  const [users, setUsers] = useState<UserRow[]>([]);
+  const [roles, setRoles] = useState<Role[]>(cachedRoles);
+  const [allPerms, setAllPerms] = useState<Perm[]>(cachedPerms);
+  const [users, setUsers] = useState<UserRow[]>(cachedUsers);
 
   // ----- dropdown section state -----
   const [selectedRole, setSelectedRole] = useState<string>('');
@@ -125,6 +132,7 @@ export default function PermissionsPage() {
         : [],
     }));
     setUsers(safe);
+    writeCache('cache:auth:users', safe);
   };
 
   const refreshRoleUsers = async (roleCode: string) => {
@@ -140,24 +148,35 @@ export default function PermissionsPage() {
 
   // ================= INITIAL LOAD =================
   useEffect(() => {
-    if (!user?.roles?.includes('ADMIN')) return;
+    if (!user?.roles?.includes('ADMIN')) {
+      setLoading(false);
+      return;
+    }
+
+    const silent = !!hasCached;
+    if (silent) {
+      setIsRefreshing(true);
+    } else {
+      setLoading(true);
+    }
 
     (async () => {
       try {
-        setLoading(true);
-
         const [rolesRes, permsRes, usersRes] = await Promise.all([
           api.get<Role[]>('/roles'),
           api.get<Perm[]>('/roles/permissions'),
           api.get<UserRow[]>('/users'),
         ]);
 
-        setRoles(Array.isArray(rolesRes.data) ? rolesRes.data : []);
+        const rolesList = Array.isArray(rolesRes.data) ? rolesRes.data : [];
+        setRoles(rolesList);
+        writeCache('cache:auth:roles', rolesList);
 
         const globals = (Array.isArray(permsRes.data) ? permsRes.data : []).filter(
           (p) => GLOBAL5.has(p.code)
         );
         setAllPerms(globals);
+        writeCache('cache:auth:perms', globals);
 
         const safe = (usersRes.data || []).map((u: any) => ({
           ...u,
@@ -167,15 +186,17 @@ export default function PermissionsPage() {
             : [],
         }));
         setUsers(safe);
+        writeCache('cache:auth:users', safe);
       } catch (e: any) {
         showError(
           e?.response?.data?.message || 'Failed to load initial data'
         );
       } finally {
         setLoading(false);
+        setIsRefreshing(false);
       }
     })();
-  }, [user]);
+  }, [user, hasCached]);
 
   // ================ DROPDOWN FLOW ================
   useEffect(() => {
@@ -381,6 +402,8 @@ export default function PermissionsPage() {
     );
   }
 
+  const showSkeleton = loading && users.length === 0;
+
   // ================ JSX ================
   return (
     <div className="auth-shell">
@@ -404,6 +427,12 @@ export default function PermissionsPage() {
             <p className="text-gray-600">
               Manage user permissions and access controls
             </p>
+            {isRefreshing && (
+              <div className="mt-2 text-xs text-orange-700 flex items-center gap-2">
+                <div className="w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                Updating latest data…
+              </div>
+            )}
           </div>
 
           {/* MESSAGES */}
@@ -464,7 +493,21 @@ export default function PermissionsPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {currentPageUsers.length > 0 ? (
+                      {showSkeleton ? (
+                        <tr>
+                          <td colSpan={4} className="p-6">
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                                Loading users & roles...
+                              </div>
+                              <div className="h-10 bg-orange-100/70 rounded animate-pulse" />
+                              <div className="h-10 bg-orange-100/70 rounded animate-pulse" />
+                              <div className="h-10 bg-orange-100/70 rounded animate-pulse" />
+                            </div>
+                          </td>
+                        </tr>
+                      ) : currentPageUsers.length > 0 ? (
                         currentPageUsers.map((u) => (
                           <tr
                             key={u.id}
@@ -932,6 +975,7 @@ export default function PermissionsPage() {
                       <div className="flex items-center p-2">
                         <input
                           id="selectAll"
+                          name="selectAllPermissions"
                           type="checkbox"
                           className="mr-3"
                           checked={
@@ -949,17 +993,18 @@ export default function PermissionsPage() {
                         </label>
                       </div>
 
-                      {permissionOptions.map((p) => (
-                        <label
-                          key={p.code}
-                          className="flex items-center p-2 hover:bg-gray-50 rounded cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            className="mr-3"
-                            checked={selectedPerms.includes(p.code)}
-                            onChange={() => togglePerm(p.code)}
-                          />
+                        {permissionOptions.map((p) => (
+                          <label
+                            key={p.code}
+                            className="flex items-center p-2 hover:bg-gray-50 rounded cursor-pointer"
+                          >
+                            <input
+                              name={`permission-${p.code}`}
+                              type="checkbox"
+                              className="mr-3"
+                              checked={selectedPerms.includes(p.code)}
+                              onChange={() => togglePerm(p.code)}
+                            />
                           <div>
                             <div className="font-mono text-sm font-medium text-gray-900">
                               {p.code}

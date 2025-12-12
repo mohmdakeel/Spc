@@ -13,6 +13,7 @@ import SearchBar from '../components/SearchBar';
 import { Th, Td } from '../components/ThTd';
 import { printDriver, printDriverList } from '../utils/print';
 import type { Driver, DriverStatus } from '../services/types';
+import { useAuth } from '../../../../../hooks/useAuth';
 
 const ITEMS_PER_PAGE = 10;
 const ROW_TEXT = 'text-xs';
@@ -39,6 +40,16 @@ function getExpiryState(expiry?: string | null) {
 
 export default function DriverListPage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const roles = (user?.roles || []).map(r => r.toUpperCase());
+  const perms = (user?.permissions || []).map(p => p.toUpperCase());
+  const isAdmin = roles.some((r) => ['ADMIN', 'TRANSPORT_ADMIN'].includes(r));
+  const canCreate = isAdmin || perms.includes('CREATE');
+  const canUpdate = isAdmin || perms.includes('UPDATE');
+  const canDelete = isAdmin || perms.includes('DELETE');
+  const canPrint = isAdmin || perms.includes('PRINT') || perms.includes('READ');
+  const [statusFilter, setStatusFilter] = useState<DriverStatus | 'ALL'>('ALL');
+
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [deletedDrivers, setDeletedDrivers] = useState<Driver[]>([]);
   const [showDeleted, setShowDeleted] = useState(false);
@@ -69,14 +80,17 @@ export default function DriverListPage() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return list || [];
-    return (list || []).filter((d) =>
+    const statusFiltered = statusFilter === 'ALL'
+      ? (list || [])
+      : (list || []).filter(d => (d.status || 'ACTIVE').toUpperCase() === statusFilter.toUpperCase());
+    if (!q) return statusFiltered;
+    return statusFiltered.filter((d) =>
       [
         d.employeeId, d.name, d.phone, d.email,
         d.licenseNumber, d.licenseExpiryDate, d.drivingExperience, d.status,
       ].map(x => (x ?? '').toString().toLowerCase()).join(' ').includes(q)
     );
-  }, [list, search]);
+  }, [list, search, statusFilter]);
 
   useEffect(() => { setPage(1); }, [search, showDeleted]);
 
@@ -134,6 +148,7 @@ export default function DriverListPage() {
   };
 
   const onAddSubmit = async (payload: Partial<Driver>) => {
+    if (!canCreate) { toast.error('You do not have permission to add drivers.'); return; }
     try {
       await addDriver(payload);
       toast.success('Driver added successfully');
@@ -145,6 +160,7 @@ export default function DriverListPage() {
   };
 
   const onEditSubmit = async (payload: Partial<Driver>) => {
+    if (!canUpdate) { toast.error('You do not have permission to update drivers.'); return; }
     try {
       if (!editing?.employeeId) throw new Error('No driver selected for editing');
       await updateDriver(editing.employeeId, payload);
@@ -158,6 +174,7 @@ export default function DriverListPage() {
   };
 
   const onDelete = async () => {
+    if (!canDelete) { toast.error('You do not have permission to delete drivers.'); return; }
     if (!deleteTarget?.employeeId) return;
     try {
       await deleteDriver(deleteTarget.employeeId);
@@ -224,18 +241,37 @@ export default function DriverListPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <button
-              className="flex items-center gap-2 bg-orange-600 text-white px-3 py-2 rounded-lg hover:bg-orange-700 shadow-sm transition-colors text-sm"
-              onClick={() => { setEditing(null); setShowForm('add'); }}
-            >
-              <Plus size={16} /><span>Add Driver</span>
-            </button>
-            <button
-              className="flex items-center gap-2 bg-orange-100 text-orange-700 border border-orange-200 px-3 py-2 rounded-lg hover:bg-orange-200 shadow-sm transition-colors text-sm"
-              onClick={() => printDriverList(filtered as Driver[], showDeleted)}
-            >
-              <Printer size={16} /><span>Print</span>
-            </button>
+            {!showDeleted && (
+              <div className="flex items-center gap-1 bg-orange-50 border border-orange-200 px-2 py-1.5 rounded-lg text-xs sm:text-sm text-orange-800 shadow-sm">
+                {(['ALL','ACTIVE','INACTIVE','SUSPENDED'] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setStatusFilter(s as DriverStatus | 'ALL')}
+                    className={`px-2 py-1 rounded transition-colors ${statusFilter === s ? 'bg-orange-600 text-white' : 'hover:bg-orange-100'}`}
+                  >
+                    {s.replace('_',' ')}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {canCreate && !showDeleted && (
+                <button
+                  className="flex items-center gap-2 bg-orange-600 text-white px-3 py-2 rounded-lg hover:bg-orange-700 shadow-sm transition-colors text-sm"
+                  onClick={() => { setEditing(null); setShowForm('add'); }}
+                >
+                  <Plus size={16} /><span>Add Driver</span>
+                </button>
+              )}
+              {canPrint && (
+                <button
+                  className="flex items-center gap-2 bg-orange-100 text-orange-700 border border-orange-200 px-3 py-2 rounded-lg hover:bg-orange-200 shadow-sm transition-colors text-sm"
+                  onClick={() => printDriverList(filtered as Driver[], showDeleted)}
+                >
+                  <Printer size={16} /><span>Print</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -264,7 +300,7 @@ export default function DriverListPage() {
                     <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Experience (yrs)</Th>
                     <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>License Expiry</Th>
                     <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Status</Th>
-                    {!showDeleted && <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>Actions</Th>}
+                    {!showDeleted && (canUpdate || canDelete || canPrint) && <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>Actions</Th>}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-orange-100">
@@ -290,30 +326,36 @@ export default function DriverListPage() {
                           <StatusPill
                             mode="driver"
                             value={d.status}
-                            editable={!showDeleted}
+                            editable={!showDeleted && canUpdate}
                             onChange={(s) => onChangeStatus(d, s as DriverStatus)}
                           />
                         </Td>
-                        {!showDeleted && (
+                        {!showDeleted && (canUpdate || canDelete || canPrint) && (
                           <Td className={`text-center ${ROW_PX} ${ROW_PY}`} onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-center gap-1">
-                              <button className="w-6 h-6 grid place-items-center rounded text-orange-600 hover:bg-orange-100 transition-colors"
-                                onClick={() => printDriver(d)} title="Print" aria-label="Print">
-                                <Printer size={14} />
-                              </button>
+                              {canPrint && (
+                                <button className="w-6 h-6 grid place-items-center rounded text-orange-600 hover:bg-orange-100 transition-colors"
+                                  onClick={() => printDriver(d)} title="Print" aria-label="Print">
+                                  <Printer size={14} />
+                                </button>
+                              )}
                               <button className="w-6 h-6 grid place-items-center rounded text-orange-600 hover:bg-orange-100 transition-colors"
                                 onClick={() => router.push(`/Akeel/Transport/History?type=Driver&id=${encodeURIComponent(d.employeeId)}`)}
                                 title="History" aria-label="History">
                                 <HistoryIcon size={14} />
                               </button>
-                              <button className="w-6 h-6 grid place-items-center rounded text-green-600 hover:bg-green-100 transition-colors"
-                                onClick={() => { setEditing(d); setShowForm('edit'); }} title="Edit" aria-label="Edit">
-                                <Edit size={14} />
-                              </button>
-                              <button className="w-6 h-6 grid place-items-center rounded text-red-600 hover:bg-red-100 transition-colors"
-                                onClick={() => setDeleteTarget(d)} title="Delete" aria-label="Delete">
-                                <Trash2 size={14} />
-                              </button>
+                              {canUpdate && (
+                                <button className="w-6 h-6 grid place-items-center rounded text-green-600 hover:bg-green-100 transition-colors"
+                                  onClick={() => { setEditing(d); setShowForm('edit'); }} title="Edit" aria-label="Edit">
+                                  <Edit size={14} />
+                                </button>
+                              )}
+                              {canDelete && (
+                                <button className="w-6 h-6 grid place-items-center rounded text-red-600 hover:bg-red-100 transition-colors"
+                                  onClick={() => setDeleteTarget(d)} title="Delete" aria-label="Delete">
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
                             </div>
                           </Td>
                         )}

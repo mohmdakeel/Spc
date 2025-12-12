@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { listByStatus } from '../../Transport/services/usageService';
 import type { UsageRequest } from '../../Transport/services/types';
 import { Th, Td } from '../../Transport/components/ThTd';
-import SearchBar from '../../Transport/components/SearchBar';
+import SearchBar from '../components/SearchBar';
 import AssignVehicleModal from '../../Transport/components/AssignVehicleModal';
 import { printUsageSlip } from '../../Transport/utils/print';
 import { toast } from 'react-toastify';
@@ -71,6 +71,7 @@ export default function InchargeScheduledPage() {
   const [q, setQ] = useState('');
   const [editFor, setEditFor] = useState<UsageRequest | null>(null);
   const [open, setOpen] = useState(false);
+  const [lockReason, setLockReason] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
@@ -97,11 +98,39 @@ export default function InchargeScheduledPage() {
     });
   }, [rows, q]);
 
+  const lockReasonFor = (r: UsageRequest): string | null => {
+    const startIso = r.scheduledPickupAt || (r.dateOfTravel && r.timeFrom ? `${r.dateOfTravel}T${r.timeFrom}` : null);
+    if (!startIso) return null;
+
+    const start = new Date(startIso);
+    if (Number.isNaN(start.getTime())) return null;
+
+    const hoursUntilStart = (start.getTime() - Date.now()) / 36e5;
+    if (hoursUntilStart < 24) {
+      return 'Trip starts in <24 hours; edits are locked. Please notify the applicant for changes.';
+    }
+    return null;
+  };
+
+  // When opening the edit modal, keep the header search empty to avoid browser autofill noise
+  useEffect(() => {
+    if (open) {
+      setQ('');
+    }
+  }, [open]);
+
   return (
     <div className="space-y-3">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <h1 className="text-[14px] md:text-lg font-bold text-orange-900">Scheduled Assignments</h1>
-          <SearchBar value={q} onChange={setQ} placeholder="Search code, applicant, vehicle, driver…" className="h-8" />
+          <SearchBar
+            key={open ? 'modal-open' : 'modal-closed'}
+            value={q}
+            onChange={setQ}
+            placeholder="Search code, applicant, vehicle, driver…"
+            className="w-full sm:w-72"
+            disabled={open}
+          />
         </div>
 
         <div className="bg-white rounded-lg border border-orange-200">
@@ -206,7 +235,13 @@ export default function InchargeScheduledPage() {
                         <div className="inline-flex items-center gap-1">
                           <button
                             className="px-2.5 py-[6px] rounded bg-blue-600 text-white hover:bg-blue-700 text-[10px] flex items-center gap-1"
-                            onClick={() => { setEditFor(r); setOpen(true); }}
+                            onClick={() => {
+                              const reason = lockReasonFor(r);
+                              if (reason) toast.warn(reason);
+                              setLockReason(reason);
+                              setEditFor(r);
+                              setOpen(true);
+                            }}
                             title="Edit assignment"
                           >
                             <Pencil size={12} /> Edit
@@ -245,13 +280,16 @@ export default function InchargeScheduledPage() {
             driverPhone: editFor.assignedDriverPhone ?? '',
             pickupAt: toLocalInput(editFor.scheduledPickupAt),
             expectedReturnAt: toLocalInput(editFor.scheduledReturnAt),
+            instructions: (editFor as any).instructions || '',
           }}
+          lockedReason={lockReason}
           onAssigned={() => {
             toast.success('Assignment updated');
             setEditFor(null);
             setOpen(false);
             load();
           }}
+          onClose={() => { setOpen(false); setEditFor(null); setLockReason(null); }}
         />
       )}
     </div>

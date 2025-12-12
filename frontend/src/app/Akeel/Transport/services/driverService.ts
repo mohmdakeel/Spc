@@ -1,6 +1,6 @@
 import type { AxiosError } from "axios";
 import http, { unwrapApi } from "./http";
-import type { Driver, ApiResponse, PaginationResponse, ChangeHistory } from "./types";
+import type { Driver, PaginationResponse, ChangeHistory } from "./types";
 import { fetchTimeline } from "./historyService";
 
 const API = "/drivers";

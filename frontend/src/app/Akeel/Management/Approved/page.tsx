@@ -2,8 +2,8 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { listByStatus } from '../../Transport/services/usageService';
-import type { UsageRequest } from '../../Transport/services/types';
+import { listByStatus, listAllRequests } from '../../Transport/services/usageService';
+import type { UsageRequest, RequestStatus } from '../../Transport/services/types';
 import { Th, Td } from '../../Transport/components/ThTd';
 import WorkspaceSearchBar from '../../../../../components/workspace/WorkspaceSearchBar';
 import { Printer, X } from 'lucide-react';
@@ -95,6 +95,14 @@ const COLS = [
   '10%', // Actions
 ] as const;
 
+// include post-management states so older approvals that progressed still appear
+const MGMT_APPROVED_STATUSES: RequestStatus[] = [
+  'APPROVED',
+  'SCHEDULED',
+  'DISPATCHED',
+  'RETURNED',
+];
+
 /* ======================= Page ======================= */
 export default function ManagementApprovedPage() {
   const [rows, setRows] = useState<UsageRequest[]>([]);
@@ -106,8 +114,28 @@ export default function ManagementApprovedPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const list = await listByStatus('APPROVED');
-      setRows(list || []);
+      const buckets = await Promise.all(MGMT_APPROVED_STATUSES.map((s) => listByStatus(s)));
+      let merged = buckets.flat().filter(Boolean) as UsageRequest[];
+
+      // fallback: if none came back, try all and filter locally
+      if (!merged.length) {
+        try {
+          const all = await listAllRequests();
+          const arr = Array.isArray(all) ? all : (all as any)?.content || [];
+          merged = arr.filter((r: any) => MGMT_APPROVED_STATUSES.includes((r?.status || '') as RequestStatus));
+        } catch {}
+      }
+
+      const seen = new Set<string>();
+      const unique = merged.filter((r: any) => {
+        const key = String(r?.id ?? r?.requestCode ?? '');
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      unique.sort((a, b) => (Date.parse((b as any)?.createdAt || '') || 0) - (Date.parse((a as any)?.createdAt || '') || 0));
+      setRows(unique);
     } finally {
       setLoading(false);
     }

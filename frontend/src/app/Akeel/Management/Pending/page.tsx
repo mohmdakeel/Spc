@@ -132,17 +132,14 @@ export default function ManagementPendingPage() {
   const [selected, setSelected] = useState<UsageRequest | null>(null); // Review modal
   const [view, setView] = useState<UsageRequest | null>(null);         // Details modal
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
     try {
       const list = await listByStatus('PENDING_MANAGEMENT');
       setRows(list || []);
     } catch (err: any) {
       console.warn('Failed to load pending management list', err);
-      setError(err?.message || 'Unable to load pending management requests right now.');
       setRows([]);
     } finally {
       setLoading(false);

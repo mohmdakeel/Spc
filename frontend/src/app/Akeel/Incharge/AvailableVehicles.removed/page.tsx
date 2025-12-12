@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { fetchDriverAvailability } from '../../Transport/services/availabilityService';
-import type { DriverAvailability } from '../../Transport/services/types';
-import SearchBar from '../../Transport/components/SearchBar';
-import { CalendarClock, Clock, Phone, UserRound, Car } from 'lucide-react';
+import { fetchVehicleAvailability } from '../../Transport/services/availabilityService';
+import type { VehicleAvailability } from '../../Transport/services/types';
+import SearchBar from '../components/SearchBar';
+import { CalendarClock, Clock, Car, Tag } from 'lucide-react';
 
 const parseDateTime = (date: string | null | undefined, time?: string | null) => {
   if (!date) return null;
@@ -21,8 +21,8 @@ const parseDateTime = (date: string | null | undefined, time?: string | null) =>
 const formatTime = (d: Date) =>
   d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-export default function AvailableDriversPage() {
-  const [availability, setAvailability] = useState<DriverAvailability[]>([]);
+export default function AvailableVehiclesPage() {
+  const [availability, setAvailability] = useState<VehicleAvailability[]>([]);
   const [loading, setLoading] = useState(true);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [q, setQ] = useState('');
@@ -33,13 +33,13 @@ export default function AvailableDriversPage() {
     const load = async () => {
       setLoading(true);
       try {
-        const data = await fetchDriverAvailability({ date, from: from || undefined, to: to || undefined }).catch(() => []);
-        const normalized = data.map((d) => ({
-          ...d,
-          busy: (d.busy || []).map((b) => ({
-            from: parseDateTime(b.from, undefined) || new Date(),
-            to: parseDateTime(b.to, undefined) || new Date(),
-            vehicleNumber: b.vehicleNumber,
+        const data = await fetchVehicleAvailability({ date, from: from || undefined, to: to || undefined }).catch(() => []);
+        const normalized = data.map((v) => ({
+          ...v,
+          busy: (v.busy || []).map((b) => ({
+            from: parseDateTime(b.from) || new Date(),
+            to: parseDateTime(b.to) || new Date(),
+            driverName: b.driverName,
             requestCode: b.requestCode,
           })),
         }));
@@ -54,8 +54,8 @@ export default function AvailableDriversPage() {
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
     if (!s) return availability;
-    return availability.filter(({ driverName, driverPhone }) =>
-      [driverName, driverPhone]
+    return availability.filter(({ vehicleNumber }) =>
+      [vehicleNumber]
         .filter(Boolean)
         .some((field) => String(field).toLowerCase().includes(s))
     );
@@ -66,8 +66,8 @@ export default function AvailableDriversPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-xs uppercase text-orange-700 font-semibold">Availability</p>
-          <h1 className="text-lg font-bold text-orange-900">Drivers by date</h1>
-          <p className="text-sm text-gray-600">See who is free or already assigned.</p>
+          <h1 className="text-lg font-bold text-orange-900">Vehicles by date</h1>
+          <p className="text-sm text-gray-600">See which vehicles are free or on a trip.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -96,8 +96,8 @@ export default function AvailableDriversPage() {
           <SearchBar
             value={q}
             onChange={setQ}
-            placeholder="Search driver, ID, phone…"
-            className="h-9"
+            placeholder="Search vehicle number, model…"
+            className="w-full sm:w-72"
           />
         </div>
       </div>
@@ -106,8 +106,8 @@ export default function AvailableDriversPage() {
         <table className="w-full text-[11.5px] leading-tight">
           <thead className="bg-orange-50">
             <tr className="text-[10px] uppercase tracking-wide text-gray-600">
-              <th className="px-3 py-2 text-left">Driver</th>
-              <th className="px-3 py-2 text-left">Contact</th>
+              <th className="px-3 py-2 text-left">Vehicle</th>
+              <th className="px-3 py-2 text-left">Meta</th>
               <th className="px-3 py-2 text-left">Availability</th>
               <th className="px-3 py-2 text-left">Window</th>
             </tr>
@@ -119,22 +119,22 @@ export default function AvailableDriversPage() {
               </tr>
             ) : null}
 
-            {!loading && filtered.map(({ driverId, driverName, driverPhone, busy }) => {
-              const busyList = busy;
+            {!loading && filtered.map(({ vehicleNumber, vehicleType, busy }) => {
+              const busyList = busy || [];
               const busyState = busyList.length > 0;
               return (
-                <tr key={driverId || driverName} className="hover:bg-orange-50/60">
+                <tr key={vehicleNumber} className="hover:bg-orange-50/60">
                   <td className="px-3 py-2">
                     <div className="font-semibold text-orange-900 flex items-center gap-2">
-                      <UserRound size={14} className="text-orange-700" />
-                      {driverName}
+                      <Car size={14} className="text-orange-700" />
+                      {vehicleNumber}
                     </div>
-                    <div className="text-[10px] text-gray-600">{driverId ?? '—'}</div>
+                    <div className="text-[10px] text-gray-600">{vehicleType || '—'}</div>
                   </td>
-                  <td className="px-3 py-2">
-                    <div className="text-[10px] text-gray-700 flex items-center gap-1">
-                      <Phone size={12} className="text-orange-700" />
-                      {driverPhone || '—'}
+                  <td className="px-3 py-2 text-[10px] text-gray-700">
+                    <div className="flex items-center gap-1">
+                      <Tag size={12} className="text-orange-700" />
+                      <span>{vehicleType || '—'}</span>
                     </div>
                   </td>
                   <td className="px-3 py-2">
@@ -152,9 +152,7 @@ export default function AvailableDriversPage() {
                           <div key={idx} className="flex items-center gap-2 text-orange-900">
                             <Clock size={12} className="text-orange-700" />
                             <span>{formatTime(w.from)} – {formatTime(w.to)}</span>
-                            <span className="inline-flex items-center gap-1 text-gray-600">
-                              <Car size={12} /> {w.vehicleNumber || 'Vehicle TBD'}
-                            </span>
+                            <span className="text-gray-600">Driver: {w.driverName || '—'}</span>
                             <span className="text-gray-500">{w.requestCode}</span>
                           </div>
                         ))}
@@ -169,7 +167,7 @@ export default function AvailableDriversPage() {
 
             {!loading && !filtered.length ? (
               <tr>
-                <td colSpan={4} className="px-3 py-6 text-center text-gray-500">No drivers found</td>
+                <td colSpan={4} className="px-3 py-6 text-center text-gray-500">No vehicles found</td>
               </tr>
             ) : null}
           </tbody>

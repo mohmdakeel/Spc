@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Topbar from '../../../components/Topbar';
 import Sidebar from '../../../components/Sidebar';
 import { useAuth } from '../../../hooks/useAuth';
@@ -31,6 +31,7 @@ export default function SettingsPage() {
   const [newPassword, setNewPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [changing, setChanging] = useState(false);
+  const usernameForAutofill = user?.username ?? user?.email ?? '';
 
   // ui feedback
   const [successMessage, setSuccessMessage] = useState('');
@@ -59,7 +60,8 @@ export default function SettingsPage() {
     return fallback;
   };
 
-  const handleChangePassword = async () => {
+  const handleChangePassword = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!oldPassword || !newPassword) {
       flashError('Please fill both fields');
       return;
@@ -176,70 +178,96 @@ export default function SettingsPage() {
                       Change Password
                     </h3>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Current Password
-                        </label>
-                        <input
-                          type={showPw ? 'text' : 'password'}
-                          value={oldPassword}
-                          onChange={(e) => setOldPassword(e.target.value)}
-                          className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                          placeholder="Enter current password"
-                        />
-                      </div>
+                    <form onSubmit={handleChangePassword} className="space-y-4">
+                      {/* Hidden username field improves browser password manager compatibility */}
+                      <input
+                        type="text"
+                        name="username"
+                        autoComplete="username"
+                        value={usernameForAutofill}
+                        onChange={() => {}}
+                        className="sr-only"
+                        inputMode="text"
+                      />
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          New Password
-                        </label>
-                        <div className="flex gap-2">
-                          <input
-                            type={showPw ? 'text' : 'password'}
-                            value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                            placeholder="Enter new password"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowPw((v) => !v)}
-                            className="px-3 border border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
-                            title={showPw ? 'Hide passwords' : 'Show passwords'}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <label
+                            htmlFor="currentPassword"
+                            className="block text-sm font-medium text-gray-700 mb-2"
                           >
-                            {showPw ? (
-                              <EyeOff className="w-5 h-5 text-gray-600" />
-                            ) : (
-                              <Eye className="w-5 h-5 text-gray-600" />
-                            )}
-                          </button>
+                            Current Password
+                          </label>
+                          <input
+                            id="currentPassword"
+                            name="currentPassword"
+                            type={showPw ? 'text' : 'password'}
+                            value={oldPassword}
+                            onChange={(e) => setOldPassword(e.target.value)}
+                            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                            placeholder="Enter current password"
+                            autoComplete="current-password"
+                          />
                         </div>
-                        <p className="text-xs text-gray-500 mt-2">
-                          • At least 8 characters
-                          <br />
-                          • Mix of letters and numbers
-                        </p>
-                      </div>
-                    </div>
 
-                    <button
-                      disabled={changing}
-                      onClick={handleChangePassword}
-                      className="flex items-center px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-orange-400 disabled:cursor-not-allowed transition-colors font-medium"
-                    >
-                      {changing ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                          Updating Password...
-                        </>
-                      ) : (
-                        <>
-                          <Key className="w-4 h-4 mr-2" />
-                          Update Password
-                        </>
-                      )}
-                    </button>
+                        <div>
+                          <label
+                            htmlFor="newPassword"
+                            className="block text-sm font-medium text-gray-700 mb-2"
+                          >
+                            New Password
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              id="newPassword"
+                              name="newPassword"
+                              type={showPw ? 'text' : 'password'}
+                              value={newPassword}
+                              onChange={(e) => setNewPassword(e.target.value)}
+                              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                              placeholder="Enter new password"
+                              autoComplete="new-password"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPw((v) => !v)}
+                              className="px-3 border border-gray-300 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors"
+                              title={showPw ? 'Hide passwords' : 'Show passwords'}
+                              aria-label={showPw ? 'Hide passwords' : 'Show passwords'}
+                            >
+                              {showPw ? (
+                                <EyeOff className="w-5 h-5 text-gray-600" />
+                              ) : (
+                                <Eye className="w-5 h-5 text-gray-600" />
+                              )}
+                            </button>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-2">
+                            • At least 8 characters
+                            <br />
+                            • Mix of letters and numbers
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={changing}
+                        className="flex items-center px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-orange-400 disabled:cursor-not-allowed transition-colors font-medium"
+                      >
+                        {changing ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                            Updating Password...
+                          </>
+                        ) : (
+                          <>
+                            <Key className="w-4 h-4 mr-2" />
+                            Update Password
+                          </>
+                        )}
+                      </button>
+                    </form>
                   </div>
                 </div>
               </div>

@@ -120,7 +120,6 @@ type ExitCompat = {
   exitOdometer?: number | null;
   exitManifest?: any[] | null;
   odometerStartKm?: number | null;
-  fuelBefore?: number | null;
   remarks?: string | null;
 };
 
@@ -128,7 +127,6 @@ type EntryCompat = {
   entryOdometer?: number | null;
   entryManifest?: any[] | null;
   odometerEndKm?: number | null;
-  fuelAfter?: number | null;
   remarks?: string | null;
 };
 
@@ -139,7 +137,6 @@ export async function gateExit(id: number, p: ExitCompat) {
 
   const notes: any[] = [];
   if (p.remarks) notes.push({ type: "note", value: String(p.remarks) });
-  if (typeof p.fuelBefore === "number") notes.push({ type: "fuelBeforePct", value: p.fuelBefore });
   if (Array.isArray(p.exitManifest) && p.exitManifest.length) notes.push(...p.exitManifest);
   if (notes.length) body.exitManifest = notes;
 
@@ -154,7 +151,6 @@ export async function gateEntry(id: number, p: EntryCompat) {
 
   const notes: any[] = [];
   if (p.remarks) notes.push({ type: "note", value: String(p.remarks) });
-  if (typeof p.fuelAfter === "number") notes.push({ type: "fuelAfterPct", value: p.fuelAfter });
   if (Array.isArray(p.entryManifest) && p.entryManifest.length) notes.push(...p.entryManifest);
   if (notes.length) body.entryManifest = notes;
 

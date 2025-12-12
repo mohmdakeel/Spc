@@ -43,8 +43,8 @@ export default function MainDashboard() {
 
   // Allow access to users who have either auth or transport service access
   const allowedRoles = [
-    'ADMIN', 'HR', 'HRD', 'HOD', 'GM', 'CHAIRMAN', 'STAFF', // Auth service roles
-    'TRANSPORT_ADMIN', 'TRANSPORT', 'VEHICLE_INCHARGE', 'GATE_SECURITY' // Transport service roles
+    'ADMIN', 'HR', 'HRD', 'HOD', 'GM', 'CHAIRMAN',
+    'TRANSPORT_ADMIN', 'TRANSPORT', 'VEHICLE_INCHARGE', 'GATE_SECURITY'
   ];
 
   if (loading) {

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'react-toastify';
 import {
@@ -88,7 +88,7 @@ export default function DriverServiceRequestsPage() {
   const [page, setPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<DSR | null>(null);
 
-  const loadRequests = async () => {
+  const loadRequests = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/driver-service-requests`, { cache: 'no-store' });
@@ -102,11 +102,11 @@ export default function DriverServiceRequestsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [API_BASE]);
 
   useEffect(() => {
     loadRequests();
-  }, []);
+  }, [loadRequests]);
 
   // ===== APPLY/CLEAR FILTER =====
   const handleApplyFilter = () => {

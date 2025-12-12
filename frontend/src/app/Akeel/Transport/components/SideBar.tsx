@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Image from 'next/image';
 import {
@@ -94,7 +94,10 @@ const Sidebar: React.FC = () => {
   const collapsed = false;
 
   const go = (path: string) => router.push(path);
-  const isActive = (path: string) => pathname === path || pathname?.startsWith(path + '/');
+  const isActive = useCallback(
+    (path: string) => pathname === path || pathname?.startsWith(path + '/'),
+    [pathname]
+  );
 
   // Group active detection
   const vehicleMgmtActive = useMemo(
@@ -106,7 +109,7 @@ const Sidebar: React.FC = () => {
         '/Akeel/Transport/GPSTracking',
         '/Akeel/Transport/Fuel',
       ].some(isActive),
-    [pathname]
+    [isActive]
   );
 
   const vehicleMaintActive = useMemo(
@@ -117,7 +120,7 @@ const Sidebar: React.FC = () => {
         '/Akeel/Transport/Maintenance/Log',
         '/Akeel/Transport/Maintenance/SupplierBills',
       ].some(isActive),
-    [pathname]
+    [isActive]
   );
 
   const usageReqActive = useMemo(
@@ -128,8 +131,9 @@ const Sidebar: React.FC = () => {
         '/Akeel/Transport/Usage/Scheduling',
         '/Akeel/Transport/Usage/Dispatch',
         '/Akeel/Transport/Usage/Receive',
+        '/indunil',
       ].some(isActive),
-    [pathname]
+    [isActive]
   );
 
   const gateSecActive = useMemo(
@@ -139,7 +143,7 @@ const Sidebar: React.FC = () => {
         '/Akeel/Transport/Gate/Visitors',
         '/Akeel/Transport/Gate/Company',
       ].some(isActive),
-    [pathname]
+    [isActive]
   );
 
   // FIXED: Add proper logout function to Sidebar
@@ -333,6 +337,18 @@ const Sidebar: React.FC = () => {
             onClick={() => go('/Akeel/Transport/Usage/Dispatch')}
             className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
               isActive('/Akeel/Transport/Usage/Dispatch')
+                ? 'bg-orange-600 text-white'
+                : 'text-black hover:text-white hover:bg-orange-500'
+            }`}
+          >
+
+            <Truck size={16} /> Rent Vehicle
+          </button>
+          <button
+            type="button"
+            onClick={() => go('/indunil/supplies/rent')}
+            className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+              isActive('/Akeel/Transport/Usage/Receive')
                 ? 'bg-orange-600 text-white'
                 : 'text-black hover:text-white hover:bg-orange-500'
             }`}

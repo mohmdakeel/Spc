@@ -7,6 +7,7 @@ import Modal from '../../../components/Modal';
 import api from '../../../lib/api';
 import { useAuth } from '../../../hooks/useAuth';
 import { AuditLog } from '../../../types';
+import { readCache, writeCache } from '../../../lib/cache';
 import {
   History as HistoryIcon,
   User,
@@ -88,8 +89,10 @@ export default function HistoryPage() {
   const { user } = useAuth();
 
   // backend data
-  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const cachedLogs = readCache<AuditLog[]>('cache:auth:audit') || [];
+  const [logs, setLogs] = useState<AuditLog[]>(cachedLogs);
   const [view, setView] = useState<ViewMode>('mine');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // modal state
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
@@ -121,11 +124,11 @@ export default function HistoryPage() {
       setLogs([]);
       return;
     }
-    fetchLogs();
+    fetchLogs({ silent: !!cachedLogs.length });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, view]);
 
-  async function fetchLogs() {
+  async function fetchLogs(opts?: { silent?: boolean }) {
     if (!user) return;
     const endpoint = view === 'mine' ? '/users/history/me' : '/users/history';
 
@@ -134,19 +137,26 @@ export default function HistoryPage() {
       return;
     }
 
-    setLoading(true);
+    if (opts?.silent) {
+      setIsRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     setErrorMessage('');
     try {
       const { data } = await api.get<AuditLog[]>(endpoint);
-      setLogs(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      setLogs(list);
+      writeCache('cache:auth:audit', list);
       setCurrentPage(1); // reset to first page whenever data reloads
     } catch (e: any) {
       setErrorMessage(
         e?.response?.data?.message || 'Failed to fetch audit logs'
       );
-      setLogs([]);
+      if (!logs.length) setLogs([]);
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   }
 
@@ -196,6 +206,8 @@ export default function HistoryPage() {
     setSelectedLog(logRow);
     setShowDetails(true);
   }
+
+  const showSkeleton = loading && logs.length === 0;
 
   // guard loading user
   if (!user) {
@@ -264,8 +276,13 @@ export default function HistoryPage() {
                     <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
                       {/* SEARCH BOX */}
                       <div className="relative">
+                        <label htmlFor="historySearch" className="sr-only">
+                          Search history entries
+                        </label>
                         <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                         <input
+                          id="historySearch"
+                          name="historySearch"
                           type="text"
                           placeholder="Search user / action / target..."
                           value={searchTerm}
@@ -275,16 +292,30 @@ export default function HistoryPage() {
                       </div>
 
                       {/* PAGE SIZE SELECT (10 / 15) */}
-                      <select
-                        value={pageSize}
-                        onChange={(e) =>
-                          setPageSize(parseInt(e.target.value, 10))
-                        }
-                        className="py-2 px-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white"
-                      >
-                        <option value={10}>10 rows</option>
-                        <option value={15}>15 rows</option>
-                      </select>
+                      <div className="flex flex-col">
+                        <label htmlFor="historyPageSize" className="sr-only">
+                          Rows per page
+                        </label>
+                        <select
+                          id="historyPageSize"
+                          name="historyPageSize"
+                          value={pageSize}
+                          onChange={(e) =>
+                            setPageSize(parseInt(e.target.value, 10))
+                          }
+                          className="py-2 px-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white"
+                        >
+                          <option value={10}>10 rows</option>
+                          <option value={15}>15 rows</option>
+                        </select>
+                      </div>
+
+                      {isRefreshing && (
+                        <div className="flex items-center gap-2 text-xs text-orange-700">
+                          <div className="w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                          Updating
+                        </div>
+                      )}
 
                       {/* TOGGLE MY / ALL (ADMIN ONLY) */}
                       {isAdmin && (
@@ -324,15 +355,17 @@ export default function HistoryPage() {
                     </thead>
 
                     <tbody className="divide-y divide-gray-200">
-                      {loading ? (
+                      {showSkeleton ? (
                         <tr>
-                          <td
-                            colSpan={4}
-                            className="p-6 text-center text-gray-500"
-                          >
-                            <div className="flex items-center justify-center gap-2">
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600"></div>
-                              Loading audit logs...
+                          <td colSpan={4} className="p-6">
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2 text-gray-600 text-sm">
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600"></div>
+                                Loading audit logs...
+                              </div>
+                              <div className="h-10 bg-orange-100/70 rounded animate-pulse" />
+                              <div className="h-10 bg-orange-100/70 rounded animate-pulse" />
+                              <div className="h-10 bg-orange-100/70 rounded animate-pulse" />
                             </div>
                           </td>
                         </tr>

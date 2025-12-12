@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -52,6 +53,14 @@ public class VehicleService {
         if (vehicleRepository.existsByVehicleNumberAndIsDeleted(body.getVehicleNumber(), 0)) {
             throw new IllegalArgumentException("Active vehicle already exists with number=" + body.getVehicleNumber());
         }
+        Long reg = body.getRegisteredKm();
+        Long cur = body.getTotalKmDriven();
+        if (reg != null && cur != null && cur < reg) {
+            throw new IllegalArgumentException("Current odometer cannot be less than registered odometer");
+        }
+        body.setRegisteredKm(reg);
+        body.setTotalKmDriven(cur);
+
         Vehicle saved = vehicleRepository.save(body);
         logHistory("Vehicle", String.valueOf(saved.getId()), "Created", actor, null, toJson(saved));
         return saved;
@@ -62,6 +71,13 @@ public class VehicleService {
         Vehicle existing = vehicleRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Vehicle not found: id=" + id));
         String prev = toJson(existing);
+
+        // compute new odometers; allow edits but enforce consistency
+        Long newReg = patch.getRegisteredKm() != null ? patch.getRegisteredKm() : existing.getRegisteredKm();
+        Long newCur = patch.getTotalKmDriven() != null ? patch.getTotalKmDriven() : existing.getTotalKmDriven();
+        if (newReg != null && newCur != null && newCur < newReg) {
+            throw new IllegalArgumentException("Current odometer cannot be less than registered odometer");
+        }
 
         if (patch.getVehicleNumber() != null && !patch.getVehicleNumber().equals(existing.getVehicleNumber())) {
             if (vehicleRepository.existsByVehicleNumberAndIsDeleted(patch.getVehicleNumber(), 0)) {
@@ -76,7 +92,8 @@ public class VehicleService {
         if (patch.getChassisNumber() != null) existing.setChassisNumber(patch.getChassisNumber());
         if (patch.getEngineNumber() != null) existing.setEngineNumber(patch.getEngineNumber());
         if (patch.getManufactureDate() != null) existing.setManufactureDate(patch.getManufactureDate());
-        if (patch.getTotalKmDriven() != null) existing.setTotalKmDriven(patch.getTotalKmDriven());
+        existing.setRegisteredKm(newReg);
+        existing.setTotalKmDriven(newCur);
         if (patch.getFuelEfficiency() != null) existing.setFuelEfficiency(patch.getFuelEfficiency());
         if (patch.getPresentCondition() != null) existing.setPresentCondition(patch.getPresentCondition());
         if (patch.getStatus() != null) existing.setStatus(patch.getStatus());

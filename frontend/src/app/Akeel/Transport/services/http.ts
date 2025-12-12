@@ -7,12 +7,13 @@ import axios from 'axios';
  */
 const raw = (process.env.NEXT_PUBLIC_TRANSPORT_BASE || '').replace(/\/$/, '');
 const baseURL = raw ? `${raw}/api` : '/tapi';
+const timeoutMs = Math.min(Number(process.env.NEXT_PUBLIC_TRANSPORT_TIMEOUT) || 10_000, 15_000);
 
 const http = axios.create({
   baseURL,
   withCredentials: true,                 // ← ensure SPC_JWT cookie is sent
   headers: { 'Content-Type': 'application/json' },
-  timeout: 20000,
+  timeout: timeoutMs,
 });
 
 export default http;
@@ -38,6 +39,27 @@ http.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// Gracefully soften timeouts so UI doesn't hang
+http.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const code = error?.code;
+    const message = (error?.message || '').toLowerCase();
+    if (code === 'ECONNABORTED' || message.includes('timeout')) {
+      console.warn('Transport API timeout – returning empty response');
+      return Promise.resolve({
+        status: error.response?.status ?? 0,
+        statusText: 'Request Timeout',
+        data: null,
+        headers: error.response?.headers ?? {},
+        config: error.config,
+        request: error.request,
+      });
+    }
+    return Promise.reject(error);
+  }
+);
 
 export function unwrapApi<T>(body: any): T {
   if (body && typeof body === 'object' && 'ok' in body) {

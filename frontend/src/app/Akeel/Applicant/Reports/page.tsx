@@ -5,6 +5,7 @@ import { Search as SearchIcon, Filter, Download, RefreshCcw, CalendarDays } from
 import { listMyRequests, listAllRequests } from '../../Transport/services/usageService';
 import type { UsageRequest } from '../../Transport/services/types';
 import { Th, Td } from '../../Transport/components/ThTd';
+import { readCache, writeCache } from '../../../../../lib/cache';
 
 const STATUS_SEGMENTS = [
   { key: 'PENDING', label: 'Pending', statuses: ['PENDING_HOD', 'PENDING_MANAGEMENT'], description: 'Awaiting approvals' },
@@ -92,21 +93,37 @@ const StatusPill = ({ status }: { status?: string | null }) => {
 };
 
 export default function ApplicantReportsPage() {
-  const [items, setItems] = React.useState<UsageRequest[]>([]);
-  const [employeeId, setEmployeeId] = React.useState('');
-  const [ids, setIds] = React.useState<string[]>([]);
+  const bootstrapIds =
+    typeof window !== 'undefined'
+      ? Array.from(
+          new Set(
+            [
+              localStorage.getItem('employeeId') || '',
+              localStorage.getItem('actor') || '',
+              localStorage.getItem('username') || '',
+            ].filter(Boolean)
+          )
+        )
+      : [];
+  const cachedMine = bootstrapIds.flatMap(
+    (id) => readCache<UsageRequest[]>(`cache:applicant:requests:${id}`) || []
+  );
+  const cachedAll = readCache<UsageRequest[]>('cache:applicant:requests:all') || [];
+  const initialItems = cachedMine.length ? cachedMine : cachedAll;
+
+  const [items, setItems] = React.useState<UsageRequest[]>(initialItems);
+  const [ids, setIds] = React.useState<string[]>(bootstrapIds);
   const [initialized, setInitialized] = React.useState(false);
-  const [loading, setLoading] = React.useState(true);
+  const [loading, setLoading] = React.useState(!initialItems.length);
   const [searchTerm, setSearchTerm] = React.useState('');
   const [timeframe, setTimeframe] = React.useState<TimeframeKey>('ALL');
   const [statusFilter, setStatusFilter] = React.useState<StatusSegmentKey[]>([]);
 
   React.useEffect(() => {
-    const eid = localStorage.getItem('employeeId') || '';
-    const actor = localStorage.getItem('actor') || '';
-    const username = localStorage.getItem('username') || '';
+    const eid = (typeof window !== 'undefined' && (localStorage.getItem('employeeId') || '')) || '';
+    const actor = (typeof window !== 'undefined' && (localStorage.getItem('actor') || '')) || '';
+    const username = (typeof window !== 'undefined' && (localStorage.getItem('username') || '')) || '';
     const uniqueIds = Array.from(new Set([eid, actor, username].filter(Boolean)));
-    setEmployeeId(eid || actor || username || '');
     setIds(uniqueIds);
     setInitialized(true);
 
@@ -157,6 +174,8 @@ export default function ApplicantReportsPage() {
           return tb - ta;
         });
       } finally {
+        uniqueIds.forEach((id) => writeCache(`cache:applicant:requests:${id}`, all));
+        writeCache('cache:applicant:requests:all', all);
         setItems(all);
         setLoading(false);
       }

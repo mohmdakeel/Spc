@@ -115,54 +115,26 @@ const TRACK_PRINT_STYLES = `
 export default function TrackRequestPage() {
   const [items, setItems] = React.useState<UsageRequest[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [ids, setIds] = React.useState<string[]>([]);
   const [q, setQ] = React.useState('');
   const [view, setView] = React.useState<UsageRequest | null>(null);
 
   React.useEffect(() => {
-    const eid = (typeof window !== 'undefined' && (localStorage.getItem('employeeId') || '')) || '';
-    const actor = (typeof window !== 'undefined' && (localStorage.getItem('actor') || '')) || '';
-    const username = (typeof window !== 'undefined' && (localStorage.getItem('username') || '')) || '';
-    const uniqueIds = Array.from(new Set([eid, actor, username].filter(Boolean)));
-    setIds(uniqueIds);
-
     (async () => {
       setLoading(true);
-      let merged: UsageRequest[] = [];
-
-      // Primary: fetch "my" pages for each known id/actor
-      for (const id of uniqueIds) {
-        try {
-          let page = 0, totalPages = 1;
-          while (page < totalPages) {
-            const p: any = await listMyRequests(id, page, 100);
-            merged = merged.concat(p.content || []);
-            totalPages = (p.totalPages as number) ?? 1;
-            page = ((p.number as number) ?? page) + 1;
-          }
-        } catch {}
-      }
-
-      // Fallback + safety: also pull all and filter by matching employeeId/createdBy
       try {
         const all: any[] = await listAllRequests();
-        const filtered = all.filter((u: any) => {
-          const created = u?.createdBy ?? u?.created_by ?? '';
-          return uniqueIds.includes(u.employeeId) || uniqueIds.includes(created);
-        });
-        merged = merged.concat(filtered);
-      } catch {}
+        const seen = new Set<string>();
+        const deduped = (all || []).filter((r: any) => {
+          const k = String(r?.id ?? r?.requestCode ?? '');
+          if (!k || seen.has(k)) return false;
+          seen.add(k);
+          return true;
+        }).sort((a: any, b: any) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0));
 
-      const seen = new Set<string>();
-      merged = merged.filter((r: any) => {
-        const k = String(r?.id ?? r?.requestCode ?? '');
-        if (!k || seen.has(k)) return false;
-        seen.add(k);
-        return true;
-      });
-      merged.sort((a: any, b: any) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0));
-
-      setItems(merged);
+        setItems(deduped);
+      } catch {
+        setItems([]);
+      }
       setLoading(false);
     })();
   }, []);
@@ -327,7 +299,7 @@ export default function TrackRequestPage() {
         </div>
       </div>
 
-        {!ids.length && (
+        {!items.length && (
           <div className="mb-3 text-[11px] rounded bg-yellow-50 border border-yellow-200 text-yellow-800 px-2 py-1">
             Tip: after your first submission, your Employee ID is remembered automatically.
           </div>

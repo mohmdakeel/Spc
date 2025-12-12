@@ -491,8 +491,6 @@ export default function ManagementPendingPage() {
             </tbody>
           </table>
         </div>
-      </main>
-
       {/* Review modal */}
       <ManagementReviewModal
         open={!!selected}
@@ -511,7 +509,6 @@ export default function ManagementPendingPage() {
 /* ================= Details Modal ================= */
 function DetailsModal({ request, onClose }: { request: UsageRequest; onClose: () => void }) {
   const off = extractOfficer(request as any);
-  const yn = (b?: boolean) => (b ? 'Yes' : 'No');
 
   return (
     <div className="fixed inset-0 bg-black/40 grid place-items-center z-50 p-3" onClick={onClose} role="dialog" aria-modal="true">

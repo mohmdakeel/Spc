@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable @next/next/no-img-element */
 
 import { useState } from 'react';
 import Topbar from '../../../components/Topbar';
@@ -36,6 +37,7 @@ export default function Profile() {
   const [loading, setLoading] = useState(false);
 
   const [isOpenSidebar, setIsOpenSidebar] = useState(false);
+  const usernameForAutofill = user?.username ?? user?.email ?? '';
 
   // for avatar upload
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -291,23 +293,25 @@ export default function Profile() {
                       {user.imageUrl ? (
                         <img
                           src={user.imageUrl}
-                          alt="Profile"
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <User className="w-12 h-12 text-orange-600" />
-                      )}
-                    </div>
+                      alt="Profile"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <User className="w-12 h-12 text-orange-600" />
+                  )}
+                </div>
 
-                    {/* image upload control */}
-                    <label className="text-orange-600 hover:text-orange-700 text-sm font-medium transition-colors cursor-pointer">
-                      {uploadingImage ? 'Uploading...' : 'Change Photo'}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        disabled={uploadingImage}
-                        onChange={handleSelectNewPhoto}
+                {/* image upload control */}
+                <label className="text-orange-600 hover:text-orange-700 text-sm font-medium transition-colors cursor-pointer">
+                  {uploadingImage ? 'Uploading...' : 'Change Photo'}
+                  <input
+                    id="profilePhotoUpload"
+                    name="profilePhotoUpload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={uploadingImage}
+                    onChange={handleSelectNewPhoto}
                       />
                     </label>
                   </div>
@@ -327,6 +331,17 @@ export default function Profile() {
                       onSubmit={handleChangePassword}
                       className="space-y-4"
                     >
+                      {/* Hidden username field improves browser password manager compatibility */}
+                      <input
+                        type="text"
+                        name="username"
+                        autoComplete="username"
+                        value={usernameForAutofill}
+                        onChange={() => {}}
+                        className="sr-only"
+                        inputMode="text"
+                      />
+
                       {/* success / error alert boxes */}
                       {success && (
                         <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm flex items-start gap-2">
@@ -344,17 +359,23 @@ export default function Profile() {
 
                       {/* Old password */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <label
+                          htmlFor="profileCurrentPassword"
+                          className="block text-sm font-medium text-gray-700 mb-2"
+                        >
                           Current Password
                         </label>
                         <div className="relative">
                           <input
+                            id="profileCurrentPassword"
+                            name="profileCurrentPassword"
                             type={showOldPassword ? 'text' : 'password'}
                             value={oldPassword}
                             onChange={(e) =>
                               setOldPassword(e.target.value)
                             }
                             placeholder="Enter current password"
+                            autoComplete="current-password"
                             className="w-full border border-gray-300 rounded-lg px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
                             required
                             disabled={!canChangePassword || loading}
@@ -366,6 +387,11 @@ export default function Profile() {
                             }
                             className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                             tabIndex={-1}
+                            aria-label={
+                              showOldPassword
+                                ? 'Hide current password'
+                                : 'Show current password'
+                            }
                           >
                             {showOldPassword ? (
                               <EyeOff size={20} />
@@ -378,17 +404,23 @@ export default function Profile() {
 
                       {/* New password */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <label
+                          htmlFor="profileNewPassword"
+                          className="block text-sm font-medium text-gray-700 mb-2"
+                        >
                           New Password
                         </label>
                         <div className="relative">
                           <input
+                            id="profileNewPassword"
+                            name="profileNewPassword"
                             type={showNewPassword ? 'text' : 'password'}
                             value={newPassword}
                             onChange={(e) =>
                               setNewPassword(e.target.value)
                             }
                             placeholder="Enter new password"
+                            autoComplete="new-password"
                             className="w-full border border-gray-300 rounded-lg px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
                             required
                             disabled={!canChangePassword || loading}
@@ -400,6 +432,11 @@ export default function Profile() {
                             }
                             className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                             tabIndex={-1}
+                            aria-label={
+                              showNewPassword
+                                ? 'Hide new password'
+                                : 'Show new password'
+                            }
                           >
                             {showNewPassword ? (
                               <EyeOff size={20} />
@@ -412,11 +449,16 @@ export default function Profile() {
 
                       {/* Confirm new password */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                        <label
+                          htmlFor="profileConfirmPassword"
+                          className="block text-sm font-medium text-gray-700 mb-2"
+                        >
                           Confirm New Password
                         </label>
                         <div className="relative">
                           <input
+                            id="profileConfirmPassword"
+                            name="profileConfirmPassword"
                             type={
                               showConfirmPassword ? 'text' : 'password'
                             }
@@ -425,6 +467,7 @@ export default function Profile() {
                               setConfirmPassword(e.target.value)
                             }
                             placeholder="Confirm new password"
+                            autoComplete="new-password"
                             className="w-full border border-gray-300 rounded-lg px-4 py-3 pr-10 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 transition-all"
                             required
                             disabled={!canChangePassword || loading}
@@ -438,6 +481,11 @@ export default function Profile() {
                             }
                             className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                             tabIndex={-1}
+                            aria-label={
+                              showConfirmPassword
+                                ? 'Hide confirmation password'
+                                : 'Show confirmation password'
+                            }
                           >
                             {showConfirmPassword ? (
                               <EyeOff size={20} />

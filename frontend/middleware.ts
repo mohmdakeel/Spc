@@ -2,7 +2,7 @@
 import { NextResponse, NextRequest } from 'next/server';
 
 const COOKIE_NAME = 'SPC_JWT';
-const PUBLIC = new Set<string>(['/', '/login', '/_next', '/favicon.ico', '/assets', '/public']);
+const PUBLIC = new Set<string>(['/', '/login', '/403', '/_next', '/favicon.ico', '/assets', '/public']);
 const PROXY_PREFIXES = ['/aapi', '/tapi'];
 
 export function middleware(req: NextRequest) {
@@ -22,7 +22,8 @@ export function middleware(req: NextRequest) {
   if (!hasJwt) {
     const url = req.nextUrl.clone();
     url.pathname = '/login';
-    url.searchParams.set('next', pathname);
+    // Do not preserve the previous path; force a clean login screen
+    url.search = '';
     return NextResponse.redirect(url);
   }
 

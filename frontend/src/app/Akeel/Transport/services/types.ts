@@ -52,6 +52,8 @@ export interface Vehicle extends AuditFields {
   chassisNumber?: string | null;
   engineNumber?: string | null;
   manufactureDate?: ISODateString | null;
+  /** Registered odometer at onboarding */
+  registeredKm?: number | null;
   totalKmDriven?: number | null;
   fuelEfficiency?: number | null; // km/l
   presentCondition?: string | null;
@@ -91,6 +93,8 @@ export interface UsageRequest {
 
   // Travel
   dateOfTravel: ISODateString;
+  /** Optional multi-day end date */
+  returnDate?: ISODateString | null;
   timeFrom: string; // HH:mm
   timeTo: string;   // HH:mm
   fromLocation: string;
@@ -128,8 +132,6 @@ export interface UsageRequest {
   // UI-only aliases
   odometerStartKm?: number | null;
   odometerEndKm?: number | null;
-  fuelBefore?: number | null;
-  fuelAfter?: number | null;
   gateRemarks?: string | null;
 
   // Audit

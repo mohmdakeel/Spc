@@ -76,6 +76,7 @@ export async function addVehicle(payload: Partial<Vehicle>): Promise<Vehicle> {
   try {
     const body: any = { ...payload };
     delete body.id;
+    if ("registeredKm" in body) body.registeredKm = toNum(body.registeredKm);
     if ("totalKmDriven" in body) body.totalKmDriven = toNum(body.totalKmDriven);
     if ("fuelEfficiency" in body) body.fuelEfficiency = toNum(body.fuelEfficiency);
     const { data } = await http.post(API, body);
@@ -88,6 +89,7 @@ export async function addVehicle(payload: Partial<Vehicle>): Promise<Vehicle> {
 export async function updateVehicle(id: EntityId, patch: Partial<Vehicle>): Promise<Vehicle> {
   try {
     const body: any = { ...patch };
+    if ("registeredKm" in body) body.registeredKm = toNum(body.registeredKm);
     if ("totalKmDriven" in body) body.totalKmDriven = toNum(body.totalKmDriven);
     if ("fuelEfficiency" in body) body.fuelEfficiency = toNum(body.fuelEfficiency);
     const { data } = await http.put(`${API}/${id}`, body);
@@ -124,6 +126,7 @@ export async function createVehicleWithImages(
   const fd = new FormData();
   const body: any = { ...payload };
   delete body.id;
+  if ("registeredKm" in body) body.registeredKm = toNum(body.registeredKm);
   if ("totalKmDriven" in body) body.totalKmDriven = toNum(body.totalKmDriven);
   if ("fuelEfficiency" in body) body.fuelEfficiency = toNum(body.fuelEfficiency);
   fd.append("vehicle", JSON.stringify(body));

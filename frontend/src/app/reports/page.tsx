@@ -7,6 +7,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import api from '../../../lib/api';
 import { User as UserType, Registration } from '../../../types';
 import { printDocument, escapeHtml } from '../../../lib/print';
+import { readCache, writeCache } from '../../../lib/cache';
 import {
   BarChart3,
   Users,
@@ -28,26 +29,41 @@ const formatPrintValue = (value?: string | number | null) => {
 export default function ReportsPage() {
   const { user } = useAuth();
   const [isOpenSidebar, setIsOpenSidebar] = useState(false);
-  const [usersList, setUsersList] = useState<UserType[]>([]);
-  const [employees, setEmployees] = useState<Registration[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cachedUsers = readCache<UserType[]>('cache:auth:reports:users') || [];
+  const cachedEmployees = readCache<Registration[]>('cache:auth:reports:employees') || [];
+  const [usersList, setUsersList] = useState<UserType[]>(cachedUsers);
+  const [employees, setEmployees] = useState<Registration[]>(cachedEmployees);
+  const [loading, setLoading] = useState(!cachedUsers.length && !cachedEmployees.length);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [userSearch, setUserSearch] = useState('');
   const [employeeSearch, setEmployeeSearch] = useState('');
   const [tab, setTab] = useState<'users' | 'employees'>('users');
 
   useEffect(() => {
     if (!user) return;
-    setLoading(true);
+    const silent = !!cachedUsers.length || !!cachedEmployees.length;
+    if (silent) {
+      setIsRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     Promise.all([api.get('/users'), api.get('/registrations')])
       .then(([usersRes, regRes]) => {
-        setUsersList(Array.isArray(usersRes.data) ? usersRes.data : []);
-        setEmployees(Array.isArray(regRes.data) ? regRes.data : []);
+        const usersData = Array.isArray(usersRes.data) ? usersRes.data : [];
+        const regsData = Array.isArray(regRes.data) ? regRes.data : [];
+        setUsersList(usersData);
+        setEmployees(regsData);
+        writeCache('cache:auth:reports:users', usersData);
+        writeCache('cache:auth:reports:employees', regsData);
       })
       .catch(() => {
-        setUsersList([]);
-        setEmployees([]);
+        setUsersList((prev) => prev || []);
+        setEmployees((prev) => prev || []);
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        setIsRefreshing(false);
+      });
   }, [user]);
 
   const filteredUsers = useMemo(() => {
@@ -177,6 +193,12 @@ export default function ReportsPage() {
               <h1 className="text-3xl font-bold text-gray-900">Reports</h1>
             </div>
             <p className="text-gray-600">Overview of key user and employee metrics</p>
+            {isRefreshing && (
+              <div className="mt-2 text-xs text-orange-700 flex items-center gap-2">
+                <div className="w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                Updating data…
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -263,8 +285,13 @@ export default function ReportsPage() {
                     </h2>
                     <div className="flex gap-3">
                       <div className="relative">
+                        <label htmlFor="userReportSearch" className="sr-only">
+                          Search users in report
+                        </label>
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                         <input
+                          id="userReportSearch"
+                          name="userReportSearch"
                           value={userSearch}
                           onChange={(e) => setUserSearch(e.target.value)}
                           placeholder="Search users..."
@@ -323,8 +350,13 @@ export default function ReportsPage() {
                     </h2>
                     <div className="flex gap-3">
                       <div className="relative">
+                        <label htmlFor="employeeReportSearch" className="sr-only">
+                          Search employees in report
+                        </label>
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                         <input
+                          id="employeeReportSearch"
+                          name="employeeReportSearch"
                           value={employeeSearch}
                           onChange={(e) => setEmployeeSearch(e.target.value)}
                           placeholder="Search employees..."

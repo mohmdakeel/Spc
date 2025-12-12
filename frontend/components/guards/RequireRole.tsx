@@ -1,7 +1,7 @@
 // src/components/guards/RequireRole.tsx
 'use client';
 import { ReactNode, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '../../hooks/useAuth';
 
 interface RequireRoleProps {
@@ -13,24 +13,27 @@ interface RequireRoleProps {
 export default function RequireRole({ roles, children, fallback }: RequireRoleProps) {
   const { user, loading, hasRole } = useAuth();
   const router = useRouter();
+  const pathname = usePathname() || '/';
 
   useEffect(() => {
-    if (!loading) {
-      // Not logged in → go to login
-      if (!user) {
-        router.replace('/login');
-        return;
-      }
+    if (loading) return;
 
-      // Logged in but wrong role → also go to login
-      if (!hasRole(roles)) {
-        router.replace('/login');
-        return;
-      }
+    // Not logged in → go to login (no nested next params)
+    if (!user) {
+      router.replace('/login');
+      return;
     }
-  }, [loading, user, roles, router, hasRole]);
 
-  if (loading || !user) {
+    // Wait for roles to be present before deciding
+    if (!user.roles || user.roles.length === 0) return;
+
+    // Logged in but wrong role → show access denied screen
+    if (!hasRole(roles)) {
+      router.replace('/403');
+    }
+  }, [loading, user, roles, router, hasRole, pathname]);
+
+  if (loading || !user || !user.roles || user.roles.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center">
         <div className="text-center">
@@ -42,7 +45,7 @@ export default function RequireRole({ roles, children, fallback }: RequireRolePr
   }
 
   if (!hasRole(roles)) {
-    return fallback ? <>{fallback}</> : null;
+    return null;
   }
 
   return <>{children}</>;

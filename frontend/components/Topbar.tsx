@@ -3,9 +3,9 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { LogOut, Settings, Building2, Sun, Moon, UserCircle2, Bell } from 'lucide-react';
+import Image from 'next/image';
+import { Settings, Building2, Sun, Moon, UserCircle2, Bell } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { logout } from '../lib/auth';
 import { useAuth } from '../hooks/useAuth';
 import { useTheme } from './ThemeProvider';
 
@@ -33,15 +33,6 @@ export default function Topbar({ user: propUser }: TopbarProps) {
     'User';
 
   const usernameLine = user?.username ? `@${user.username}` : '';
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-    } finally {
-      router.push('/login');
-      router.refresh();
-    }
-  };
 
   return (
     <header className="hod-app-bar bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md border-b border-orange-400">
@@ -103,13 +94,6 @@ export default function Topbar({ user: propUser }: TopbarProps) {
             </div>
           </Link>
 
-          <button
-            onClick={handleLogout}
-            className="bg-white/20 hover:bg-white hover:text-orange-600 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-all duration-200 font-medium border border-white/30 hover:border-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-          >
-            <LogOut className="w-4 h-4" />
-            <span>Logout</span>
-          </button>
         </div>
       </div>
     </header>

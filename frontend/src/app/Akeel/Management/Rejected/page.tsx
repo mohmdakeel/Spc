@@ -2,8 +2,8 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { listByStatus } from '../../Transport/services/usageService';
-import type { UsageRequest } from '../../Transport/services/types';
+import { listByStatus, listAllRequests } from '../../Transport/services/usageService';
+import type { UsageRequest, RequestStatus } from '../../Transport/services/types';
 import { Th, Td } from '../../Transport/components/ThTd';
 import WorkspaceSearchBar from '../../../../../components/workspace/WorkspaceSearchBar';
 import { Printer, X } from 'lucide-react';
@@ -95,6 +95,8 @@ const COLS = [
   '10%', // Actions (print)
 ] as const;
 
+const REJECTED_STATUSES: RequestStatus[] = ['REJECTED'];
+
 /* ======================= Page ======================= */
 export default function ManagementRejectedPage() {
   const [rows, setRows] = useState<UsageRequest[]>([]);
@@ -105,8 +107,27 @@ export default function ManagementRejectedPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const list = await listByStatus('REJECTED');
-      setRows(list || []);
+      const buckets = await Promise.all(REJECTED_STATUSES.map((s) => listByStatus(s)));
+      let merged = buckets.flat().filter(Boolean) as UsageRequest[];
+
+      if (!merged.length) {
+        try {
+          const all = await listAllRequests();
+          const arr = Array.isArray(all) ? all : (all as any)?.content || [];
+          merged = arr.filter((r: any) => String(r?.status || '').toUpperCase() === 'REJECTED');
+        } catch {}
+      }
+
+      const seen = new Set<string>();
+      const unique = merged.filter((r: any) => {
+        const key = String(r?.id ?? r?.requestCode ?? '');
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      unique.sort((a, b) => (Date.parse((b as any)?.updatedAt || (b as any)?.createdAt || '') || 0) - (Date.parse((a as any)?.updatedAt || (a as any)?.createdAt || '') || 0));
+      setRows(unique);
     } finally {
       setLoading(false);
     }

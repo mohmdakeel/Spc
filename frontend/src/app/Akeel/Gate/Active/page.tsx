@@ -7,6 +7,7 @@ import type { UsageRequest } from '../../Transport/services/types';
 import GateSearchBar from '../components/GateSearchBar';
 import GateExitEntryModal from '../../Transport/components/GateExitEntryModal';
 import { toast } from 'react-toastify';
+import { login } from '../../../../../lib/auth';
 
 /* ------------ helpers ------------ */
 const fmtTime = (s?: string | null) =>
@@ -136,8 +137,8 @@ export default function GateActiveVehiclesPage() {
   }, [rows, q]);
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between mb-2">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-[14px] md:text-lg font-bold text-orange-900">Active Vehicles</h1>
         <GateSearchBar value={q} onChange={setQ} placeholder="Search code, vehicle, driver, route, officer…" />
       </div>
@@ -267,9 +268,11 @@ export default function GateActiveVehiclesPage() {
           onClose={() => setOpenExitFor(null)}
           onSubmit={async (p) => {
             try {
+              const username = typeof window !== 'undefined' ? window.localStorage.getItem('username') : null;
+              if (!username) throw new Error('Session user missing. Please re-login.');
+              await login({ username, password: p.password });
               await gateExit(openExitFor.id, {
                 odometerStartKm: p.odometer ?? undefined,
-                fuelBefore: p.fuel ?? undefined,
                 remarks: p.remarks ?? undefined,
               });
               toast.success('Exit logged');
@@ -290,9 +293,11 @@ export default function GateActiveVehiclesPage() {
           onClose={() => setOpenEntryFor(null)}
           onSubmit={async (p) => {
             try {
+              const username = typeof window !== 'undefined' ? window.localStorage.getItem('username') : null;
+              if (!username) throw new Error('Session user missing. Please re-login.');
+              await login({ username, password: p.password });
               await gateEntry(openEntryFor.id, {
                 odometerEndKm: p.odometer ?? undefined,
-                fuelAfter: p.fuel ?? undefined,
                 remarks: p.remarks ?? undefined,
               });
               toast.success('Entry logged');

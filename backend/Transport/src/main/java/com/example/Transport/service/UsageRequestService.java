@@ -4,6 +4,7 @@ import com.example.Transport.dto.*;
 import com.example.Transport.entity.UsageRequest;
 import com.example.Transport.entity.Vehicle;
 import com.example.Transport.enums.RequestStatus;
+import com.example.Transport.enums.VehicleStatus;
 import com.example.Transport.exception.BadRequestException;
 import com.example.Transport.exception.ConflictException;
 import com.example.Transport.exception.NotFoundException;
@@ -35,6 +36,18 @@ public class UsageRequestService {
   private static final int BUFFER_MINUTES = 15;
 
   private static LocalDateTime utcNow() { return LocalDateTime.now(ZoneOffset.UTC); }
+
+  private Optional<Vehicle> resolveVehicle(UsageRequest r) {
+    if (r.getAssignedVehicleId() != null) {
+      return vehicleRepo.findById(r.getAssignedVehicleId());
+    }
+    if (r.getAssignedVehicleNumber() != null && !r.getAssignedVehicleNumber().isBlank()) {
+      String num = r.getAssignedVehicleNumber().trim();
+      return vehicleRepo.findByVehicleNumberAndIsDeleted(num, 0)
+          .or(() -> vehicleRepo.findByVehicleNumberCaseInsensitive(num, 0));
+    }
+    return Optional.empty();
+  }
 
   /* -------------------- CREATE -------------------- */
 
@@ -225,7 +238,27 @@ public class UsageRequestService {
     if (dto != null) {
       if (dto.exitOdometer != null && dto.exitOdometer < 0)
         throw new BadRequestException("exitOdometer must be >= 0");
+      if (dto.exitOdometer != null) {
+        resolveVehicle(r).ifPresent(v -> {
+          if (v.getTotalKmDriven() != null && dto.exitOdometer < v.getTotalKmDriven()) {
+            throw new BadRequestException("exitOdometer cannot be less than vehicle recorded odometer");
+          }
+          if (v.getRegisteredKm() != null && dto.exitOdometer < v.getRegisteredKm()) {
+            throw new BadRequestException("exitOdometer cannot be less than registered odometer");
+          }
+        });
+      }
       r.setExitOdometer(dto.exitOdometer);
+      // sync vehicle current odometer on departure
+      if (dto.exitOdometer != null) {
+        resolveVehicle(r).ifPresent(v -> {
+          Vehicle vBefore = cloneVehicle(v);
+          v.setTotalKmDriven(dto.exitOdometer.longValue());
+          v.setStatus(VehicleStatus.IN_SERVICE);
+          vehicleRepo.saveAndFlush(v);
+          history.record("Vehicle", String.valueOf(v.getId()), "ON_TRIP", vBefore, v, dto != null ? dto.actor : null);
+        });
+      }
       if (dto.exitManifest != null && !dto.exitManifest.isEmpty()) {
         try {
           r.setExitManifestJson(objectMapper.writeValueAsString(dto.exitManifest));
@@ -238,16 +271,6 @@ public class UsageRequestService {
     r.setStatus(RequestStatus.DISPATCHED);
     UsageRequest saved = repo.save(r);
     history.record("UsageRequest", String.valueOf(id), "GATE_EXIT", before, saved, dto != null ? dto.actor : null);
-
-    // Vehicle side-effects: set status IN_SERVICE when exiting
-    if (saved.getAssignedVehicleId() != null) {
-      vehicleRepo.findById(saved.getAssignedVehicleId()).ifPresent(v -> {
-        Vehicle vBefore = cloneVehicle(v);
-        v.setStatus(com.example.Transport.enums.VehicleStatus.IN_SERVICE);
-        vehicleRepo.save(v);
-        history.record("Vehicle", String.valueOf(v.getId()), "ON_TRIP", vBefore, v, dto != null ? dto.actor : null);
-      });
-    }
 
     return saved;
   }
@@ -267,6 +290,14 @@ public class UsageRequestService {
       if (entryOdo < 0) throw new BadRequestException("entryOdometer must be >= 0");
       if (exitOdo != null && entryOdo < exitOdo)
         throw new BadRequestException("entryOdometer must be >= exitOdometer");
+      resolveVehicle(r).ifPresent(v -> {
+        if (v.getTotalKmDriven() != null && entryOdo < v.getTotalKmDriven()) {
+          throw new BadRequestException("entryOdometer cannot be less than vehicle recorded odometer");
+        }
+        if (v.getRegisteredKm() != null && entryOdo < v.getRegisteredKm()) {
+          throw new BadRequestException("entryOdometer cannot be less than registered odometer");
+        }
+      });
       r.setEntryOdometer(entryOdo);
     }
 
@@ -283,19 +314,15 @@ public class UsageRequestService {
     history.record("UsageRequest", String.valueOf(id), "GATE_ENTRY", before, saved, dto != null ? dto.actor : null);
 
     // Vehicle side-effects: add km and set AVAILABLE
-    if (saved.getAssignedVehicleId() != null) {
-      vehicleRepo.findById(saved.getAssignedVehicleId()).ifPresent(v -> {
-        Vehicle vBefore = cloneVehicle(v);
-        if (exitOdo != null && entryOdo != null) {
-          long delta = Math.max(0, entryOdo - exitOdo);
-          Long nowKm = v.getTotalKmDriven() == null ? 0L : v.getTotalKmDriven();
-          v.setTotalKmDriven(nowKm + delta);
-        }
-        v.setStatus(com.example.Transport.enums.VehicleStatus.AVAILABLE);
-        vehicleRepo.save(v);
-        history.record("Vehicle", String.valueOf(v.getId()), "TRIP_RETURNED", vBefore, v, dto != null ? dto.actor : null);
-      });
-    }
+    resolveVehicle(saved).ifPresent(v -> {
+      Vehicle vBefore = cloneVehicle(v);
+      if (entryOdo != null) {
+        v.setTotalKmDriven(entryOdo.longValue());
+      }
+      v.setStatus(VehicleStatus.AVAILABLE);
+      vehicleRepo.saveAndFlush(v);
+      history.record("Vehicle", String.valueOf(v.getId()), "TRIP_RETURNED", vBefore, v, dto != null ? dto.actor : null);
+    });
 
     return saved;
   }
@@ -535,6 +562,7 @@ public class UsageRequestService {
     c.setChassisNumber(v.getChassisNumber());
     c.setEngineNumber(v.getEngineNumber());
     c.setManufactureDate(v.getManufactureDate());
+    c.setRegisteredKm(v.getRegisteredKm());
     c.setTotalKmDriven(v.getTotalKmDriven());
     c.setFuelEfficiency(v.getFuelEfficiency());
     c.setPresentCondition(v.getPresentCondition());

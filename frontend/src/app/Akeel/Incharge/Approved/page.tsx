@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { listByStatus } from '../../Transport/services/usageService';
 import type { UsageRequest } from '../../Transport/services/types';
 import { Th, Td } from '../../Transport/components/ThTd';
-import SearchBar from '../../Transport/components/SearchBar';
+import SearchBar from '../components/SearchBar';
 import AssignVehicleModal from '../components/AssignVehicleModal';
 import { X } from 'lucide-react';
 import { toast } from 'react-toastify';
@@ -120,7 +120,12 @@ export default function InchargeApprovedPage() {
     <div className="space-y-3">
       <div className="flex items-center justify-between mb-2">
         <h1 className="text-[14px] md:text-lg font-bold text-orange-900">Approved (Awaiting Assignment)</h1>
-        <SearchBar value={q} onChange={setQ} placeholder="Search code, applicant, dept, route…" className="h-8" />
+        <SearchBar
+          value={q}
+          onChange={setQ}
+          placeholder="Search code, applicant, dept, route…"
+          className="w-full sm:w-72"
+        />
       </div>
 
       <div className="bg-white rounded-lg border border-orange-200 overflow-auto">

@@ -1,12 +1,10 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { listByStatus } from '../Transport/services/usageService';
 import type { UsageRequest } from '../Transport/services/types';
 import WorkspaceSearchBar from '../../../../components/workspace/WorkspaceSearchBar';
 import { useSearchParams } from 'next/navigation';
-
-const MANAGEMENT_ROLES: string[] = ['HR', 'HRD', 'HRM', 'GM', 'GENERAL_MANAGER', 'CHAIRMAN', 'MANAGEMENT'];
 
 const fmtDT = (s?: string | null) => (s ? new Date(s).toLocaleString() : '—');
 
@@ -48,28 +46,31 @@ export default function ManagementDashboardPage() {
     { label: 'Rejected', n: rejected.length, hint: 'Rejected at Management' },
   ]), [pending, approved, rejected]);
 
-  const filterList = (list: UsageRequest[]) => {
-    const term = searchTerm.trim().toLowerCase();
-    if (!term) return list;
-    return list.filter((r) =>
-      [
-        r.requestCode,
-        r.applicantName,
-        r.employeeId,
-        r.fromLocation,
-        r.toLocation,
-        r.assignedVehicleNumber,
-        r.status,
-      ]
-        .filter(Boolean)
-        .map((v) => v!.toString().toLowerCase())
-        .some((text) => text.includes(term))
-    );
-  };
+  const filterList = useCallback(
+    (list: UsageRequest[]) => {
+      const term = searchTerm.trim().toLowerCase();
+      if (!term) return list;
+      return list.filter((r) =>
+        [
+          r.requestCode,
+          r.applicantName,
+          r.employeeId,
+          r.fromLocation,
+          r.toLocation,
+          r.assignedVehicleNumber,
+          r.status,
+        ]
+          .filter(Boolean)
+          .map((v) => v!.toString().toLowerCase())
+          .some((text) => text.includes(term))
+      );
+    },
+    [searchTerm]
+  );
 
-  const filteredPending = useMemo(() => filterList(pending), [pending, searchTerm]);
-  const filteredApproved = useMemo(() => filterList(approved), [approved, searchTerm]);
-  const filteredRejected = useMemo(() => filterList(rejected), [rejected, searchTerm]);
+  const filteredPending = useMemo(() => filterList(pending), [pending, filterList]);
+  const filteredApproved = useMemo(() => filterList(approved), [approved, filterList]);
+  const filteredRejected = useMemo(() => filterList(rejected), [rejected, filterList]);
 
   const renderList = (title: string, data: UsageRequest[]) => (
     <section className="bg-white rounded-2xl border border-orange-200 shadow-sm p-4 space-y-3">

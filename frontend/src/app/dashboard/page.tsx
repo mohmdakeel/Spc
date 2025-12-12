@@ -4,8 +4,10 @@
 import { useState, useEffect, useMemo, type CSSProperties } from 'react';
 import Topbar from '../../../components/Topbar';
 import Sidebar from '../../../components/Sidebar';
+import RequireRole from '../../../components/guards/RequireRole';
 import { useAuth } from '../../../hooks/useAuth';
 import api from '../../../lib/api';
+import { readCache, writeCache } from '../../../lib/cache';
 
 import {
   Users,
@@ -19,19 +21,22 @@ import { AuditLog, Registration, User as UserType } from '../../../types';
 export default function Dashboard() {
   const { user } = useAuth();
 
+  const cachedRegs = readCache<Registration[]>('cache:auth:employees') || [];
+  const cachedUsers = readCache<UserType[]>('cache:auth:users') || [];
+  const hasCachedStats = cachedRegs.length && cachedUsers.length;
+
   // ========================
   // STATE
   // ========================
   const [stats, setStats] = useState({
-    employees: 0,
-    users: 0,
+    employees: cachedRegs.length || 0,
+    users: cachedUsers.length || 0,
   });
-  const [statsLoading, setStatsLoading] = useState(true);
-  const [registrations, setRegistrations] = useState<Registration[]>([]);
-  const [usersList, setUsersList] = useState<UserType[]>([]);
+  const [statsLoading, setStatsLoading] = useState(!hasCachedStats);
+  const [registrations, setRegistrations] = useState<Registration[]>(cachedRegs);
+  const [usersList, setUsersList] = useState<UserType[]>(cachedUsers);
 
   const [recentLogs, setRecentLogs] = useState<AuditLog[]>([]);
-  const [allLogs, setAllLogs] = useState<AuditLog[]>([]);
   const [logsLoading, setLogsLoading] = useState(true);
   const [logsError, setLogsError] = useState('');
 
@@ -55,7 +60,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (!user) return;
 
-    setStatsLoading(true);
+    setStatsLoading(!hasCachedStats);
     Promise.all([
       api.get<Registration[]>('/registrations'),
       api.get<UserType[]>('/users'),
@@ -74,11 +79,13 @@ export default function Dashboard() {
         setRegistrations(regs);
         setUsersList(usr);
         setStats({ employees: regs.length, users: usr.length });
+        writeCache('cache:auth:employees', regs);
+        writeCache('cache:auth:users', usr);
       })
       .finally(() => {
         setStatsLoading(false);
       });
-  }, [user]);
+  }, [user, hasCachedStats]);
 
   // ========================
   // FETCH RECENT ACTIVITY (audit logs)
@@ -97,7 +104,6 @@ export default function Dashboard() {
       .get<AuditLog[]>(endpoint)
       .then((res) => {
         const logs = Array.isArray(res.data) ? res.data : [];
-        setAllLogs(logs);
         // just take the latest 5 (or fewer)
         const latest = logs
           .slice() // copy
@@ -111,7 +117,6 @@ export default function Dashboard() {
       .catch((err) => {
         console.error('Failed to load recent logs', err);
         setRecentLogs([]);
-        setAllLogs([]);
         setLogsError(
           err?.response?.data?.message || 'Failed to load recent activity',
         );
@@ -198,15 +203,16 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="auth-shell">
-      {/* Sidebar */}
-      <Sidebar user={user} isOpen={isOpenSidebar} onClose={toggleSidebar} />
+    <RequireRole roles={['ADMIN','AUTH_ADMIN','HRD','HOD','GM','CHAIRMAN','TRANSPORT_ADMIN','TRANSPORT','VEHICLE_INCHARGE']}>
+      <div className="auth-shell">
+        {/* Sidebar */}
+        <Sidebar user={user} isOpen={isOpenSidebar} onClose={toggleSidebar} />
 
-      {/* Main area */}
-      <div className="auth-shell__main overflow-hidden">
-        <Topbar user={user} />
+        {/* Main area */}
+        <div className="auth-shell__main overflow-hidden">
+          <Topbar user={user} />
 
-        <main className="auth-shell__content">
+          <main className="auth-shell__content">
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -493,5 +499,6 @@ export default function Dashboard() {
         </main>
       </div>
     </div>
+    </RequireRole>
   );
 }

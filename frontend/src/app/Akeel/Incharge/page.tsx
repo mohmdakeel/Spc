@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { metrics } from '../Transport/services/usageService';
 import type { MetricsDto } from '../Transport/services/usageService';
 import { Calendar, Car, User } from 'lucide-react';
-import SearchBar from '../Transport/components/SearchBar';
+import SearchBar from './components/SearchBar';
 
 export default function InchargeDashboard() {
   const [m, setM] = useState<MetricsDto | null>(null);
@@ -45,7 +45,7 @@ export default function InchargeDashboard() {
           value={q}
           onChange={setQ}
           placeholder="Search requests by code / vehicle / driver"
-          className="h-10 w-full sm:w-64"
+          className="w-full sm:w-72"
         />
       </div>
 

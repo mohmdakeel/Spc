@@ -74,7 +74,6 @@ export default function HODPendingPage() {
   const [rows, setRows] = useState<UsageRequest[]>([]);
   const [q, setQ] = useState('');
   const [selected, setSelected] = useState<UsageRequest | null>(null);
-  const [details, setDetails] = useState<UsageRequest | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {

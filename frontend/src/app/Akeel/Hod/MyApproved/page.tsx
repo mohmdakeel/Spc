@@ -158,13 +158,6 @@ export default function HODMyApprovedPage() {
     });
   }, [items, q]);
 
-  const clearHistory = () => {
-    if (typeof window === 'undefined') return;
-    if (!confirm('Clear local approval history for this browser?')) return;
-    localStorage.removeItem('hodApprovedHistory');
-    setItems([]);
-  };
-
   /* ---------- print current list (same column set as other pages) ---------- */
   const printPage = useCallback(() => {
     const rowsHtml = filtered

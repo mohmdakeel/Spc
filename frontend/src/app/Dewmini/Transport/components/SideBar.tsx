@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState, PropsWithChildren } from 'react';
+import React, { useCallback, useMemo, useState, PropsWithChildren } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Image from 'next/image';
 import {
@@ -99,7 +99,10 @@ const Sidebar: React.FC<PropsWithChildren> = ({ children }) => {
   const collapsed = false;
 
   const go = (path: string) => router.push(path);
-  const isActive = (path: string) => pathname === path || pathname?.startsWith(path + '/');
+  const isActive = useCallback(
+    (path: string) => pathname === path || pathname?.startsWith(path + '/'),
+    [pathname]
+  );
 
   // Group active detection (Logic remains the same)
   const vehicleMgmtActive = useMemo(
@@ -111,7 +114,7 @@ const Sidebar: React.FC<PropsWithChildren> = ({ children }) => {
         '/Akeel/Transport/GPSTracking',
         '/Akeel/Transport/Fuel',
       ].some(isActive),
-    [pathname]
+    [isActive]
   );
 
   const vehicleMaintActive = useMemo(
@@ -122,7 +125,7 @@ const Sidebar: React.FC<PropsWithChildren> = ({ children }) => {
         '/Akeel/Transport/Maintenance/Log',
         '/Akeel/Transport/Maintenance/SupplierBills',
       ].some(isActive),
-    [pathname]
+    [isActive]
   );
 
   const usageReqActive = useMemo(
@@ -134,7 +137,7 @@ const Sidebar: React.FC<PropsWithChildren> = ({ children }) => {
         '/Akeel/Transport/Usage/Dispatch',
         '/Akeel/Transport/Usage/Receive',
       ].some(isActive),
-    [pathname]
+    [isActive]
   );
 
   const gateSecActive = useMemo(
@@ -144,7 +147,7 @@ const Sidebar: React.FC<PropsWithChildren> = ({ children }) => {
         '/Akeel/Transport/Gate/Visitors',
         '/Akeel/Transport/Gate/Company',
       ].some(isActive),
-    [pathname]
+    [isActive]
   );
 
   const handleLogout = () => {
@@ -400,9 +403,7 @@ const Sidebar: React.FC<PropsWithChildren> = ({ children }) => {
           <button
             type="button"
             onClick={() => go('/Akeel/Transport/Profile')}
-            className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all
-            ${isActive('/Akeel/Transport/Profile') ? 'bg-orange-600 text-white' : 'text-black hover:bg-orange-500 hover:text-white'}
-            ${collapsed ? 'justify-center px-2' : ''}`}
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all ${isActive('/Akeel/Transport/Profile') ? 'bg-orange-600 text-white' : 'text-black hover:bg-orange-500 hover:text-white'} ${collapsed ? 'justify-center px-2' : ''}`}
           >
             <User size={18} />
             {!collapsed && <span className="text-sm font-medium">Profile</span>}
@@ -410,44 +411,40 @@ const Sidebar: React.FC<PropsWithChildren> = ({ children }) => {
 
           <button
             type="button"
-          onClick={() => go('/Akeel/Transport/Reports')}
-          className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all
-            ${isActive('/Akeel/Transport/Reports') ? 'bg-orange-600 text-white' : 'text-black hover:bg-orange-500 hover:text-white'}`}
-        >
-          <PieChart size={18} />
-          <span className="text-sm font-medium">Reports</span>
-        </button>
+            onClick={() => go('/Akeel/Transport/Reports')}
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all ${isActive('/Akeel/Transport/Reports') ? 'bg-orange-600 text-white' : 'text-black hover:bg-orange-500 hover:text-white'} ${collapsed ? 'justify-center px-2' : ''}`}
+          >
+            <PieChart size={18} />
+            {!collapsed && <span className="text-sm font-medium">Reports</span>}
+          </button>
 
           <button
             type="button"
-          onClick={() => go('/Akeel/Transport/History')}
-          className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all
-            ${isActive('/Akeel/Transport/History') ? 'bg-orange-600 text-white' : 'text-black hover:bg-orange-500 hover:text-white'}`}
-        >
-          <FileText size={18} />
-          <span className="text-sm font-medium">History</span>
-        </button>
+            onClick={() => go('/Akeel/Transport/History')}
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all ${isActive('/Akeel/Transport/History') ? 'bg-orange-600 text-white' : 'text-black hover:bg-orange-500 hover:text-white'} ${collapsed ? 'justify-center px-2' : ''}`}
+          >
+            <FileText size={18} />
+            {!collapsed && <span className="text-sm font-medium">History</span>}
+          </button>
 
           <button
             type="button"
-          onClick={() => go('/Akeel/Transport/Settings')}
-          className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all
-            ${isActive('/Akeel/Transport/Settings') ? 'bg-orange-600 text-white' : 'text-black hover:bg-orange-500 hover:text-white'}`}
-        >
-          <Settings size={18} />
-          <span className="text-sm font-medium">Settings</span>
-        </button>
+            onClick={() => go('/Akeel/Transport/Settings')}
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all ${isActive('/Akeel/Transport/Settings') ? 'bg-orange-600 text-white' : 'text-black hover:bg-orange-500 hover:text-white'} ${collapsed ? 'justify-center px-2' : ''}`}
+          >
+            <Settings size={18} />
+            {!collapsed && <span className="text-sm font-medium">Settings</span>}
+          </button>
 
           <button
             type="button"
-          onClick={handleLogout}
-          className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all text-black hover:bg-orange-500 hover:text-white ${
-            }`}
-        >
-          <LogOut size={18} />
-          <span className="text-sm font-medium">Logout</span>
-        </button>
-      </div>
+            onClick={handleLogout}
+            className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all text-black hover:bg-orange-500 hover:text-white ${collapsed ? 'justify-center px-2' : ''}`}
+          >
+            <LogOut size={18} />
+            {!collapsed && <span className="text-sm font-medium">Logout</span>}
+          </button>
+        </div>
       </aside>
       
       {/* Main Content Area */}

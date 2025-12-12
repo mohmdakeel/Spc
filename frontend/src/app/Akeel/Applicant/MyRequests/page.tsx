@@ -7,6 +7,7 @@ import { Th, Td } from '../../Transport/components/ThTd';
 import { Printer, X } from 'lucide-react';
 import WorkspaceSearchBar from '../../../../../components/workspace/WorkspaceSearchBar';
 import { printDocument, escapeHtml, guessPrintedBy } from '../../../../../lib/print';
+import { readCache, writeCache } from '../../../../../lib/cache';
 
 /* ------------ helpers ------------ */
 const fmtDT = (s?: string | null) => (s ? new Date(s).toLocaleString() : '—');
@@ -127,9 +128,27 @@ const MY_REQUESTS_PRINT_STYLES = `
 `;
 
 export default function RequestsPage() {
-  const [items, setItems] = React.useState<UsageRequest[]>([]);
-  const [ids, setIds] = React.useState<string[]>([]);
-  const [loading, setLoading] = React.useState(true);
+  const bootstrapIds =
+    typeof window !== 'undefined'
+      ? Array.from(
+          new Set(
+            [
+              localStorage.getItem('employeeId') || '',
+              localStorage.getItem('actor') || '',
+              localStorage.getItem('username') || '',
+            ].filter(Boolean)
+          )
+        )
+      : [];
+  const cachedMine = bootstrapIds.flatMap(
+    (id) => readCache<UsageRequest[]>(`cache:applicant:requests:${id}`) || []
+  );
+  const cachedAll = readCache<UsageRequest[]>('cache:applicant:requests:all') || [];
+  const initialItems = cachedMine.length ? cachedMine : cachedAll;
+
+  const [items, setItems] = React.useState<UsageRequest[]>(initialItems);
+  const [ids, setIds] = React.useState<string[]>(bootstrapIds);
+  const [loading, setLoading] = React.useState(!initialItems.length);
   const [q, setQ] = React.useState('');
   const [view, setView] = React.useState<UsageRequest | null>(null);
 
@@ -173,6 +192,10 @@ export default function RequestsPage() {
         return true;
       });
       merged.sort((a: any, b: any) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0));
+
+      // Cache per-user and combined so the workspace opens instantly next time
+      uniqueIds.forEach((id) => writeCache(`cache:applicant:requests:${id}`, merged));
+      writeCache('cache:applicant:requests:all', merged);
 
       setItems(merged);
       setLoading(false);

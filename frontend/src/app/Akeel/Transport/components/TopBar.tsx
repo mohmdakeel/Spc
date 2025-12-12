@@ -2,6 +2,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { LogOut, User as UserIcon, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { logout } from '../../../../../lib/auth';
@@ -21,15 +22,8 @@ interface TopbarProps {
 
 export default function Topbar({ user: propUser }: TopbarProps) {
   const router = useRouter();
-
-  // Fallback to the global auth user if no prop is provided
-  let ctxUser: UIUser = null;
-  try {
-    ({ user: ctxUser } = useAuth());
-  } catch {
-    ctxUser = null;
-  }
-  const user = propUser ?? ctxUser;
+  const { user: ctxUser } = useAuth();
+  const user = propUser ?? ctxUser ?? null;
 
   const displayName =
     user?.fullName?.trim() ||
@@ -82,10 +76,13 @@ export default function Topbar({ user: propUser }: TopbarProps) {
           >
             <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center overflow-hidden border-2 border-white/30">
               {user?.imageUrl ? (
-                <img
+                <Image
                   src={user.imageUrl}
                   alt={displayName}
+                  width={32}
+                  height={32}
                   className="w-full h-full object-cover"
+                  unoptimized
                 />
               ) : (
                 <UserIcon className="w-4 h-4 text-white" />

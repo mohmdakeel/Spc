@@ -1,83 +1,139 @@
 // hooks/useAuth.tsx - Enhanced version
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { me } from '../lib/auth';
+import { clearAuthCaches, me } from '../lib/auth';
 import { User } from '../types';
 import { usePathname, useRouter } from 'next/navigation';
 
-const PUBLIC_ROUTES = ['/login', '/_error'];
+const PUBLIC_ROUTES = ['/login', '/_error', '/403'];
+const CACHE_KEY = 'auth:user-cache';
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+const readCachedUser = (): User | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.sessionStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { user: User; ts: number };
+    if (!parsed?.user || !parsed?.ts) return null;
+    if (Date.now() - parsed.ts > CACHE_TTL_MS) return null;
+    return parsed.user;
+  } catch {
+    return null;
+  }
+};
+
+const writeCachedUser = (user: User | null) => {
+  if (typeof window === 'undefined') return;
+  try {
+    if (user) {
+      window.sessionStorage.setItem(CACHE_KEY, JSON.stringify({ user, ts: Date.now() }));
+    } else {
+      window.sessionStorage.removeItem(CACHE_KEY);
+    }
+  } catch {
+    /* ignore cache failures */
+  }
+};
 
 export const useAuth = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const initialUser = typeof window !== 'undefined' ? readCachedUser() : null;
+  const [user, setUserState] = useState<User | null>(initialUser);
+  const [loading, setLoading] = useState(!initialUser);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const pathname = usePathname();
-  const mounted = useRef(true);
+  const mounted = useRef(false);
+
+  const setUser = (u: User | null) => {
+    if (!mounted.current) return;
+    setUserState(u);
+    writeCachedUser(u);
+  };
 
   useEffect(() => {
     mounted.current = true;
-    setError(null);
+    let cancelled = false;
 
-    // Skip auth check for public routes
-    if (PUBLIC_ROUTES.some(route => pathname?.startsWith(route))) {
+    const isPublic = PUBLIC_ROUTES.some(route => pathname?.startsWith(route));
+    const redirectToLogin = () => {
+      if (pathname?.startsWith('/login')) return;
+      router.replace('/login');
+    };
+
+    // Skip auth check for public routes but keep any cached user
+    if (isPublic) {
       setLoading(false);
-      return () => { mounted.current = false; };
+      setError(null);
+      return () => { mounted.current = false; cancelled = true; };
     }
 
-    (async () => {
+    const run = async () => {
+      setError(null);
+
+      // Show cache immediately; only block UI if we truly have no session
+      const cachedUser = readCachedUser();
+      if (cachedUser) setUser(cachedUser);
+      const blockWhileFetching = !cachedUser;
+      if (blockWhileFetching) setLoading(true);
+
       try {
         const data = await me();
-        if (!mounted.current) return;
+        if (cancelled || !mounted.current) return;
 
         if (!data) {
-          // Session missing/invalid — treat as logged out
           setUser(null);
           setError(null);
-          if (!pathname?.startsWith('/login')) {
-            const returnUrl = encodeURIComponent(pathname || '/');
-            router.replace(`/login?next=${returnUrl}`);
-          }
+          writeCachedUser(null);
+          clearAuthCaches();
+          redirectToLogin();
           return;
         }
 
         setUser(data);
         setError(null);
+        clearAuthCaches();
       } catch (err: any) {
         console.error('Auth check failed:', err);
-        if (mounted.current) {
-          setError(err.response?.data?.message || 'Authentication failed');
-          setUser(null);
-          
-          // Only redirect if not already on login page
-          if (!pathname?.startsWith('/login')) {
-            const returnUrl = encodeURIComponent(pathname || '/');
-            router.replace(`/login?next=${returnUrl}`);
-          }
-        }
+        if (cancelled || !mounted.current) return;
+        setError(err?.response?.data?.message || err?.message || 'Authentication failed');
+        setUser(null);
+        writeCachedUser(null);
+        clearAuthCaches();
+        redirectToLogin();
       } finally {
-        if (mounted.current) setLoading(false);
+        if (!cancelled && mounted.current && blockWhileFetching) {
+          setLoading(false);
+        }
       }
-    })();
+    };
 
-    return () => { mounted.current = false; };
+    run();
+
+    return () => {
+      cancelled = true;
+      mounted.current = false;
+    };
   }, [pathname, router]);
 
   const refresh = async () => {
+    if (!mounted.current) return null;
     setLoading(true);
     setError(null);
     try {
       const data = await me();
+      if (!mounted.current) return null;
       if (!data) {
         setUser(null);
         setError('Session expired. Please sign in again.');
+        clearAuthCaches();
         if (!pathname?.startsWith('/login')) {
-          const returnUrl = encodeURIComponent(pathname || '/');
-          router.replace(`/login?next=${returnUrl}`);
+          router.replace('/login');
         }
         return null;
       }
 
+      clearAuthCaches();
       setUser(data);
       setError(null);
       return data;
@@ -102,7 +158,8 @@ export const useAuth = () => {
   const hasRole = (roles: string | string[]) => {
     if (!user?.roles) return false;
     const arr = Array.isArray(roles) ? roles : [roles];
-    return user.roles.some(r => arr.includes(r));
+    const userRoles = user.roles.map(r => r.toUpperCase());
+    return arr.some(r => userRoles.includes(r.toUpperCase()));
   };
 
   const can = (perms: string | string[]) => {

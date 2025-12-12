@@ -7,11 +7,12 @@ import axios from "axios";
  */
 const rawBase = (process.env.NEXT_PUBLIC_API_BASE || "").replace(/\/$/, "");
 const baseURL = rawBase ? `${rawBase}/api` : "/api";
+const timeoutMs = Math.min(Number(process.env.NEXT_PUBLIC_API_TIMEOUT) || 10_000, 15_000);
 
 const http = axios.create({
   baseURL,
   headers: { "Content-Type": "application/json" },
-  timeout: 20000,
+  timeout: timeoutMs,
 });
 
 export default http;

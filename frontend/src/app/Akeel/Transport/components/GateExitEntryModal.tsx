@@ -10,11 +10,12 @@ export default function GateExitEntryModal({
   mode: Mode;
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: { odometer?: number | null; fuel?: number | null; remarks?: string | null }) => void;
+  onSubmit: (data: { odometer?: number | null; remarks?: string | null; password: string }) => void;
 }) {
   const [odometer, setOdometer] = useState<number | ''>('');
-  const [fuel, setFuel] = useState<number | ''>('');
   const [remarks, setRemarks] = useState('');
+  const [password, setPassword] = useState('');
+  const [err, setErr] = useState<string | null>(null);
   if (!open) return null;
 
   return (
@@ -33,25 +34,38 @@ export default function GateExitEntryModal({
               placeholder={mode==='exit'?'e.g., 125000':'e.g., 125320'}/>
           </div>
           <div>
-            <label className="block text-sm font-medium text-orange-800 mb-1">Fuel {mode==='exit'?'Before':'After'} (%)</label>
-            <input type="number" className="w-full border rounded px-3 py-2"
-              value={fuel} onChange={e=>setFuel(e.target.value===''?'':Number(e.target.value))} min={0} max={100} placeholder="0–100"/>
-          </div>
-          <div>
             <label className="block text-sm font-medium text-orange-800 mb-1">Remarks</label>
             <textarea className="w-full border rounded px-3 py-2" rows={3}
               value={remarks} onChange={e=>setRemarks(e.target.value)} placeholder="Optional note"/>
           </div>
+          <div>
+            <label className="block text-sm font-medium text-orange-800 mb-1">Confirm with password</label>
+            <input
+              type="password"
+              className="w-full border rounded px-3 py-2"
+              value={password}
+              onChange={e=>setPassword(e.target.value)}
+              placeholder="Enter your password to confirm"
+            />
+          </div>
+          {err && <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">{err}</div>}
         </div>
 
         <div className="px-5 py-3 border-t bg-orange-50 flex justify-end gap-2">
           <button className="px-4 py-2 rounded border" onClick={onClose}>Cancel</button>
           <button className="px-4 py-2 rounded bg-orange-600 text-white"
-            onClick={()=>onSubmit({
-              odometer: odometer===''?null:Number(odometer),
-              fuel: fuel===''?null:Number(fuel),
-              remarks: remarks?.trim()||null
-            })}
+            onClick={() => {
+              if (password.trim() === '') {
+                setErr('Password required to confirm.');
+                return;
+              }
+              setErr(null);
+              onSubmit({
+                odometer: odometer===''?null:Number(odometer),
+                remarks: remarks?.trim()||null,
+                password: password.trim(),
+              });
+            }}
           >Save</button>
         </div>
       </div>

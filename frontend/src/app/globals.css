@@ -17,6 +17,19 @@
   --hod-card-shadow: 0 25px 55px rgba(249, 115, 22, 0.08);
 }
 
+/* Cross-browser text scaling */
+html,
+:host {
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Prevent accidental selection on helper UI bits */
+.dev-tools-indicator-item {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 /*@media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
@@ -317,4 +330,3 @@ body {
   background: rgba(255, 255, 255, 0.04);
   border-color: rgba(255, 255, 255, 0.15);
 }
-

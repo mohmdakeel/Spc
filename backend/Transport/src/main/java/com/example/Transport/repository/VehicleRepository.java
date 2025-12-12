@@ -42,4 +42,12 @@ public interface VehicleRepository extends JpaRepository<Vehicle, Long> {
                                     @Param("windowKm") long windowKm);
 
     Optional<Vehicle> findByVehicleNumberAndIsDeleted(String vehicleNumber, Integer isDeleted);
+
+    @Query("""
+        SELECT v FROM Vehicle v
+        WHERE v.isDeleted = :isDeleted
+          AND LOWER(v.vehicleNumber) = LOWER(:vehicleNumber)
+        """)
+    Optional<Vehicle> findByVehicleNumberCaseInsensitive(@Param("vehicleNumber") String vehicleNumber,
+                                                         @Param("isDeleted") Integer isDeleted);
 }

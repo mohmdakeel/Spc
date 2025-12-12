@@ -2,8 +2,8 @@
 
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { listByStatus } from '../../Transport/services/usageService';
-import type { UsageRequest } from '../../Transport/services/types';
+import { listByStatus, listAllRequests } from '../../Transport/services/usageService';
+import type { UsageRequest, RequestStatus } from '../../Transport/services/types';
 import { Th, Td } from '../../Transport/components/ThTd';
 import HODSearchBar from '../components/HODSearchBar';
 import { Printer, X, RefreshCw } from 'lucide-react';
@@ -105,6 +105,9 @@ const COLS = [
   '6%',  // Print
 ] as const;
 
+/* include all rejected states (single enum today, but kept extensible) */
+const REJECTED_STATUSES: RequestStatus[] = ['REJECTED'];
+
 /* ======================= Page ======================= */
 export default function HODRejectedPage() {
   const [rows, setRows] = useState<UsageRequest[]>([]);
@@ -117,8 +120,34 @@ export default function HODRejectedPage() {
     setLoading(true);
     setError(null);
     try {
-      const list = await listByStatus('REJECTED');
-      setRows(list || []);
+      const buckets = await Promise.all(REJECTED_STATUSES.map((s) => listByStatus(s)));
+      let merged = buckets.flat().filter(Boolean) as UsageRequest[];
+
+      /* fallback: if status endpoint empty, pull all and filter locally */
+      if (!merged.length) {
+        try {
+          const all = await listAllRequests();
+          merged = (Array.isArray(all) ? all : (all as any)?.content || []).filter(
+            (r: any) => String(r?.status || '').toUpperCase() === 'REJECTED'
+          );
+        } catch {}
+      }
+
+      const seen = new Set<string>();
+      const unique = merged.filter((r: any) => {
+        const key = String(r?.id ?? r?.requestCode ?? '');
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      unique.sort((a, b) => {
+        const da = Date.parse((a as any)?.updatedAt || (a as any)?.createdAt || '');
+        const db = Date.parse((b as any)?.updatedAt || (b as any)?.createdAt || '');
+        return (db || 0) - (da || 0);
+      });
+
+      setRows(unique);
     } catch (err: any) {
       console.warn('Failed to load rejected list', err);
       setError(err?.message || 'Unable to load rejected requests right now.');

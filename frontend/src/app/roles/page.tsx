@@ -7,6 +7,7 @@ import Modal from '../../../components/Modal';
 import api from '../../../lib/api';
 import { useAuth } from '../../../hooks/useAuth';
 import { Check, X, ArrowRightLeft, Shield, User, Users, Key } from 'lucide-react';
+import { readCache, writeCache } from '../../../lib/cache';
 
 // ===== backend shapes =====
 type Role = { id: number; code: string; name: string; description: string };
@@ -25,9 +26,14 @@ export default function RolesPage() {
   const { user, refresh } = useAuth();
 
   // ====== DATA FROM BACKEND ======
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [allPerms, setAllPerms] = useState<Perm[]>([]);
-  const [allUsers, setAllUsers] = useState<FullUser[]>([]);
+  const cachedRoles = readCache<Role[]>('cache:auth:roles') || [];
+  const cachedPerms = readCache<Perm[]>('cache:auth:perms') || [];
+  const cachedUsers = readCache<FullUser[]>('cache:auth:users') || [];
+  const hasCached = cachedRoles.length && cachedPerms.length && cachedUsers.length;
+
+  const [roles, setRoles] = useState<Role[]>(cachedRoles);
+  const [allPerms, setAllPerms] = useState<Perm[]>(cachedPerms);
+  const [allUsers, setAllUsers] = useState<FullUser[]>(cachedUsers);
 
   // ====== SELECTION STATE FOR PERMISSION MGMT ======
   const [selectedRole, setSelectedRole] = useState<string>('');
@@ -52,7 +58,8 @@ export default function RolesPage() {
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isOpenSidebar, setIsOpenSidebar] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(!hasCached);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // -------------------------------------------
   // utils
@@ -71,12 +78,20 @@ export default function RolesPage() {
   // initial load: roles, global perms, all users
   // -------------------------------------------
   useEffect(() => {
-    if (!user?.roles?.includes('ADMIN')) return;
+    if (!user?.roles?.includes('ADMIN')) {
+      setLoading(false);
+      return;
+    }
+
+    const silent = !!hasCached;
+    if (silent) {
+      setIsRefreshing(true);
+    } else {
+      setLoading(true);
+    }
 
     (async () => {
       try {
-        setLoading(true);
-
         const [rolesRes, permsRes, usersRes] = await Promise.all([
           api.get<Role[]>('/roles'),
           api.get<Perm[]>('/roles/permissions'),
@@ -84,12 +99,15 @@ export default function RolesPage() {
         ]);
 
         // roles
-        setRoles(Array.isArray(rolesRes.data) ? rolesRes.data : []);
+        const rolesList = Array.isArray(rolesRes.data) ? rolesRes.data : [];
+        setRoles(rolesList);
+        writeCache('cache:auth:roles', rolesList);
 
         // keep only CREATE / READ / UPDATE / DELETE / PRINT
         const globals = (Array.isArray(permsRes.data) ? permsRes.data : [])
           .filter((x) => GLOBAL5.has(x.code));
         setAllPerms(globals);
+        writeCache('cache:auth:perms', globals);
 
         // all users
         const mapped: FullUser[] = (Array.isArray(usersRes.data) ? usersRes.data : []).map(u => ({
@@ -99,14 +117,16 @@ export default function RolesPage() {
           roles: Array.isArray(u.roles) ? u.roles : [],
         }));
         setAllUsers(mapped);
+        writeCache('cache:auth:users', mapped);
 
       } catch (e: any) {
         showError(e?.response?.data?.message || 'Failed to load initial data');
       } finally {
         setLoading(false);
+        setIsRefreshing(false);
       }
     })();
-  }, [user]);
+  }, [user, hasCached]);
 
   // -------------------------------------------
   // whenever selectedRole changes
@@ -120,7 +140,6 @@ export default function RolesPage() {
     if (!selectedRole) return;
     (async () => {
       try {
-        setLoading(true);
         const { data } = await api.get<UserLite[]>(
           `/users/by-role/${encodeURIComponent(selectedRole)}`
         );
@@ -131,8 +150,6 @@ export default function RolesPage() {
           e?.response?.data?.message ||
             'Failed to load users for selected role'
         );
-      } finally {
-        setLoading(false);
       }
     })();
   }, [selectedRole]);
@@ -147,8 +164,6 @@ export default function RolesPage() {
 
     (async () => {
       try {
-        setLoading(true);
-
         const uid = Number(selectedUserId);
         const [effRes, dirRes] = await Promise.all([
           api.get<string[]>(`/users/${uid}/permissions/effective`),
@@ -167,8 +182,6 @@ export default function RolesPage() {
         showError(
           e?.response?.data?.message || 'Failed to load user permissions'
         );
-      } finally {
-        setLoading(false);
       }
     })();
   }, [selectedUserId]);
@@ -319,7 +332,7 @@ export default function RolesPage() {
         roles: Array.isArray(u.roles) ? u.roles : [],
       }));
       setAllUsers(mapped);
-    } catch (e: any) {
+    } catch {
       showError('Failed to reload user list after transfer');
     }
   };
@@ -330,7 +343,7 @@ export default function RolesPage() {
         `/users/by-role/${encodeURIComponent(roleCode)}`
       );
       setRoleUsers(Array.isArray(data) ? data : []);
-    } catch (e: any) {
+    } catch {
       /* ignore */
     }
   };
@@ -363,6 +376,12 @@ export default function RolesPage() {
               <h1 className="text-3xl font-bold text-gray-900">Roles & Permissions</h1>
             </div>
             <p className="text-gray-600">Manage user roles and permissions across the system</p>
+            {isRefreshing && (
+              <div className="mt-2 text-xs text-orange-700 flex items-center gap-2">
+                <div className="w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                Updating latest roles…
+              </div>
+            )}
           </div>
 
           {/* MESSAGES */}
@@ -400,7 +419,20 @@ export default function RolesPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {roles.map((r) => (
+                      {loading && roles.length === 0 ? (
+                        <tr>
+                          <td colSpan={3} className="p-6">
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                                Loading roles...
+                              </div>
+                              <div className="h-8 bg-orange-100/70 rounded animate-pulse" />
+                              <div className="h-8 bg-orange-100/70 rounded animate-pulse" />
+                            </div>
+                          </td>
+                        </tr>
+                      ) : roles.map((r) => (
                         <tr key={r.id} className="hover:bg-orange-50 transition-colors">
                           <td className="p-3">
                             <span className="font-mono text-sm bg-orange-100 text-orange-700 px-2 py-1 rounded">
@@ -411,7 +443,7 @@ export default function RolesPage() {
                           <td className="p-3 text-sm text-gray-600">{r.description}</td>
                         </tr>
                       ))}
-                      {!roles.length && (
+                      {!loading && !roles.length && (
                         <tr>
                           <td colSpan={3} className="p-6 text-center text-gray-500">
                             No roles found
@@ -657,14 +689,15 @@ export default function RolesPage() {
                   : 'Select permissions to revoke from this user:'}
               </p>
 
-              <div className="flex items-center">
-                <input
-                  id="selectAll"
-                  type="checkbox"
-                  className="mr-2"
-                  checked={selectedPerms.length === permissionOptions.length && permissionOptions.length > 0}
-                  onChange={toggleAll}
-                />
+                <div className="flex items-center">
+                  <input
+                    id="selectAll"
+                    name="selectAllPermissions"
+                    type="checkbox"
+                    className="mr-2"
+                    checked={selectedPerms.length === permissionOptions.length && permissionOptions.length > 0}
+                    onChange={toggleAll}
+                  />
                 <label htmlFor="selectAll" className="text-sm font-medium text-gray-700">
                   Select all available permissions
                 </label>
@@ -675,15 +708,16 @@ export default function RolesPage() {
                   <div className="text-center text-gray-500 py-4">
                     No permissions available to {mode}
                   </div>
-                ) : (
-                  permissionOptions.map((p) => (
-                    <label key={p.code} className="flex items-center p-2 hover:bg-gray-50 rounded cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="mr-3"
-                        checked={selectedPerms.includes(p.code)}
-                        onChange={() => togglePerm(p.code)}
-                      />
+                  ) : (
+                    permissionOptions.map((p) => (
+                      <label key={p.code} className="flex items-center p-2 hover:bg-gray-50 rounded cursor-pointer">
+                        <input
+                          name={`permission-${p.code}`}
+                          type="checkbox"
+                          className="mr-3"
+                          checked={selectedPerms.includes(p.code)}
+                          onChange={() => togglePerm(p.code)}
+                        />
                       <div>
                         <div className="font-mono text-sm font-medium text-gray-900">{p.code}</div>
                         <div className="text-xs text-gray-600">{p.description || p.code}</div>

@@ -11,6 +11,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { usePermissionFlags } from '../../../hooks/usePermissionFlags';
 import { User as UserType, Registration } from '../../../types';
 import { printDocument, escapeHtml } from '../../../lib/print';
+import { readCache, writeCache } from '../../../lib/cache';
 
 import {
   Plus,
@@ -22,11 +23,9 @@ import {
   Users as UsersIcon,
   Edit,
   Shield,
-  Key,
   Mail,
   User as UserIcon,
   Search,
-  Filter,
   ChevronLeft,
   ChevronRight,
   Lock,
@@ -55,14 +54,17 @@ interface Role {
 }
 
 export default function UsersManagement() {
-  const { user, refresh, loading: authLoading } = useAuth();
+  const { user } = useAuth();
 
   // ----------------------------
-  // DATA STATE
+  // DATA STATE (seed from cache for instant render)
   // ----------------------------
-  const [users, setUsers] = useState<UserType[]>([]);
-  const [employees, setEmployees] = useState<Registration[]>([]);
-  const [roles, setRoles] = useState<Role[]>([]);
+  const cachedUsers = readCache<UserType[]>('cache:auth:users:list') || [];
+  const cachedEmployees = readCache<Registration[]>('cache:auth:employees:list') || [];
+  const cachedRoles = readCache<Role[]>('cache:auth:roles:list') || [];
+  const [users, setUsers] = useState<UserType[]>(cachedUsers);
+  const [employees, setEmployees] = useState<Registration[]>(cachedEmployees);
+  const [roles, setRoles] = useState<Role[]>(cachedRoles);
 
   // ----------------------------
   // FILTER / PAGINATION STATE
@@ -117,11 +119,14 @@ export default function UsersManagement() {
   // ----------------------------
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const hasCached = cachedUsers.length > 0 || cachedEmployees.length > 0;
+  const [loading, setLoading] = useState(!hasCached);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // ----------------------------
   // PERMISSIONS
   // ----------------------------
-  const { canRead, canCreate, canUpdate, canDelete, canPrint } = usePermissionFlags();
+  const { canRead, canCreate, canUpdate, canPrint } = usePermissionFlags();
 
   // ----------------------------
   // FILTER + PAGINATION LOGIC
@@ -155,20 +160,33 @@ export default function UsersManagement() {
   useEffect(() => {
     if (!user) return;
 
-  if (user && canRead) {
-      fetchUsers();
-      fetchEmployees();
+    const silent = !!hasCached;
+    if (user && canRead) {
+      fetchUsers({ silent });
+      fetchEmployees({ silent });
     } else {
       setUsers([]);
       setEmployees([]);
     }
-    fetchRoles();
+    fetchRoles({ silent });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, canRead]);
 
-  const fetchUsers = async () => {
+  const withTimeout = <T,>(promiseFactory: (signal: AbortSignal) => Promise<T>, ms = 10000) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), ms);
+    const run = promiseFactory(controller.signal).finally(() => clearTimeout(timeout));
+    return { run };
+  };
+
+  const fetchUsers = async (opts?: { silent?: boolean }) => {
+    if (opts?.silent) setIsRefreshing(true);
+    else setLoading(true);
+
+    const { run } = withTimeout((signal) => api.get('/users', { signal }), 10000);
+
     try {
-      const { data } = await api.get('/users');
+      const { data } = await run as any;
       const base: any[] = Array.isArray(data) ? data : [];
 
       const normalised: UserType[] = base.map((u: any) => ({
@@ -178,31 +196,52 @@ export default function UsersManagement() {
       }));
 
       setUsers(normalised);
+      writeCache('cache:auth:users:list', normalised);
     } catch (error: any) {
       if (error?.response?.status === 403) {
         setErrorMessage('Forbidden (403): missing READ permission.');
+      } else if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED' || error?.name === 'AbortError') {
+        setErrorMessage('Fetching users timed out. Showing cached data.');
       } else {
         setErrorMessage('Failed to fetch users');
       }
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
-  const fetchEmployees = async () => {
+  const fetchEmployees = async (opts?: { silent?: boolean }) => {
+    if (opts?.silent) setIsRefreshing(true);
+    const { run } = withTimeout((signal) => api.get('/registrations', { signal }), 10000);
     try {
-      const { data } = await api.get('/registrations');
-      setEmployees(Array.isArray(data) ? data : []);
-    } catch (error) {
+      const { data } = await run as any;
+      const list = Array.isArray(data) ? data : [];
+      setEmployees(list);
+      writeCache('cache:auth:employees:list', list);
+    } catch (error: any) {
       console.error('Failed to fetch employees:', error);
+      if (error?.name === 'CanceledError' || error?.code === 'ERR_CANCELED' || error?.name === 'AbortError') {
+        setErrorMessage('Employee lookup timed out. Showing cached list.');
+      }
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
-  const fetchRoles = async () => {
+  const fetchRoles = async (opts?: { silent?: boolean }) => {
+    if (opts?.silent) setIsRefreshing(true);
+    const { run } = withTimeout((signal) => api.get('/roles', { signal }), 10000);
     try {
-      const { data } = await api.get('/roles');
-      setRoles(Array.isArray(data) ? data : []);
+      const { data } = await run as any;
+      const list = Array.isArray(data) ? data : [];
+      setRoles(list);
+      writeCache('cache:auth:roles:list', list);
     } catch (error) {
       // roles endpoint may be restricted
       console.warn('Fetching roles may be restricted:', error);
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -502,6 +541,7 @@ export default function UsersManagement() {
   // ----------------------------
   // MAIN RENDER
   // ----------------------------
+  const showSkeleton = loading && users.length === 0;
   return (
     <div className="auth-shell">
       {/* Sidebar */}
@@ -526,6 +566,12 @@ export default function UsersManagement() {
             <p className="text-gray-600">
               Manage system users and their roles
             </p>
+            {isRefreshing && (
+              <div className="mt-2 text-xs text-orange-700 flex items-center gap-2">
+                <div className="w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                Updating latest data…
+              </div>
+            )}
           </div>
 
           {/* GLOBAL MESSAGES */}
@@ -557,8 +603,13 @@ export default function UsersManagement() {
                     <div className="flex flex-col sm:flex-row gap-3">
                       {/* Search */}
                       <div className="relative">
+                        <label htmlFor="userTableSearch" className="sr-only">
+                          Search users
+                        </label>
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                         <input
+                          id="userTableSearch"
+                          name="userTableSearch"
                           type="text"
                           placeholder="Search users..."
                           value={searchTerm}
@@ -568,16 +619,23 @@ export default function UsersManagement() {
                       </div>
 
                       {/* Page size */}
-                      <select
-                        value={pageSize}
-                        onChange={(e) =>
-                          setPageSize(Number(e.target.value))
-                        }
-                        className="py-2 px-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                      >
-                        <option value={10}>10 / page</option>
-                        <option value={15}>15 / page</option>
-                      </select>
+                      <div className="flex flex-col">
+                        <label htmlFor="userPageSize" className="sr-only">
+                          Users per page
+                        </label>
+                        <select
+                          id="userPageSize"
+                          name="userPageSize"
+                          value={pageSize}
+                          onChange={(e) =>
+                            setPageSize(Number(e.target.value))
+                          }
+                          className="py-2 px-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                        >
+                          <option value={10}>10 / page</option>
+                          <option value={15}>15 / page</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -638,6 +696,16 @@ export default function UsersManagement() {
                       </code>{' '}
                       permission).
                     </p>
+                  </div>
+                ) : showSkeleton ? (
+                  <div className="p-8 space-y-3">
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                      Loading users...
+                    </div>
+                    <div className="h-10 bg-orange-100/70 rounded animate-pulse" />
+                    <div className="h-10 bg-orange-100/70 rounded animate-pulse" />
+                    <div className="h-10 bg-orange-100/70 rounded animate-pulse" />
                   </div>
                 ) : (
                   <>
@@ -885,10 +953,12 @@ export default function UsersManagement() {
 
               {/* username */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="createUsername" className="block text-sm font-medium text-gray-700 mb-2">
                   Username *
                 </label>
                 <input
+                  id="createUsername"
+                  name="username"
                   placeholder="Username"
                   value={formData.username}
                   onChange={(e) =>
@@ -903,10 +973,12 @@ export default function UsersManagement() {
 
               {/* email */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="createEmail" className="block text-sm font-medium text-gray-700 mb-2">
                   Email
                 </label>
                 <input
+                  id="createEmail"
+                  name="email"
                   placeholder="Email"
                   value={formData.email}
                   onChange={(e) =>
@@ -921,10 +993,12 @@ export default function UsersManagement() {
 
               {/* password */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="createPassword" className="block text-sm font-medium text-gray-700 mb-2">
                   Password *
                 </label>
                 <input
+                  id="createPassword"
+                  name="password"
                   type="password"
                   placeholder="Password"
                   value={formData.password}
@@ -940,10 +1014,12 @@ export default function UsersManagement() {
 
               {/* Initial role */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="createRole" className="block text-sm font-medium text-gray-700 mb-2">
                   Initial Role
                 </label>
                 <select
+                  id="createRole"
+                  name="initialRole"
                   value={formData.role}
                   onChange={(e) =>
                     setFormData({
@@ -976,10 +1052,12 @@ export default function UsersManagement() {
             <div className="space-y-4">
               {/* Username (readonly) */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="editUsername" className="block text-sm font-medium text-gray-700 mb-2">
                   Username
                 </label>
                 <input
+                  id="editUsername"
+                  name="editUsername"
                   placeholder="Username"
                   value={editFormData.username}
                   disabled
@@ -989,10 +1067,12 @@ export default function UsersManagement() {
 
               {/* Email */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="editEmail" className="block text-sm font-medium text-gray-700 mb-2">
                   Email
                 </label>
                 <input
+                  id="editEmail"
+                  name="editEmail"
                   placeholder="Email"
                   value={editFormData.email}
                   onChange={(e) =>
@@ -1007,10 +1087,12 @@ export default function UsersManagement() {
 
               {/* Assign role */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="editAssignRole" className="block text-sm font-medium text-gray-700 mb-2">
                   Assign Additional Role
                 </label>
                 <select
+                  id="editAssignRole"
+                  name="editAssignRole"
                   value={editFormData.role}
                   onChange={(e) =>
                     setEditFormData({
@@ -1238,40 +1320,14 @@ export default function UsersManagement() {
           />
 
           {/* MOBILE MENU BUTTON */}
-          <button
-            onClick={() => setIsOpenSidebar(true)}
-            className="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-orange-600 text-white rounded-full shadow-lg hover:bg-orange-700 transition-all flex items-center justify-center z-40"
-          >
-            <span className="text-lg font-bold">☰</span>
-          </button>
-        </main>
-      </div>
-    </div>
-  );
-}
-
-// ----------------------------
-// SMALL COMPONENT: Permission row card
-// ----------------------------
-function PermRow({ label, ok }: { label: string; ok: boolean }) {
-  return (
-    <div
-      className={`p-3 rounded-lg border ${
-        ok
-          ? 'bg-green-50 border-green-200'
-          : 'bg-gray-50 border-gray-200'
-      }`}
-    >
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-gray-700">
-          {label}
-        </span>
-        {ok ? (
-          <CheckCircle className="w-4 h-4 text-green-600" />
-        ) : (
-          <XCircle className="w-4 h-4 text-gray-400" />
-        )}
-      </div>
-    </div>
-  );
+      <button
+        onClick={() => setIsOpenSidebar(true)}
+        className="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-orange-600 text-white rounded-full shadow-lg hover:bg-orange-700 transition-all flex items-center justify-center z-40"
+      >
+        <span className="text-lg font-bold">☰</span>
+      </button>
+    </main>
+  </div>
+</div>
+);
 }

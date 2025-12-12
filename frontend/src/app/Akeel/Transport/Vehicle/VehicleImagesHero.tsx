@@ -1,6 +1,7 @@
 'use client';
+/* eslint-disable @next/next/no-img-element */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { toast } from 'react-toastify';
 import type { EntityId, VehicleImage } from '../services/types';
@@ -30,14 +31,20 @@ export default function VehicleImagesHero({ vehicleId }: { vehicleId: EntityId }
       } catch (e) {
         toast.error(e instanceof Error ? e.message : 'Failed to load images');
       } finally {
-        mounted && setLoading(false);
+        if (mounted) setLoading(false);
       }
     })();
     return () => { mounted = false; };
   }, [vehicleId]);
 
-  const prev = () => setIdx((i) => (images.length ? (i - 1 + images.length) % images.length : 0));
-  const next = () => setIdx((i) => (images.length ? (i + 1) % images.length : 0));
+  const prev = useCallback(
+    () => setIdx((i) => (images.length ? (i - 1 + images.length) % images.length : 0)),
+    [images.length]
+  );
+  const next = useCallback(
+    () => setIdx((i) => (images.length ? (i + 1) % images.length : 0)),
+    [images.length]
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -48,7 +55,7 @@ export default function VehicleImagesHero({ vehicleId }: { vehicleId: EntityId }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, images.length]);
+  }, [open, images.length, next, prev]);
 
   if (loading) return <div className="text-sm text-gray-500">Loading images…</div>;
   if (images.length === 0) return <div className="text-sm text-gray-500">No images</div>;

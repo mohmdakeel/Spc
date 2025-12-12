@@ -174,8 +174,8 @@ col.c1{width:12%}col.c2{width:28%}col.c3{width:22%}col.c4{width:18%}col.c5{width
   }, [filtered]);
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between mb-1">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-[14px] md:text-lg font-bold text-orange-900">Trips History</h1>
         <div className="flex items-center gap-2">
           <GateSearchBar

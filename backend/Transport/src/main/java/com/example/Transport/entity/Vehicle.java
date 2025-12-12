@@ -56,6 +56,10 @@ public class Vehicle {
     @Temporal(TemporalType.DATE)
     private Date manufactureDate;
 
+    /** Odometer at registration time (kept for audit/printing) */
+    @Column(name = "registered_km")
+    private Long registeredKm;
+
     private Long totalKmDriven;     // odometer
     private Double fuelEfficiency;  // km per liter (or unit)
 
@@ -85,6 +89,10 @@ public class Vehicle {
     }
     public void setDeleted(Boolean deleted) {
         this.isDeleted = (deleted != null && deleted) ? 1 : 0;
+    }
+
+    public Long getRegisteredKm() {
+        return registeredKm != null ? registeredKm : totalKmDriven;
     }
 
     @PrePersist

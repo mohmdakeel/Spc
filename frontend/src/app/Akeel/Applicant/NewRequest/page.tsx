@@ -8,6 +8,7 @@ import { ShieldCheck, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../../../../../hooks/useAuth';
 import { login } from '../../../../../lib/auth';
 import api from '../../../../../lib/api';
+import { readCache, writeCache } from '../../../../../lib/cache';
 import type { Registration } from '../../../../../types';
 import { createUsageRequest, type CreateUsageRequestDto } from '../../Transport/services/usageService';
 
@@ -49,8 +50,9 @@ export default function ApplicantNewRequestPage() {
   const [showAccountPassword, setShowAccountPassword] = React.useState(false);
   const [verifyError, setVerifyError] = React.useState<string | null>(null);
   const [verifying, setVerifying] = React.useState(false);
-  const [employees, setEmployees] = React.useState<Registration[]>([]);
-  const [employeesLoading, setEmployeesLoading] = React.useState(false);
+  const cachedEmployees = readCache<Registration[]>('cache:auth:employees') || [];
+  const [employees, setEmployees] = React.useState<Registration[]>(cachedEmployees);
+  const [employeesLoading, setEmployeesLoading] = React.useState(!cachedEmployees.length);
   const [employeesError, setEmployeesError] = React.useState<string | null>(null);
   const [selectedApplicant, setSelectedApplicant] = React.useState<Registration | null>(null);
   const [selectedOfficer, setSelectedOfficer] = React.useState<Registration | null>(null);
@@ -108,6 +110,7 @@ export default function ApplicantNewRequestPage() {
         if (cancelled) return;
         const list = Array.isArray(data) ? data : [];
         setEmployees(list);
+        writeCache('cache:auth:employees', list);
       } catch (error: any) {
         if (cancelled) return;
         const message = error?.response?.data?.message || error?.message || 'Unable to load employees';

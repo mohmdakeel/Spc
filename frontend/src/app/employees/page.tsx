@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable @next/next/no-img-element */
 
 import { useState, useEffect, useMemo } from 'react';
 import Topbar from '../../../components/Topbar';
@@ -10,6 +11,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { usePermissionFlags } from '../../../hooks/usePermissionFlags';
 import { Registration } from '../../../types';
 import { printDocument, escapeHtml } from '../../../lib/print';
+import { readCache, writeCache } from '../../../lib/cache';
 import {
   Users,
   Edit,
@@ -25,9 +27,7 @@ import {
   Contact,
   Home,
   Briefcase,
-  Shield,
   Search,
-  Filter
 } from 'lucide-react';
 
 type CsvRow = Registration;
@@ -61,7 +61,9 @@ const formatPrintValue = (value?: string | number | null) => {
 export default function Employees() {
   const { user, loading: authLoading, refresh } = useAuth();
 
-  const [registrations, setRegistrations] = useState<Registration[]>([]);
+  const cachedRegs = readCache<Registration[]>('cache:auth:employees') || [];
+
+  const [registrations, setRegistrations] = useState<Registration[]>(cachedRegs);
   const [open, setOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -96,7 +98,7 @@ export default function Employees() {
   const [isOpenSidebar, setIsOpenSidebar] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-  const [loadingData, setLoadingData] = useState(false);
+  const [loadingData, setLoadingData] = useState(!cachedRegs.length);
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(10);
@@ -131,24 +133,40 @@ export default function Employees() {
     return filteredRegistrations.slice(start, start + pageSize);
   }, [filteredRegistrations, safePage, pageSize]);
 
+  const skeleton = (
+    <div className="grid gap-3">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="h-12 rounded-lg bg-orange-100/60 animate-pulse" />
+      ))}
+    </div>
+  );
+
+  const showSkeleton = loadingData && registrations.length === 0;
+  const isRefreshing = loadingData && registrations.length > 0;
+
   useEffect(() => {
     if (!user || !canRead) return;
-    fetchRegistrations();
+    if (cachedRegs.length) {
+      setRegistrations(cachedRegs);
+    }
+    fetchRegistrations({ silent: !!cachedRegs.length });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, canRead]);
 
-  const fetchRegistrations = async () => {
-    setLoadingData(true);
+  const fetchRegistrations = async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoadingData(true);
     setErrorMessage('');
     try {
       const { data } = await api.get('/registrations');
-      setRegistrations(data || []);
+      const list = Array.isArray(data) ? data : [];
+      setRegistrations(list);
+      writeCache('cache:auth:employees', list);
     } catch (err: any) {
       if (err?.response?.status === 403) {
         setErrorMessage(
           'Forbidden (403): your account does not have READ permission.'
         );
-        await refresh();
+        // avoid extra refresh here to keep navigation snappy; user can relogin if needed
       } else {
         setErrorMessage('Failed to load employees');
       }
@@ -991,10 +1009,13 @@ export default function Employees() {
                 </div>
 
                 {/* TABLE */}
-                {loadingData ? (
-                  <div className="p-8 text-center">
-                    <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-                    <p className="text-gray-600">Loading employees...</p>
+                {showSkeleton ? (
+                  <div className="p-6 space-y-4">
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                      Loading employees...
+                    </div>
+                    {skeleton}
                   </div>
                 ) : (
                   <>
@@ -1010,16 +1031,24 @@ export default function Employees() {
                         />
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-600">Rows per page</span>
-                        <select
-                          value={pageSize}
-                          onChange={(e) => setPageSize(Number(e.target.value))}
-                          className="py-2 px-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                        >
-                          <option value={10}>10</option>
-                          <option value={15}>15</option>
-                        </select>
+                      <div className="flex items-center gap-3">
+                        {isRefreshing && (
+                          <div className="flex items-center gap-2 text-xs text-orange-700">
+                            <div className="w-3 h-3 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                            Refreshing
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-600">Rows per page</span>
+                          <select
+                            value={pageSize}
+                            onChange={(e) => setPageSize(Number(e.target.value))}
+                            className="py-2 px-3 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                          >
+                            <option value={10}>10</option>
+                            <option value={15}>15</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
 

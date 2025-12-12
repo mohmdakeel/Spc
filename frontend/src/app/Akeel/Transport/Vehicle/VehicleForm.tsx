@@ -15,6 +15,13 @@ interface Props {
 const STATUS: VehicleStatus[] = ['AVAILABLE', 'IN_SERVICE', 'UNDER_REPAIR', 'RETIRED'];
 
 function buildVehiclePayload(data: Partial<Vehicle>): Partial<Vehicle> {
+  const registeredKm = data.registeredKm != null && (data.registeredKm as any) !== ''
+    ? Number(data.registeredKm)
+    : undefined;
+  const totalKm = data.totalKmDriven != null && (data.totalKmDriven as any) !== ''
+    ? Number(data.totalKmDriven)
+    : undefined;
+
   return {
     vehicleNumber: data.vehicleNumber?.trim() || undefined,
     vehicleType: data.vehicleType?.trim() || undefined,
@@ -23,8 +30,8 @@ function buildVehiclePayload(data: Partial<Vehicle>): Partial<Vehicle> {
     chassisNumber: data.chassisNumber?.trim() || undefined,
     engineNumber: data.engineNumber?.trim() || undefined,
     manufactureDate: data.manufactureDate || undefined,
-    totalKmDriven:
-      data.totalKmDriven != null && (data.totalKmDriven as any) !== '' ? Number(data.totalKmDriven) : undefined,
+    registeredKm,
+    totalKmDriven: totalKm,
     fuelEfficiency:
       data.fuelEfficiency != null && (data.fuelEfficiency as any) !== '' ? Number(data.fuelEfficiency) : undefined,
     presentCondition: data.presentCondition?.trim() || undefined,
@@ -44,6 +51,7 @@ export default function VehicleForm({ vehicle, onSubmit, onClose, enableImages }
       chassisNumber: vehicle?.chassisNumber ?? '',
       engineNumber: vehicle?.engineNumber ?? '',
       manufactureDate: vehicle?.manufactureDate ? toDateInput(vehicle?.manufactureDate) : '',
+      registeredKm: vehicle?.registeredKm ?? undefined,
       totalKmDriven: vehicle?.totalKmDriven ?? undefined,
       fuelEfficiency: vehicle?.fuelEfficiency ?? undefined,
       presentCondition: vehicle?.presentCondition ?? '',
@@ -58,6 +66,9 @@ export default function VehicleForm({ vehicle, onSubmit, onClose, enableImages }
     const payload = buildVehiclePayload(formData);
     if (!payload.vehicleNumber) throw new Error('Vehicle number is required');
     if (!payload.vehicleType) throw new Error('Vehicle type is required');
+    if (payload.registeredKm != null && payload.totalKmDriven != null && payload.totalKmDriven < payload.registeredKm) {
+      throw new Error('Current odometer cannot be less than registered reading.');
+    }
     const files = selectedFiles ?? undefined;
     await onSubmit(payload, files);
     reset();
@@ -184,9 +195,19 @@ export default function VehicleForm({ vehicle, onSubmit, onClose, enableImages }
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-orange-800 mb-1">Total KM Driven</label>
+                  <label className="block text-sm font-medium text-orange-800 mb-1">Registered Odometer (km)</label>
+                  <input
+                    type="number"
+                    className="w-full border border-orange-200 rounded-lg px-3 sm:px-4 py-2.5 text-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                    {...register('registeredKm')}
+                    placeholder="0"
+                    min="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-orange-800 mb-1">Current Odometer (km)</label>
                   <input
                     type="number"
                     className="w-full border border-orange-200 rounded-lg px-3 sm:px-4 py-2.5 text-sm focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 transition-colors"

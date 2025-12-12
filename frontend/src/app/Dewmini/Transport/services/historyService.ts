@@ -1,5 +1,5 @@
 import http, { unwrapApi } from "./http";
-import { ChangeHistory, HistoryRecordDto, normalizeHistoryDto, ApiResponse, CompareResult } from "./types";
+import { ChangeHistory, HistoryRecordDto, normalizeHistoryDto, CompareResult } from "./types";
 
 export async function fetchRecentHistory(size = 100): Promise<ChangeHistory[]> {
   const { data } = await http.get(`/history/recent`, { params: { size } });

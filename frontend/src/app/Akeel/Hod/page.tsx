@@ -8,7 +8,7 @@ import {
 } from '../Transport/services/usageService';
 import type { UsageRequest } from '../Transport/services/types';
 import { Th, Td } from '../Transport/components/ThTd';
-import { Check, X as XIcon, Info, Printer, RefreshCw } from 'lucide-react';
+import { Check, X as XIcon, Printer, RefreshCw } from 'lucide-react';
 import HODSearchBar from './components/HODSearchBar';
 
 /* ---------- helpers ---------- */
