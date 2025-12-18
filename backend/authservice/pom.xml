@@ -37,6 +37,13 @@
     </dependencies>
   </dependencyManagement>
 
+  <pluginRepositories>
+    <pluginRepository>
+      <id>projectlombok.org</id>
+      <url>https://projectlombok.org/mavenrepo</url>
+    </pluginRepository>
+  </pluginRepositories>
+
   <dependencies>
     <!-- Web / Security / JPA / Validation / Actuator -->
     <dependency>
