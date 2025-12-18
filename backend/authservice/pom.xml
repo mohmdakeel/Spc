@@ -194,6 +194,26 @@
             <configuration>
               <executable>java</executable>
               <arguments>
+                <argument>--add-opens</argument>
+                <argument>jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED</argument>
+                <argument>--add-opens</argument>
+                <argument>jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED</argument>
+                <argument>--add-opens</argument>
+                <argument>jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED</argument>
+                <argument>--add-opens</argument>
+                <argument>jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED</argument>
+                <argument>--add-opens</argument>
+                <argument>jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED</argument>
+                <argument>--add-opens</argument>
+                <argument>jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED</argument>
+                <argument>--add-opens</argument>
+                <argument>jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED</argument>
+                <argument>--add-opens</argument>
+                <argument>jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED</argument>
+                <argument>--add-opens</argument>
+                <argument>jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED</argument>
+                <argument>--add-opens</argument>
+                <argument>jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED</argument>
                 <argument>-jar</argument>
                 <argument>${project.build.directory}/lombok-${lombok.version}.jar</argument>
                 <argument>delombok</argument>
