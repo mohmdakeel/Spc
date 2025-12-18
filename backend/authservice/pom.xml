@@ -45,6 +45,16 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-security</artifactId>
     </dependency>
+    <!-- MySQL for local dev (optional) -->
+
+
+<!-- Postgres for Render (Neon) -->
+<dependency>
+  <groupId>org.postgresql</groupId>
+  <artifactId>postgresql</artifactId>
+  <scope>runtime</scope>
+</dependency>
+
     <dependency>
   <groupId>com.cloudinary</groupId>
   <artifactId>cloudinary-http44</artifactId>
