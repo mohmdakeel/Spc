@@ -13,6 +13,9 @@ interface WorkspaceTopbarProps {
   roleLabel?: string;
   onMenuToggle?: () => void;
   actions?: ReactNode;
+  notificationHref?: string;
+  notificationCount?: number;
+  notificationLoading?: boolean;
 }
 
 export default function WorkspaceTopbar({
@@ -22,6 +25,9 @@ export default function WorkspaceTopbar({
   roleLabel = 'Workspace',
   onMenuToggle,
   actions,
+  notificationHref,
+  notificationCount,
+  notificationLoading,
 }: WorkspaceTopbarProps) {
   const { user } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -67,10 +73,16 @@ export default function WorkspaceTopbar({
 
           <button
             type="button"
-            className="p-2 rounded-full hover:bg-white/20 transition"
+            className="relative p-2 rounded-full hover:bg-white/20 transition"
             aria-label="Notifications"
+            onClick={() => notificationHref && (window.location.href = notificationHref)}
           >
             <Bell size={18} />
+            {typeof notificationCount === 'number' ? (
+              <span className="absolute -top-1 -right-1 bg-white text-orange-600 text-[10px] font-semibold rounded-full px-1.5 py-0.5 border border-orange-200">
+                {notificationLoading ? '…' : notificationCount}
+              </span>
+            ) : null}
           </button>
 
           {actions ? (
@@ -100,4 +112,3 @@ export default function WorkspaceTopbar({
     </header>
   );
 }
-

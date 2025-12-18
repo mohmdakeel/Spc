@@ -28,6 +28,7 @@ public class SecurityConfig {
 
   private final JwtAuthFilter jwtAuthFilter;
   private final UserDetailsService userDetailsService;
+  private final AppProps props;
 
   @Bean
   public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -67,7 +68,8 @@ public class SecurityConfig {
   @Bean
   CorsConfigurationSource corsConfigurationSource() {
     var cfg = new CorsConfiguration();
-    cfg.setAllowedOrigins(List.of("http://localhost:3000"));
+    var origins = props.getCorsAllowedOrigins();
+    cfg.setAllowedOrigins((origins == null || origins.isEmpty()) ? List.of("http://localhost:3000") : origins);
     cfg.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
     cfg.addAllowedHeader("*");
     cfg.setAllowCredentials(true);

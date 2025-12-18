@@ -24,11 +24,6 @@ type Vehicle = {
   [k: string]: unknown;
 };
 
-interface Props {
-  onClose?: () => void;
-  onCreated?: () => void; // callback to refresh the list
-}
-
 const rawBase =
   (process.env.NEXT_PUBLIC_TRANSPORT_BASE || process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(
     /\/+$/,
@@ -36,10 +31,9 @@ const rawBase =
   );
 const API_BASE = rawBase ? `${rawBase}/api` : '/tapi';
 
-export default function DriverServiceRequestForm({
-  onClose = () => {},
-  onCreated = () => {},
-}: Props) {
+export default function DriverServiceRequestForm() {
+  const onClose = () => {};
+  const onCreated = () => {};
   const {
     register,
     handleSubmit,

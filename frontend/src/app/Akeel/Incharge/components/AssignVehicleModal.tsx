@@ -10,6 +10,14 @@ import { fetchVehicleAvailability } from '../../Transport/services/availabilityS
 import type { Vehicle, Driver, UsageRequest, BusyWindow } from '../../Transport/services/types';
 import { assignVehicle, type AssignPayload } from '../../Transport/services/usageService';
 
+const toInput = (val?: string | Date | null) => {
+  if (!val) return '';
+  if (val instanceof Date) return val.toISOString().slice(0, 16);
+  const d = new Date(val);
+  if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 16);
+  return val;
+};
+
 /* ---------------- helpers for Officer parsing / cleaning ---------------- */
 const cleanPhone = (p?: string) =>
   (p ?? '')
@@ -96,8 +104,12 @@ export default function AssignVehicleModal({
     setDriverPhone(defaultValues?.driverPhone || request.assignedDriverPhone || '');
     const startDate = request.dateOfTravel;
     const endDate = request.returnDate || request.dateOfTravel;
-    setPickupAt(defaultValues?.pickupAt || request.scheduledPickupAt || buildDateTime(startDate, request.timeFrom));
-    setExpectedReturnAt(defaultValues?.expectedReturnAt || request.scheduledReturnAt || buildDateTime(endDate, request.timeTo));
+    setPickupAt(
+      toInput(defaultValues?.pickupAt || request.scheduledPickupAt || buildDateTime(startDate, request.timeFrom))
+    );
+    setExpectedReturnAt(
+      toInput(defaultValues?.expectedReturnAt || request.scheduledReturnAt || buildDateTime(endDate, request.timeTo))
+    );
     setInstructions(defaultValues?.instructions || '');
     setErr(null);
     setAvailableSet(null);

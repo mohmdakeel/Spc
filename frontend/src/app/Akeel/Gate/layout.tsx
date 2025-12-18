@@ -5,7 +5,7 @@ import RequireRole from '../../../../components/guards/RequireRole';
 import GateSidebar from './components/GateSidebar';
 import GateTopbar from './components/GateTopbar';
 
-const GATE_ROLES = ['GATE_SECURITY'] as const;
+const GATE_ROLES: string[] = ['GATE_SECURITY'];
 
 export default function GateLayout({ children }: { children: ReactNode }) {
   return (

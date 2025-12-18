@@ -45,7 +45,7 @@ export default function RequireRole({ roles, children, fallback }: RequireRolePr
   }
 
   if (!hasRole(roles)) {
-    return null;
+    return <>{fallback ?? null}</>;
   }
 
   return <>{children}</>;

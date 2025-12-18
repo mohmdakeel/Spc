@@ -127,6 +127,32 @@ const MY_REQUESTS_PRINT_STYLES = `
   }
 `;
 
+/** Build a stable, unique key for list rendering and deduplication */
+const buildRequestKey = (r: any): string => {
+  const base =
+    r?.id ??
+    r?.requestCode ??
+    `${r?.employeeId || 'emp'}-${r?.dateOfTravel || 'date'}-${r?.timeFrom || 'time'}`;
+  const version =
+    r?.updatedAt ??
+    r?.createdAt ??
+    r?.appliedDate ??
+    r?.appliedOn ??
+    r?.appliedTime ??
+    '';
+  return `${String(base)}${version ? `-${version}` : ''}`;
+};
+
+const dedupeRequests = (requests: UsageRequest[]): UsageRequest[] => {
+  const seen = new Set<string>();
+  return requests.filter((r) => {
+    const key = buildRequestKey(r);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 export default function RequestsPage() {
   const bootstrapIds =
     typeof window !== 'undefined'
@@ -144,7 +170,7 @@ export default function RequestsPage() {
     (id) => readCache<UsageRequest[]>(`cache:applicant:requests:${id}`) || []
   );
   const cachedAll = readCache<UsageRequest[]>('cache:applicant:requests:all') || [];
-  const initialItems = cachedMine.length ? cachedMine : cachedAll;
+  const initialItems = dedupeRequests(cachedMine.length ? cachedMine : cachedAll);
 
   const [items, setItems] = React.useState<UsageRequest[]>(initialItems);
   const [ids, setIds] = React.useState<string[]>(bootstrapIds);
@@ -184,13 +210,7 @@ export default function RequestsPage() {
         merged = merged.concat(filtered);
       } catch {}
 
-      const seen = new Set<string>();
-      merged = merged.filter((r: any) => {
-        const k = String(r?.id ?? r?.requestCode ?? '');
-        if (!k || seen.has(k)) return false;
-        seen.add(k);
-        return true;
-      });
+      merged = dedupeRequests(merged);
       merged.sort((a: any, b: any) => (Date.parse(b?.createdAt || '') || 0) - (Date.parse(a?.createdAt || '') || 0));
 
       // Cache per-user and combined so the workspace opens instantly next time
@@ -396,7 +416,7 @@ export default function RequestsPage() {
 
               {!loading && filtered.map((r: any) => {
                 const off = extractOfficer(r);
-                const rowKey = String(r?.id ?? r?.requestCode ?? `${r?.employeeId}-${r?.dateOfTravel}-${r?.timeFrom}`);
+                const rowKey = buildRequestKey(r);
                 return (
                   <tr
                     key={rowKey}

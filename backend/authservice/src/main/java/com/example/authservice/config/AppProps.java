@@ -1,6 +1,8 @@
 // src/main/java/com/example/authservice/config/AppProps.java
 package com.example.authservice.config;
 
+import java.util.List;
+
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -10,6 +12,7 @@ public class AppProps {
 
   private Jwt jwt = new Jwt();
   private Cookie cookie = new Cookie();
+  private List<String> corsAllowedOrigins = List.of("http://localhost:3000");
 
   @Data
   public static class Jwt {

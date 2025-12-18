@@ -15,6 +15,8 @@ const odoLabel = (v: Vehicle) => {
   return '—';
 };
 
+const fmtFuelType = (f?: string | null) => (f ? f.charAt(0).toUpperCase() + f.slice(1).toLowerCase() : '—');
+
 function openWin(w = 1000, h = 700): Window | null {
   const win = window.open('', '', `width=${w},height=${h}`);
   if (!win) { toast.error('Failed to open print window'); return null; }
@@ -108,6 +110,7 @@ export function printVehicle(v: Vehicle) {
       <div class="label">Engine</div><div class="val">${fmt(v.engineNumber)}</div>
       <div class="label">Manufacture Date</div><div class="val">${fmtDate(v.manufactureDate)}</div>
       <div class="label">Odometer (reg / current)</div><div class="val">${odoLabel(v)}</div>
+      <div class="label">Fuel Type</div><div class="val">${fmtFuelType(v.fuelType)}</div>
       <div class="label">Fuel Efficiency</div><div class="val">${fmt(v.fuelEfficiency)}</div>
       <div class="label">Condition</div><div class="val">${fmt(v.presentCondition)}</div>
       <div class="label">Status</div><div class="val">${fmt(v.status)}</div>
@@ -135,7 +138,7 @@ export function printVehicleList(list: Vehicle[], showDeleted = false) {
       <td class="wrap">${fmt(v.engineNumber)}</td>
       <td>${fmtDate(v.manufactureDate)}</td>
       <td class="num">${odoLabel(v)}</td>
-      <td class="num">${fmt(v.fuelEfficiency)}</td>
+      <td class="wrap">${fmtFuelType(v.fuelType)} / ${fmt(v.fuelEfficiency)} km/l</td>
       <td class="wrap">${fmt(v.presentCondition)}</td>
       <td>${fmt(v.status)}</td>
     </tr>
@@ -158,7 +161,7 @@ export function printVehicleList(list: Vehicle[], showDeleted = false) {
         <col style="width:150px" />
         <col style="width:150px" />
         <col style="width:100px" />
-        <col style="width:85px" />
+        <col style="width:130px" />
         <col style="width:85px" />
         <col style="width:150px" />
         <col style="width:95px" />
@@ -175,7 +178,7 @@ export function printVehicleList(list: Vehicle[], showDeleted = false) {
           <th>Engine</th>
           <th>Mfg Date</th>
           <th class="num">Odo (reg / current)</th>
-          <th class="num">Fuel Eff.</th>
+          <th>Fuel</th>
           <th>Condition</th>
           <th>Status</th>
         </tr>

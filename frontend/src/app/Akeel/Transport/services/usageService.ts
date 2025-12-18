@@ -13,6 +13,7 @@ export type CreateUsageRequestDto = {
   appliedDate?: string;
 
   dateOfTravel: string; // yyyy-mm-dd
+  returnDate?: string; // optional return date (yyyy-mm-dd)
   timeFrom: string;     // HH:mm
   timeTo: string;       // HH:mm
   fromLocation: string;

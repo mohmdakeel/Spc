@@ -45,6 +45,9 @@ public class SecurityConfig {
   @Value("${app.jwt.issuer:}")
   private String issuer;
 
+  @Value("${app.cors.allowed-origins:http://localhost:3000}")
+  private List<String> allowedOrigins;
+
   private final JwtAuthConverter customJwtConverter;
 
   public SecurityConfig(JwtAuthConverter customJwtConverter) {
@@ -122,7 +125,10 @@ public class SecurityConfig {
   @Bean
   CorsConfigurationSource corsConfigurationSource() {
     CorsConfiguration cfg = new CorsConfiguration();
-    cfg.setAllowedOrigins(List.of("http://localhost:3000"));
+    var origins = (allowedOrigins == null || allowedOrigins.isEmpty())
+        ? List.of("http://localhost:3000")
+        : allowedOrigins;
+    cfg.setAllowedOrigins(origins);
     cfg.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
     cfg.setAllowedHeaders(List.of("Authorization","Content-Type","X-Requested-With"));
     cfg.setAllowCredentials(true);

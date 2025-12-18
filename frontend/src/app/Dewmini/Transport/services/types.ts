@@ -6,6 +6,7 @@ export type ISODateTimeString = string;
 /* ===== Statuses ===== */
 export type DriverStatus = "ACTIVE" | "INACTIVE" | "SUSPENDED";
 export type VehicleStatus = "AVAILABLE" | "IN_SERVICE" | "UNDER_REPAIR" | "RETIRED";
+export type FuelType = "PETROL" | "DIESEL";
 
 export type RequestStatus =
   | "PENDING_HOD"
@@ -56,6 +57,7 @@ export interface Vehicle extends AuditFields {
   registeredKm?: number | null;
   totalKmDriven?: number | null;
   fuelEfficiency?: number | null; // km/l
+  fuelType?: FuelType | null;
   presentCondition?: string | null;
   status?: VehicleStatus | null;
 }

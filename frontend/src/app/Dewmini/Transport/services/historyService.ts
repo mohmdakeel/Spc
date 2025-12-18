@@ -8,7 +8,7 @@ export async function fetchRecentHistory(size = 100): Promise<ChangeHistory[]> {
 }
 
 export async function fetchTimeline(
-  entityType: "Vehicle" | "DriverServiceRequest" | "ServiceCandidate" | "ServiceRequisite",
+  entityType: "Vehicle" | "Driver" | "DriverServiceRequest" | "ServiceCandidate" | "ServiceRequisite",
   entityId: string | number
 ): Promise<ChangeHistory[]> {
   const { data } = await http.get(`/api/history/${entityType}/${entityId}`);

@@ -1,13 +1,13 @@
 // app/login/page.tsx
 'use client';
-import { useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { login, me, prewarmAuthCaches } from '../../../lib/auth';
 import { pickHomeFor } from '../../../lib/authz';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { Car, Shield, Eye, EyeOff } from 'lucide-react';
 
-export default function LoginPage() {
+function LoginInner() {
   const [identifier, setIdentifier] = useState('');
   const [password, setP] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -22,15 +22,15 @@ export default function LoginPage() {
     router.prefetch('/maindashboard');
   }, [router]);
 
-  const hardNavigate = (dest: string) => {
+  const hardNavigate = useCallback((dest: string) => {
     if (typeof window !== 'undefined') {
       window.location.href = dest;
     } else {
       router.push(dest);
     }
-  };
+  }, [router]);
 
-  const redirectAfterLogin = async (next: string | null) => {
+  const redirectAfterLogin = useCallback(async (next: string | null) => {
     // If caller explicitly asked for a path, honor it immediately.
     if (next) {
       hardNavigate(next);
@@ -47,7 +47,7 @@ export default function LoginPage() {
     } catch {
       hardNavigate('/dashboard');
     }
-  };
+  }, [hardNavigate]);
 
   // If already authenticated (cookie present), skip the form and go where you should
   useEffect(() => {
@@ -63,7 +63,7 @@ export default function LoginPage() {
         // ignore and let user log in
       }
     })();
-  }, [params]);
+  }, [params, redirectAfterLogin]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -213,5 +213,13 @@ export default function LoginPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-center text-sm text-gray-600">Loading login…</div>}>
+      <LoginInner />
+    </Suspense>
   );
 }

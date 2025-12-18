@@ -52,6 +52,7 @@ const HEAD_PY = 'py-2';
 const fmtDate = (s?: string | null) => (s ? new Date(s).toLocaleDateString() : '-');
 const fmtDateTime = (s?: string | Date | null) => (s ? new Date(s as any).toLocaleString() : '-');
 const fmt = (v: unknown) => (v == null || v === '' ? '-' : String(v));
+const fmtFuelType = (f?: string | null) => (f ? f.charAt(0).toUpperCase() + f.slice(1).toLowerCase() : '-');
 const odoText = (v: Vehicle, multiline = false) => {
   const reg = v.registeredKm ?? v.totalKmDriven;
   const cur = v.totalKmDriven;
@@ -126,7 +127,7 @@ export default function VehicleListPage() {
     return statusFiltered.filter((v) =>
       [
         v.vehicleNumber, v.vehicleType, v.brand, v.model, v.chassisNumber, v.engineNumber,
-        v.manufactureDate, v.registeredKm, v.totalKmDriven, v.fuelEfficiency, v.presentCondition, v.status,
+        v.manufactureDate, v.registeredKm, v.totalKmDriven, v.fuelEfficiency, v.fuelType, v.presentCondition, v.status,
       ].map((x) => (x ?? '').toString().toLowerCase()).join(' ').includes(q)
     );
   }, [list, search, statusFilter]);
@@ -282,7 +283,11 @@ export default function VehicleListPage() {
           <span className="text-gray-500">Odo:</span>
           <div className="ml-1 inline-block align-middle">{odoText(v, true)}</div>
         </div>
-        <div><span className="text-gray-500">Fuel:</span> {fmt(v.fuelEfficiency)}</div>
+        <div>
+          <span className="text-gray-500">Fuel:</span>{' '}
+          <span className="font-medium text-orange-900">{fmtFuelType(v.fuelType)}</span>
+          <span className="text-gray-600"> • {fmt(v.fuelEfficiency)} km/l</span>
+        </div>
         <div className="col-span-2"><span className="text-gray-500">Cond.:</span> {fmt(v.presentCondition)}</div>
       </div>
 
@@ -409,7 +414,7 @@ export default function VehicleListPage() {
                 <col className="w-[12%]" />
                 <col className="w-[12%]" />
                 <col className="w-[8%]" />
-                <col className="w-[5%]" />
+                <col className="w-[9%]" />
                 <col className="w-[5%]" />
                 <col className="w-[10%]" />
                 <col className="w-[8%]" />
@@ -425,7 +430,7 @@ export default function VehicleListPage() {
                   <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Engine</Th>
                   <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Mfg Date</Th>
                   <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>Odo (reg / current)</Th>
-                  <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>Fuel</Th>
+                  <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>Fuel (type / eff.)</Th>
                   <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Condition</Th>
                   <Th className={`${HEAD_PY} ${HEAD_TEXT}`}>Status</Th>
                   {!showDeleted && (canUpdate || canDelete || canPrint) && <Th className={`text-center ${HEAD_PY} ${HEAD_TEXT}`}>Actions</Th>}
@@ -449,7 +454,10 @@ export default function VehicleListPage() {
                     <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT} truncate`} title={fmt(v.engineNumber)}>{fmt(v.engineNumber)}</Td>
                     <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT}`}>{fmtDate(v.manufactureDate)}</Td>
                     <Td className={`text-center ${ROW_PX} ${ROW_PY} ${ROW_TEXT}`}>{odoText(v, true)}</Td>
-                    <Td className={`text-center ${ROW_PX} ${ROW_PY} ${ROW_TEXT}`}>{fmt(v.fuelEfficiency)}</Td>
+                    <Td className={`text-center ${ROW_PX} ${ROW_PY} ${ROW_TEXT}`}>
+                      <div className="font-semibold text-orange-900">{fmtFuelType(v.fuelType)}</div>
+                      <div className="text-[11px] text-gray-600">{fmt(v.fuelEfficiency)} km/l</div>
+                    </Td>
                     <Td className={`${ROW_PX} ${ROW_PY} ${ROW_TEXT} truncate`} title={fmt(v.presentCondition)}>{fmt(v.presentCondition)}</Td>
                   <Td className={`${ROW_PX} ${ROW_PY}`} onClick={(e) => e.stopPropagation()}>
                     <div className="flex justify-center">
@@ -545,6 +553,7 @@ export default function VehicleListPage() {
             { label: 'Manufacture Date', value: fmtDate(selected.manufactureDate ?? undefined) },
             { label: 'Registered KM', value: selected.registeredKm ?? selected.totalKmDriven ?? '-' },
             { label: 'Current KM', value: selected.totalKmDriven ?? '-' },
+            { label: 'Fuel Type', value: fmtFuelType(selected.fuelType) },
             { label: 'Fuel Efficiency', value: selected.fuelEfficiency ?? '-' },
             { label: 'Condition', value: selected.presentCondition ?? '-' },
             { label: 'Status', value: selected.status ?? '-' },

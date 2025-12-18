@@ -6,6 +6,7 @@ export type ISODateTimeString = string;
 /* ===== Statuses ===== */
 export type DriverStatus = "ACTIVE" | "INACTIVE" | "SUSPENDED";
 export type VehicleStatus = "AVAILABLE" | "IN_SERVICE" | "UNDER_REPAIR" | "RETIRED";
+export type FuelType = "PETROL" | "DIESEL";
 
 export type RequestStatus =
   | "PENDING_HOD"
@@ -56,8 +57,27 @@ export interface Vehicle extends AuditFields {
   registeredKm?: number | null;
   totalKmDriven?: number | null;
   fuelEfficiency?: number | null; // km/l
+  fuelType?: FuelType | null;
   presentCondition?: string | null;
   status?: VehicleStatus | null;
+}
+
+export interface FuelLog extends AuditFields {
+  id: EntityId;
+  vehicle: Vehicle;
+  vehicleId?: EntityId;
+  vehicleNumber?: string | null;
+  vehicleType?: string | null;
+  month: string;          // yyyy-MM
+  logDate?: string | null;
+  startOdo?: number | null;
+  endOdo?: number | null;
+  deltaKm?: number | null;
+  litres?: number | null;
+  efficiencyUsed?: number | null;
+  pricePerL?: number | null;
+  cost?: number | null;
+  fuelType?: FuelType | null;
 }
 
 /* NEW: VehicleImage */
@@ -191,8 +211,8 @@ export interface CompareResult {
 
 /* ===== Availability DTOs ===== */
 export interface BusyWindow {
-  from: ISODateTimeString;
-  to: ISODateTimeString;
+  from: ISODateTimeString | Date;
+  to: ISODateTimeString | Date;
   requestCode?: string | null;
   vehicleNumber?: string | null;
   driverName?: string | null;

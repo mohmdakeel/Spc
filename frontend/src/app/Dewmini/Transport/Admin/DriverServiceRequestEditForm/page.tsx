@@ -1,11 +1,11 @@
 'use client';
 
+import { Suspense, useEffect, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useEffect, useMemo } from 'react';
 import { toast } from 'react-toastify';
 import DSREditForm from '../../components/DSREditForm'; // ⬅️ adjust path to where you place the component
 
-export default function EditFormPage() {
+function EditFormInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const idParam = searchParams.get('id');
@@ -31,5 +31,13 @@ export default function EditFormPage() {
       onClose={() => router.back()}
       onUpdated={() => router.back()}
     />
+  );
+}
+
+export default function EditFormPage() {
+  return (
+    <Suspense fallback={<div className="p-4 text-sm text-gray-600">Loading request…</div>}>
+      <EditFormInner />
+    </Suspense>
   );
 }

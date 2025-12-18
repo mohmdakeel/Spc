@@ -272,7 +272,6 @@ export default function InchargeScheduledPage() {
       {editFor && (
         <AssignVehicleModal
           open={open}
-          onClose={() => { setOpen(false); setEditFor(null); }}
           requestId={editFor.id}
           defaultValues={{
             vehicleNumber: editFor.assignedVehicleNumber ?? '',

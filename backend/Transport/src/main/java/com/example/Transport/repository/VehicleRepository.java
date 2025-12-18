@@ -22,6 +22,7 @@ public interface VehicleRepository extends JpaRepository<Vehicle, Long> {
            OR LOWER(v.model)          LIKE LOWER(CONCAT('%', :q, '%'))
            OR LOWER(v.chassisNumber)  LIKE LOWER(CONCAT('%', :q, '%'))
            OR LOWER(v.engineNumber)   LIKE LOWER(CONCAT('%', :q, '%'))
+           OR LOWER(CONCAT('', v.fuelType)) LIKE LOWER(CONCAT('%', :q, '%'))
         )
         """)
     Page<Vehicle> searchByIsDeleted(@Param("isDeleted") int isDeleted,
@@ -50,4 +51,6 @@ public interface VehicleRepository extends JpaRepository<Vehicle, Long> {
         """)
     Optional<Vehicle> findByVehicleNumberCaseInsensitive(@Param("vehicleNumber") String vehicleNumber,
                                                          @Param("isDeleted") Integer isDeleted);
+
+    Optional<Vehicle> findByIdAndIsDeleted(Long id, Integer isDeleted);
 }

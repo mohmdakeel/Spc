@@ -35,7 +35,9 @@ export default function InchargeSidebar() {
 
     warmRoutes.forEach((p, i) => {
       idle(() => {
-        try { router.prefetch?.(p).catch(() => undefined); } catch {}
+        try {
+          router.prefetch?.(p);
+        } catch {}
       }, 120 + 60 * i);
     });
   }, [router, warmRoutes]);

@@ -2,6 +2,7 @@ package com.example.Transport.service;
 
 import com.example.Transport.entity.ChangeHistory;
 import com.example.Transport.entity.Vehicle;
+import com.example.Transport.enums.FuelType;
 import com.example.Transport.repository.ChangeHistoryRepository;
 import com.example.Transport.repository.VehicleRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -60,6 +61,7 @@ public class VehicleService {
         }
         body.setRegisteredKm(reg);
         body.setTotalKmDriven(cur);
+        if (body.getFuelType() == null) body.setFuelType(FuelType.PETROL);
 
         Vehicle saved = vehicleRepository.save(body);
         logHistory("Vehicle", String.valueOf(saved.getId()), "Created", actor, null, toJson(saved));
@@ -95,6 +97,7 @@ public class VehicleService {
         existing.setRegisteredKm(newReg);
         existing.setTotalKmDriven(newCur);
         if (patch.getFuelEfficiency() != null) existing.setFuelEfficiency(patch.getFuelEfficiency());
+        if (patch.getFuelType() != null) existing.setFuelType(patch.getFuelType());
         if (patch.getPresentCondition() != null) existing.setPresentCondition(patch.getPresentCondition());
         if (patch.getStatus() != null) existing.setStatus(patch.getStatus());
 

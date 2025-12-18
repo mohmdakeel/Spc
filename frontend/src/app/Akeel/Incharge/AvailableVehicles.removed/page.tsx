@@ -6,16 +6,17 @@ import type { VehicleAvailability } from '../../Transport/services/types';
 import SearchBar from '../components/SearchBar';
 import { CalendarClock, Clock, Car, Tag } from 'lucide-react';
 
-const parseDateTime = (date: string | null | undefined, time?: string | null) => {
-  if (!date) return null;
+const parseDateTime = (date: string | Date | null | undefined, time?: string | null): Date => {
+  if (date instanceof Date) return date;
+  if (!date) return new Date();
   if (date.includes('T')) {
     const d = new Date(date);
-    return Number.isNaN(d.getTime()) ? null : d;
+    return Number.isNaN(d.getTime()) ? new Date() : d;
   }
   const t = (time ?? '00:00').trim() || '00:00';
   const iso = `${date}T${t.length === 5 ? `${t}:00` : t}`;
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? null : d;
+  return Number.isNaN(d.getTime()) ? new Date() : d;
 };
 
 const formatTime = (d: Date) =>
@@ -120,7 +121,11 @@ export default function AvailableVehiclesPage() {
             ) : null}
 
             {!loading && filtered.map(({ vehicleNumber, vehicleType, busy }) => {
-              const busyList = busy || [];
+            const busyList = (busy || []).map((b) => ({
+              ...b,
+              from: b.from instanceof Date ? b.from : new Date(b.from),
+              to: b.to instanceof Date ? b.to : new Date(b.to),
+            }));
               const busyState = busyList.length > 0;
               return (
                 <tr key={vehicleNumber} className="hover:bg-orange-50/60">

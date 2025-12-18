@@ -4,6 +4,8 @@ export interface User {
   username: string;
   email: string;
   fullName: string;
+  name?: string;
+  employeeId?: string;
   department?: string;
   imageUrl?: string;
   roles: string[];

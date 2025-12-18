@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { listMyRequests, listAllRequests } from '../../Transport/services/usageService';
+import { listAllRequests } from '../../Transport/services/usageService';
 import type { UsageRequest } from '../../Transport/services/types';
 import { Th, Td } from '../../Transport/components/ThTd';
 import { Printer, X } from 'lucide-react';

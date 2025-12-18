@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { X } from 'lucide-react';
 import { useForm } from 'react-hook-form';
-import type { Vehicle, VehicleStatus } from '../services/types';
+import type { Vehicle, VehicleStatus, FuelType } from '../services/types';
 import VehicleImagesManager from '../Vehicle/VehicleImagesManager'; // optional in edit
 
 interface Props {
@@ -13,6 +13,7 @@ interface Props {
 }
 
 const STATUS: VehicleStatus[] = ['AVAILABLE', 'IN_SERVICE', 'UNDER_REPAIR', 'RETIRED'];
+const FUEL_TYPES: FuelType[] = ['PETROL', 'DIESEL'];
 
 function buildVehiclePayload(data: Partial<Vehicle>): Partial<Vehicle> {
   const registeredKm = data.registeredKm != null && (data.registeredKm as any) !== ''
@@ -34,6 +35,7 @@ function buildVehiclePayload(data: Partial<Vehicle>): Partial<Vehicle> {
     totalKmDriven: totalKm,
     fuelEfficiency:
       data.fuelEfficiency != null && (data.fuelEfficiency as any) !== '' ? Number(data.fuelEfficiency) : undefined,
+    fuelType: (data.fuelType as FuelType) ?? 'PETROL',
     presentCondition: data.presentCondition?.trim() || undefined,
     status: (data.status as VehicleStatus) ?? 'AVAILABLE',
   };
@@ -42,7 +44,7 @@ function buildVehiclePayload(data: Partial<Vehicle>): Partial<Vehicle> {
 const toDateInput = (s?: string | null) => (s ? s.slice(0, 10) : '');
 
 export default function VehicleForm({ vehicle, onSubmit, onClose, enableImages }: Props) {
-  const { register, handleSubmit, formState: { errors, isSubmitting }, reset } = useForm<Partial<Vehicle>>({
+  const { register, handleSubmit, watch, formState: { errors, isSubmitting }, reset } = useForm<Partial<Vehicle>>({
     defaultValues: {
       vehicleNumber: vehicle?.vehicleNumber ?? '',
       vehicleType: vehicle?.vehicleType ?? '',
@@ -54,10 +56,12 @@ export default function VehicleForm({ vehicle, onSubmit, onClose, enableImages }
       registeredKm: vehicle?.registeredKm ?? undefined,
       totalKmDriven: vehicle?.totalKmDriven ?? undefined,
       fuelEfficiency: vehicle?.fuelEfficiency ?? undefined,
+      fuelType: vehicle?.fuelType ?? 'PETROL',
       presentCondition: vehicle?.presentCondition ?? '',
       status: vehicle?.status ?? 'AVAILABLE',
     },
   });
+  const selectedFuel = watch('fuelType');
 
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -129,6 +133,43 @@ export default function VehicleForm({ vehicle, onSubmit, onClose, enableImages }
                   placeholder="e.g., Truck, Bus, Car"
                 />
                 {errors.vehicleType && <p className="text-red-500 text-xs mt-1">{errors.vehicleType.message}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-orange-800 mb-1">
+                  Fuel Type <span className="text-red-500">*</span>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {FUEL_TYPES.map((f) => {
+                    const label = f === 'PETROL' ? 'Petrol' : 'Diesel';
+                    const checked = selectedFuel === f;
+                    return (
+                      <label
+                        key={f}
+                        className="cursor-pointer select-none"
+                      >
+                        <input
+                          type="radio"
+                          value={f}
+                          className="sr-only"
+                          {...register('fuelType', { required: 'Fuel type is required' })}
+                          checked={checked}
+                        />
+                        <div
+                          className={`px-3 py-2 rounded-lg text-sm font-semibold transition-colors ${
+                            checked
+                              ? 'bg-orange-600 text-white border border-orange-600 shadow-sm'
+                              : 'border border-orange-200 text-orange-800 hover:bg-orange-50'
+                          }`}
+                          data-checked={checked}
+                        >
+                          {label}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+                {errors.fuelType && <p className="text-red-500 text-xs mt-1">{errors.fuelType.message as any}</p>}
               </div>
 
               <div>

@@ -118,6 +118,7 @@ export default function ApplicantReportsPage() {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [timeframe, setTimeframe] = React.useState<TimeframeKey>('ALL');
   const [statusFilter, setStatusFilter] = React.useState<StatusSegmentKey[]>([]);
+  const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const eid = (typeof window !== 'undefined' && (localStorage.getItem('employeeId') || '')) || '';
@@ -126,6 +127,7 @@ export default function ApplicantReportsPage() {
     const uniqueIds = Array.from(new Set([eid, actor, username].filter(Boolean)));
     setIds(uniqueIds);
     setInitialized(true);
+    setError(null);
 
     if (!uniqueIds.length) {
       setItems([]);
@@ -142,10 +144,16 @@ export default function ApplicantReportsPage() {
           let page = 0;
           let totalPages = 1;
           while (page < totalPages) {
-            const result = await listMyRequests(uid, page, 100);
-            all = all.concat(result?.content || []);
-            totalPages = (result?.totalPages as number) ?? 1;
-            page = ((result?.number as number) ?? page) + 1;
+            try {
+              const result = await listMyRequests(uid, page, 100);
+              all = all.concat(result?.content || []);
+              totalPages = (result?.totalPages as number) ?? 1;
+              page = ((result?.number as number) ?? page) + 1;
+            } catch (err: any) {
+              console.warn('Failed to load requests for', uid, err?.message || err);
+              setError((prev) => prev ?? 'Some requests could not be loaded (server error).');
+              break;
+            }
           }
         }
 
@@ -422,16 +430,21 @@ export default function ApplicantReportsPage() {
             </select>
           </label>
           <div className="text-sm text-gray-600 bg-orange-50 border border-dashed border-orange-200 rounded-xl px-3 py-2 flex items-center">
-            {statusFilter.length ? (
-              <span>
-                Showing <strong>{filteredItems.length}</strong> rows across {statusFilter.length} selected filter
-                {statusFilter.length > 1 ? 's' : ''}.
-              </span>
-            ) : (
-              <span>
-                Showing <strong>all statuses</strong> over {timeframeMeta.label.toLowerCase()}.
-              </span>
-            )}
+      {statusFilter.length ? (
+        <span>
+          Showing <strong>{filteredItems.length}</strong> rows across {statusFilter.length} selected filter
+          {statusFilter.length > 1 ? 's' : ''}.
+        </span>
+      ) : (
+        <span>
+          Showing <strong>all statuses</strong> over {timeframeMeta.label.toLowerCase()}.
+        </span>
+      )}
+      {error ? (
+        <p className="text-xs text-red-600 mt-1">
+          {error}
+        </p>
+      ) : null}
           </div>
         </div>
       </div>

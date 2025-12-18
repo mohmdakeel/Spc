@@ -8,3 +8,5 @@ out/
 *.iml
 .env
 .env.*
+node_modules/
+.env

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
 import { ArrowLeft } from 'lucide-react';
@@ -8,7 +8,7 @@ import Sidebar from '../../components/SideBar';
 import { fetchTimeline } from '../../services/historyService';
 import type { ChangeHistory } from '../../services/types';
 
-export default function ServiceCandidateHistoryPage() {
+function HistoryContent() {
   const router = useRouter();
   const params = useSearchParams();
 
@@ -132,5 +132,13 @@ export default function ServiceCandidateHistoryPage() {
         </div>
       </div>
     </Sidebar>
+  );
+}
+
+export default function ServiceCandidateHistoryPage() {
+  return (
+    <Suspense fallback={<div className="p-4 text-sm text-gray-600">Loading candidate history…</div>}>
+      <HistoryContent />
+    </Suspense>
   );
 }

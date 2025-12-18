@@ -1,8 +1,8 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { toast } from 'react-toastify';
-import { ArrowLeft, FileDiff, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, FileDiff, ChevronLeft, ChevronRight, History as HistoryIcon } from 'lucide-react';
 import { fetchRecentHistory, fetchTimeline } from '../services/historyService';
 import type { ChangeHistory } from '../services/types';
 import HistoryModal from '../components/HistoryModal';
@@ -25,7 +25,9 @@ export default function HistoryPage() {
   const [selectedId, setSelectedId] = useState<string>('');
   const [selectedItem, setSelectedItem] = useState<ChangeHistory | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [typeFilter, setTypeFilter] = useState<'ALL' | 'Driver' | 'Vehicle'>('ALL');
+  const [actionFilter, setActionFilter] = useState<'ALL' | 'Created' | 'Updated' | 'Deleted'>('ALL');
+  const [search, setSearch] = useState('');
 
   const getActionStyle = (action: string) => {
     switch (action) {
@@ -41,21 +43,52 @@ export default function HistoryPage() {
       const data = await fetchRecentHistory(200);
       const historyData = Array.isArray(data) ? data : [];
       setAllHistory(historyData);
-      setTotalPages(Math.ceil(historyData.length / ITEMS_PER_PAGE));
       setCurrentPage(1);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to load history');
       setAllHistory([]);
-      setTotalPages(1);
       setCurrentPage(1);
     }
   };
 
   const list = mode === 'all' ? allHistory : entityHistory;
 
+  const filteredList = useMemo(() => {
+    return (list || []).filter((item) => {
+      if (typeFilter !== 'ALL' && item.entityType !== typeFilter) return false;
+      if (actionFilter !== 'ALL' && item.action !== actionFilter) return false;
+      const s = search.trim().toLowerCase();
+      if (!s) return true;
+      return [
+        item.entityType,
+        item.entityId,
+        item.action,
+        item.performedBy,
+        item.timestamp,
+      ]
+        .map((v) => (v ?? '').toString().toLowerCase())
+        .join(' ')
+        .includes(s);
+    });
+  }, [list, typeFilter, actionFilter, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredList.length / ITEMS_PER_PAGE));
+
+  const actionCounts = useMemo(() => {
+    return filteredList.reduce(
+      (acc, h) => {
+        if (h.action === 'Created') acc.created += 1;
+        else if (h.action === 'Updated') acc.updated += 1;
+        else if (h.action === 'Deleted') acc.deleted += 1;
+        return acc;
+      },
+      { created: 0, updated: 0, deleted: 0 }
+    );
+  }, [filteredList]);
+
   const getCurrentItems = () => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    return list.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    return filteredList.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   };
 
   const openEntityById = async (type: 'Driver' | 'Vehicle', id: string) => {
@@ -67,11 +100,9 @@ export default function HistoryPage() {
       const tl = await fetchTimeline(type, id);
       const entityData = Array.isArray(tl) ? tl : [];
       setEntityHistory(entityData);
-      setTotalPages(Math.ceil(entityData.length / ITEMS_PER_PAGE));
     } catch (e) {
       const fallback = (allHistory || []).filter(h => h.entityType === type && String(h.entityId) === id);
       setEntityHistory(fallback);
-      setTotalPages(Math.ceil(fallback.length / ITEMS_PER_PAGE));
       toast.error(e instanceof Error ? e.message : 'Failed to load entity history (showing cached data)');
     }
   };
@@ -87,7 +118,6 @@ export default function HistoryPage() {
     setSelectedType(null);
     setSelectedId('');
     setCurrentPage(1);
-    setTotalPages(Math.ceil(allHistory.length / ITEMS_PER_PAGE));
   };
 
   const goToPage = (p: number) => {
@@ -107,7 +137,7 @@ export default function HistoryPage() {
       <div className="flex items-center justify-between mt-4 px-4 py-3 bg-orange-50 rounded-lg border border-orange-100">
         <div className="text-[13px] text-orange-800">
           Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–
-          {Math.min(currentPage * ITEMS_PER_PAGE, list.length)} of {list.length} records
+          {Math.min(currentPage * ITEMS_PER_PAGE, filteredList.length)} of {filteredList.length} records
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -180,11 +210,24 @@ export default function HistoryPage() {
   return (
     <div className="flex min-h-screen bg-orange-50">
       <div className="flex-1 p-4 md:p-6 overflow-auto">
-        <div className="bg-white rounded-xl shadow-md p-4 md:p-6 min-h-full flex flex-col">
+        <div className="bg-white rounded-xl shadow-md p-4 md:p-6 min-h-full flex flex-col space-y-4">
           {mode === 'all' ? (
             <div className="mb-4">
-              <h1 className="text-[20px] md:text-[22px] font-bold text-gray-800">Change History</h1>
-              <p className="text-[13px] text-orange-600">Showing recent changes across Drivers & Vehicles</p>
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-lg bg-orange-50 text-orange-700 border border-orange-100">
+                  <HistoryIcon size={20} />
+                </div>
+                <div>
+                  <h1 className="text-[20px] md:text-[22px] font-bold text-gray-800">Change History</h1>
+                  <p className="text-[13px] text-orange-600">Recent changes across Drivers & Vehicles (last 200)</p>
+                  <div className="flex flex-wrap gap-2 mt-2 text-[11px]">
+                    <span className="px-2 py-1 rounded-full bg-green-100 text-green-800">Created: {actionCounts.created}</span>
+                    <span className="px-2 py-1 rounded-full bg-yellow-100 text-yellow-800">Updated: {actionCounts.updated}</span>
+                    <span className="px-2 py-1 rounded-full bg-red-100 text-red-800">Deleted: {actionCounts.deleted}</span>
+                    <span className="px-2 py-1 rounded-full bg-orange-100 text-orange-800">Total: {filteredList.length}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="mb-4 flex items-center justify-between">
@@ -203,7 +246,45 @@ export default function HistoryPage() {
             </div>
           )}
 
-          <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2 text-[13px] text-gray-700">
+              <span className="font-semibold text-orange-800">Filters:</span>
+              <select
+                value={typeFilter}
+                onChange={(e) => { setTypeFilter(e.target.value as any); setCurrentPage(1); }}
+                className="border border-orange-200 rounded-lg px-2 py-1 text-sm bg-white"
+              >
+                <option value="ALL">All types</option>
+                <option value="Driver">Driver</option>
+                <option value="Vehicle">Vehicle</option>
+              </select>
+              <select
+                value={actionFilter}
+                onChange={(e) => { setActionFilter(e.target.value as any); setCurrentPage(1); }}
+                className="border border-orange-200 rounded-lg px-2 py-1 text-sm bg-white"
+              >
+                <option value="ALL">All actions</option>
+                <option value="Created">Created</option>
+                <option value="Updated">Updated</option>
+                <option value="Deleted">Deleted</option>
+              </select>
+            </div>
+            <input
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
+              placeholder="Search by id, actor, action..."
+              className="flex-1 min-w-[220px] border border-orange-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+            />
+            <button
+              type="button"
+              onClick={loadAll}
+              className="ml-auto inline-flex items-center gap-2 px-3 py-2 text-sm font-semibold rounded-lg bg-orange-600 text-white hover:bg-orange-700"
+            >
+              Refresh
+            </button>
+          </div>
+
             <div className="rounded-lg border border-orange-100 flex-1">
               <table className="w-full table-fixed">
                 <thead className="bg-orange-50 sticky top-0 z-10">

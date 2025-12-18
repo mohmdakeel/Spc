@@ -1,5 +1,6 @@
 package com.example.Transport.entity;
 
+import com.example.Transport.enums.FuelType;
 import com.example.Transport.enums.VehicleStatus;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import jakarta.persistence.*;
@@ -62,6 +63,10 @@ public class Vehicle {
 
     private Long totalKmDriven;     // odometer
     private Double fuelEfficiency;  // km per liter (or unit)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "fuel_type")
+    @Builder.Default
+    private FuelType fuelType = FuelType.PETROL;      // PETROL or DIESEL
 
     /** Free text: e.g., "Good", "Needs service" */
     private String presentCondition;
@@ -71,6 +76,7 @@ public class Vehicle {
 
     /** Soft delete: 0=active, 1=deleted */
     @Column(name = "is_deleted", nullable = false)
+    @Builder.Default
     private Integer isDeleted = 0;
 
     /** Auditing */
@@ -95,8 +101,15 @@ public class Vehicle {
         return registeredKm != null ? registeredKm : totalKmDriven;
     }
 
-    @PrePersist
-    public void prePersist() {
+    /** Ensure defaults for soft-delete flag and fuel type */
+    private void ensureDefaults() {
         if (isDeleted == null) isDeleted = 0;
+        if (fuelType == null) fuelType = FuelType.PETROL;
     }
+
+    @PrePersist
+    public void prePersist() { ensureDefaults(); }
+
+    @PreUpdate
+    public void preUpdate() { ensureDefaults(); }
 }

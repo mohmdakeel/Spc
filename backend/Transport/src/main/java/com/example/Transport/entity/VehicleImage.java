@@ -28,6 +28,7 @@ public class VehicleImage {
     private String url;
 
     /** 0 = cover image */
+    @Builder.Default
     private Integer sortOrder = 0;
 
     @CreatedDate @Column(updatable = false)

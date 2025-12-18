@@ -15,7 +15,6 @@ import {
   Settings,
   ClipboardList,
   User,
-  Link as LinkIcon,
   MapPin,
   Droplet,
   CalendarCheck,
@@ -146,6 +145,14 @@ const Sidebar: React.FC = () => {
     [isActive]
   );
 
+  const reportsActive = useMemo(
+    () =>
+      [
+        '/Akeel/Transport/Reports',
+      ].some(isActive),
+    [isActive]
+  );
+
   // FIXED: Add proper logout function to Sidebar
   const handleLogout = async () => {
     try {
@@ -216,15 +223,6 @@ const Sidebar: React.FC = () => {
             }`}
           >
             <User size={16} /> Driver Register
-          </button>
-          <button
-            type="button"
-            onClick={() => go('/Akeel/Transport/Usage/AssignVehicle')}
-            className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
-              isActive('/Akeel/Transport/AssignVehicle') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'
-            }`}
-          >
-            <LinkIcon size={16} /> Assign Vehicle
           </button>
           <button
             type="button"
@@ -308,7 +306,7 @@ const Sidebar: React.FC = () => {
                 : 'text-black hover:text-white hover:bg-orange-500'
             }`}
           >
-            <Building size={16} /> Department Requests
+            <Building size={16} /> All Requests
           </button>
           <button
             type="button"
@@ -319,7 +317,7 @@ const Sidebar: React.FC = () => {
                 : 'text-black hover:text-white hover:bg-orange-500'
             }`}
           >
-            <CalendarCheck size={16} /> Approved Requests
+            <CalendarCheck size={16} /> Track by Request
           </button>
           <button
             type="button"
@@ -330,7 +328,7 @@ const Sidebar: React.FC = () => {
                 : 'text-black hover:text-white hover:bg-orange-500'
             }`}
           >
-            <CalendarClock size={16} /> Vehicle Scheduling
+            <CalendarClock size={16} /> Assign Vehicle
           </button>
           <button
             type="button"
@@ -400,7 +398,55 @@ const Sidebar: React.FC = () => {
                 : 'text-black hover:text-white hover:bg-orange-500'
             }`}
           >
-            <Building size={16} /> Company Vehicles
+            <Building size={16} /> SPC Vehicles
+          </button>
+        </SidebarItem>
+
+        <SidebarItem label="Reports" icon={<PieChart size={20} />} collapsed={collapsed} active={reportsActive}>
+          <button
+            type="button"
+            onClick={() => go('/Akeel/Transport/Reports')}
+            className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+              isActive('/Akeel/Transport/Reports') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'
+            }`}
+          >
+            <PieChart size={16} /> Summary Reports
+          </button>
+          <button
+            type="button"
+            onClick={() => go('/Akeel/Transport/Vehicle')}
+            className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+              isActive('/Akeel/Transport/Vehicle') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'
+            }`}
+          >
+            <ClipboardList size={16} /> Vehicle List
+          </button>
+          <button
+            type="button"
+            onClick={() => go('/Akeel/Transport/Driver')}
+            className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+              isActive('/Akeel/Transport/Driver') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'
+            }`}
+          >
+            <User size={16} /> Driver List
+          </button>
+          <button
+            type="button"
+            onClick={() => go('/Akeel/Transport/Fuel')}
+            className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+              isActive('/Akeel/Transport/Fuel') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'
+            }`}
+          >
+            <Droplet size={16} /> Fuel Logs
+          </button>
+          <button
+            type="button"
+            onClick={() => go('/Akeel/Transport/Usage/Department')}
+            className={`flex items-center gap-2 w-full text-left px-3 py-2 rounded-lg transition-all ${
+              isActive('/Akeel/Transport/Usage/Department') ? 'bg-orange-600 text-white' : 'text-black hover:text-white hover:bg-orange-500'
+            }`}
+          >
+            <FileText size={16} /> Usage Requests
           </button>
         </SidebarItem>
       </div>
@@ -416,16 +462,6 @@ const Sidebar: React.FC = () => {
         >
           <User size={18} />
           {!collapsed && <span className="text-sm font-medium">Profile</span>}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => go('/Akeel/Transport/Reports')}
-          className={`flex items-center gap-3 px-4 py-3 rounded-lg w-full transition-all
-          ${isActive('/Akeel/Transport/Reports') ? 'bg-orange-600 text-white' : 'text-black hover:bg-orange-500 hover:text-white'}`}
-        >
-          <PieChart size={18} />
-          <span className="text-sm font-medium">Reports</span>
         </button>
 
         <button

@@ -3,7 +3,6 @@
 
 import React from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { Settings, Building2, Sun, Moon, UserCircle2, Bell } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../hooks/useAuth';
@@ -18,9 +17,29 @@ type UIUser = {
 
 interface TopbarProps {
   user?: UIUser; // optional: if omitted we'll use useAuth()
+  appName?: string;
+  workspace?: string;
+  profileTag?: string;
+  profileHref?: string;
+  settingsHref?: string;
+  notificationHref?: string;
+  notificationCount?: number;
+  notificationLoading?: boolean;
+  actions?: React.ReactNode;
 }
 
-export default function Topbar({ user: propUser }: TopbarProps) {
+export default function Topbar({
+  user: propUser,
+  appName = 'SPC Authservice',
+  workspace = 'Administration Workspace',
+  profileTag = 'Auth Admin',
+  profileHref = '/profile',
+  settingsHref = '/settings',
+  notificationHref,
+  notificationCount,
+  notificationLoading,
+  actions,
+}: TopbarProps) {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const { user: ctxUser } = useAuth();
@@ -43,8 +62,8 @@ export default function Topbar({ user: propUser }: TopbarProps) {
               <Building2 className="w-6 h-6 text-white" />
             </div>
             <div>
-              <p className="text-xs uppercase tracking-wide text-orange-100 font-semibold">SPC Authservice</p>
-              <h1 className="text-lg md:text-xl font-bold leading-tight">Administration Workspace</h1>
+              <p className="text-xs uppercase tracking-wide text-orange-100 font-semibold">{appName}</p>
+              <h1 className="text-lg md:text-xl font-bold leading-tight">{workspace}</h1>
             </div>
           </div>
         </div>
@@ -62,21 +81,31 @@ export default function Topbar({ user: propUser }: TopbarProps) {
           <button
             type="button"
             aria-label="Notifications"
-            className="p-2 rounded-full hover:bg-white/20 transition"
+            className="p-2 rounded-full hover:bg-white/20 transition relative"
+            onClick={() => notificationHref && router.push(notificationHref)}
           >
             <Bell size={18} />
+            {typeof notificationCount === 'number' ? (
+              <span className="absolute -top-1 -right-1 bg-white text-orange-600 text-[10px] font-semibold rounded-full px-1.5 py-0.5 border border-orange-200">
+                {notificationLoading ? '…' : notificationCount}
+              </span>
+            ) : null}
           </button>
 
-          <button
-            onClick={() => router.push('/settings')}
-            className="p-2 rounded-full hover:bg-white/20 transition"
-            aria-label="Settings"
-          >
-            <Settings size={18} />
-          </button>
+          {settingsHref ? (
+            <button
+              onClick={() => router.push(settingsHref)}
+              className="p-2 rounded-full hover:bg-white/20 transition"
+              aria-label="Settings"
+            >
+              <Settings size={18} />
+            </button>
+          ) : null}
+
+          {actions ? <div className="hidden sm:flex items-center gap-2">{actions}</div> : null}
 
           <Link
-            href="/profile"
+            href={profileHref}
             className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full border border-white/20 hover:bg-white/20 transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           >
             <span className="relative inline-flex items-center justify-center w-10 h-10 rounded-full border border-white/40 bg-white/10 overflow-hidden">
@@ -90,7 +119,7 @@ export default function Topbar({ user: propUser }: TopbarProps) {
             <div className="hidden sm:block text-xs leading-tight">
               <p className="font-semibold">{displayName}</p>
               {usernameLine ? <p className="text-orange-100">{usernameLine}</p> : null}
-              <p className="text-orange-100/80 text-[10px] tracking-wide">Auth Admin</p>
+              <p className="text-orange-100/80 text-[10px] tracking-wide">{profileTag}</p>
             </div>
           </Link>
 

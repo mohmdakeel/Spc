@@ -7,7 +7,6 @@ import { fetchDrivers } from '../services/driverService';
 import type { Vehicle, Driver, UsageRequest } from '../services/types';
 import { assignVehicle, AssignPayload, getRequest } from '../services/usageService';
 import { fetchDriverAvailability, fetchVehicleAvailability } from '../services/availabilityService';
-import { login } from '../../../../../lib/auth';
 
 const toInput = (val?: string | Date | null) => {
   if (!val) return '';
@@ -80,16 +79,17 @@ export default function AssignVehicleModal({
   // keep inputs in sync when modal is reused for another request
   useEffect(() => {
     if (!open) return;
-    const fallbackPickup =
+    const fallbackPickup = toInput(
       defaultValues?.pickupAt ||
-      toInput(request?.scheduledPickupAt || (request?.dateOfTravel && request?.timeFrom ? `${request.dateOfTravel}T${request.timeFrom}` : null));
-    const fallbackReturn =
+        request?.scheduledPickupAt ||
+        (request?.dateOfTravel && request?.timeFrom ? `${request.dateOfTravel}T${request.timeFrom}` : null)
+    );
+    const fallbackReturn = toInput(
       defaultValues?.expectedReturnAt ||
-      toInput(
         request?.scheduledReturnAt ||
         (request?.returnDate && request?.timeTo ? `${request.returnDate}T${request.timeTo}` : null) ||
         (request?.dateOfTravel && request?.timeTo ? `${request.dateOfTravel}T${request.timeTo}` : null)
-      );
+    );
 
     setVehicleNumber(defaultValues?.vehicleNumber || '');
     setDriverName(defaultValues?.driverName || '');
@@ -209,13 +209,6 @@ export default function AssignVehicleModal({
 
     setSubmitting(true);
     try {
-      // lightweight re-auth to confirm identity before editing a schedule
-      const username = typeof window !== 'undefined' ? window.localStorage.getItem('username') : null;
-      if (!username) {
-        throw new Error('Session username missing. Please re-login.');
-      }
-      await login({ username, password });
-
       await assignVehicle(requestId, {
         vehicleNumber,
         driverName,

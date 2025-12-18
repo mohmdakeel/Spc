@@ -46,7 +46,7 @@ export default function GateSettingsPage() {
         setAutoEscalate(!!data.autoEscalate);
         setTwoFactor(!!data.twoFactor);
         setTheme(savedTheme || data.theme || 'light');
-        setUpdatedAt(data.updatedAt ? new Date(data.updatedAt).toLocaleString() : null);
+        setUpdatedAt(data.updatedAt ? new Date(String(data.updatedAt)).toLocaleString() : null);
         applyTheme(savedTheme || data.theme || 'light');
       } else {
         const fallback = savedTheme || 'light';
@@ -93,7 +93,7 @@ export default function GateSettingsPage() {
         updatedAt: new Date().toISOString(),
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-      setUpdatedAt(new Date(payload.updatedAt).toLocaleString());
+      setUpdatedAt(new Date(String(payload.updatedAt)).toLocaleString());
       setStatus('Preferences saved to this device.');
     } catch {
       setError('Failed to store preferences locally.');

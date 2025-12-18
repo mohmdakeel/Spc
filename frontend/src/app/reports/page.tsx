@@ -64,7 +64,7 @@ export default function ReportsPage() {
         setLoading(false);
         setIsRefreshing(false);
       });
-  }, [user]);
+  }, [user, cachedUsers.length, cachedEmployees.length]);
 
   const filteredUsers = useMemo(() => {
     const term = userSearch.trim().toLowerCase();

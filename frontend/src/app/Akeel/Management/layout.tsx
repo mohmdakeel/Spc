@@ -5,7 +5,7 @@ import RequireRole from '../../../../components/guards/RequireRole';
 import ManagementSidebar from './components/ManagementSidebar';
 import ManagementAppBar from './components/ManagementAppBar';
 
-const MANAGEMENT_ROLES = ['HR', 'HRD', 'HRM', 'GM', 'GENERAL_MANAGER', 'CHAIRMAN', 'MANAGEMENT'] as const;
+const MANAGEMENT_ROLES: string[] = ['HR', 'HRD', 'HRM', 'GM', 'GENERAL_MANAGER', 'CHAIRMAN', 'MANAGEMENT'];
 
 export default function ManagementLayout({ children }: { children: ReactNode }) {
   return (
