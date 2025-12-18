@@ -1,0 +1,31 @@
+node_modules/
+.next/
+target/
+dist/
+build/
+out/
+.idea/
+*.iml
+.env
+.env.*
+node_modules/
+.env
+# Node/Next.js
+node_modules/
+.next/
+.next-export/
+out/
+.env
+.env.*
+
+# Java/Maven/Gradle
+target/
+build/
+.gradle/
+**/.m2/
+!.mvn/wrapper/**
+
+# IDEs
+.vscode/
+.idea/
+*.iml
