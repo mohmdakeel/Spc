@@ -167,6 +167,17 @@
               </artifactItems>
             </configuration>
           </execution>
+          <execution>
+            <id>copy-deps</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>copy-dependencies</goal>
+            </goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/dependency</outputDirectory>
+              <includeScope>compile</includeScope>
+            </configuration>
+          </execution>
         </executions>
       </plugin>
       <plugin>
@@ -186,6 +197,8 @@
                 <argument>-jar</argument>
                 <argument>${project.build.directory}/lombok-${lombok.version}.jar</argument>
                 <argument>delombok</argument>
+                <argument>--classpath</argument>
+                <argument>${project.build.directory}/dependency/*</argument>
                 <argument>src/main/java</argument>
                 <argument>-d</argument>
                 <argument>${project.build.directory}/generated-sources/delombok</argument>
