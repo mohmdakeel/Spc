@@ -145,6 +145,31 @@
         <artifactId>spring-boot-maven-plugin</artifactId>
       </plugin>
       <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <version>3.6.1</version>
+        <executions>
+          <execution>
+            <id>copy-lombok</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>copy</goal>
+            </goals>
+            <configuration>
+              <artifactItems>
+                <artifactItem>
+                  <groupId>org.projectlombok</groupId>
+                  <artifactId>lombok</artifactId>
+                  <version>${lombok.version}</version>
+                  <outputDirectory>${project.build.directory}</outputDirectory>
+                  <destFileName>lombok-${lombok.version}.jar</destFileName>
+                </artifactItem>
+              </artifactItems>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
         <version>3.1.0</version>
@@ -153,17 +178,18 @@
             <id>delombok</id>
             <phase>generate-sources</phase>
             <goals>
-              <goal>java</goal>
+              <goal>exec</goal>
             </goals>
             <configuration>
-              <mainClass>lombok.launch.Main</mainClass>
+              <executable>java</executable>
               <arguments>
+                <argument>-jar</argument>
+                <argument>${project.build.directory}/lombok-${lombok.version}.jar</argument>
                 <argument>delombok</argument>
                 <argument>src/main/java</argument>
                 <argument>-d</argument>
                 <argument>${project.build.directory}/generated-sources/delombok</argument>
               </arguments>
-              <classpathScope>compile</classpathScope>
             </configuration>
           </execution>
         </executions>
