@@ -138,7 +138,26 @@
   </dependencies>
 
   <build>
+    <sourceDirectory>${project.build.directory}/delombok</sourceDirectory>
     <plugins>
+      <plugin>
+        <groupId>org.projectlombok</groupId>
+        <artifactId>lombok-maven-plugin</artifactId>
+        <version>${lombok.version}</version>
+        <executions>
+          <execution>
+            <id>delombok</id>
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>delombok</goal>
+            </goals>
+            <configuration>
+              <sourceDirectory>${project.basedir}/src/main/java</sourceDirectory>
+              <targetDirectory>${project.build.directory}/delombok</targetDirectory>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
@@ -149,17 +168,6 @@
         <version>3.11.0</version>
         <configuration>
           <release>${java.version}</release>
-          <proc>full</proc>
-          <annotationProcessors>
-            <annotationProcessor>lombok.launch.AnnotationProcessorHider$AnnotationProcessor</annotationProcessor>
-          </annotationProcessors>
-          <annotationProcessorPaths>
-            <path>
-              <groupId>org.projectlombok</groupId>
-              <artifactId>lombok</artifactId>
-              <version>${lombok.version}</version>
-            </path>
-          </annotationProcessorPaths>
         </configuration>
       </plugin>
     </plugins>
