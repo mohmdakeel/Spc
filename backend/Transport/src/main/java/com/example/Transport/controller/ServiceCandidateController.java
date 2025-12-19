@@ -6,12 +6,14 @@ import com.example.Transport.enums.ServiceCandidateStatus;
 import com.example.Transport.service.ServiceCandidateService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Profile("db")
 @RestController
 @RequestMapping("/api/service-candidates")
 @RequiredArgsConstructor

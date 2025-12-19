@@ -4,11 +4,13 @@ import com.example.Transport.common.ApiResponse;
 import com.example.Transport.entity.ServiceCandidate;
 import com.example.Transport.service.OdometerScanService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Profile("db")
 @RestController
 @RequestMapping("/api/maintenance")
 @RequiredArgsConstructor

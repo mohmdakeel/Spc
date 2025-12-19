@@ -38,11 +38,8 @@ public class SecurityConfig {
       .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
       .authorizeHttpRequests(auth -> auth
         // Public endpoints (no JWT required)
-        .requestMatchers(
-            "/actuator/health",
-            "/api/auth/ping",
-            "/api/auth/login"
-        ).permitAll()
+        .requestMatchers("/actuator/**").permitAll()
+        .requestMatchers("/auth/**").permitAll()
         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
         // Everything else → authenticated
         .anyRequest().authenticated()

@@ -6,6 +6,7 @@ import com.example.Transport.history.dto.*;
 import com.example.Transport.repository.ChangeHistoryRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.stream.Collectors;
 
+@Profile("db")
 @Service
 @RequiredArgsConstructor
 public class HistoryService {

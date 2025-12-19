@@ -6,10 +6,12 @@ import com.example.Transport.history.dto.CompareResult;
 import com.example.Transport.history.dto.HistoryRecordDto;
 import com.example.Transport.service.HistoryService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
+@Profile("db")
 @RestController
 @RequestMapping("/api/history")
 @RequiredArgsConstructor

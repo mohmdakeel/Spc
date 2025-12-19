@@ -13,6 +13,7 @@ import com.example.Transport.repository.VehicleRepository;
 import com.example.Transport.util.HistoryRecorder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Profile("db")
 @Service
 @Transactional
 @RequiredArgsConstructor

@@ -6,6 +6,7 @@ import com.example.Transport.dto.VehicleAvailabilityDto;
 import com.example.Transport.service.AvailabilityService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -15,6 +16,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 
+@Profile("db")
 @RestController
 @RequestMapping("/api/availability")
 @RequiredArgsConstructor

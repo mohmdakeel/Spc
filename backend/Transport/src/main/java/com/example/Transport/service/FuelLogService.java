@@ -7,6 +7,7 @@ import com.example.Transport.enums.FuelType;
 import com.example.Transport.repository.FuelLogRepository;
 import com.example.Transport.repository.VehicleRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +18,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
+@Profile("db")
 @Service
 @RequiredArgsConstructor
 public class FuelLogService {

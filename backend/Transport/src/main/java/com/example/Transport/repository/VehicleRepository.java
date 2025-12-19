@@ -4,10 +4,14 @@ import com.example.Transport.entity.Vehicle;
 import org.springframework.data.domain.*;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
 
+@Profile("db")
+@Repository
 public interface VehicleRepository extends JpaRepository<Vehicle, Long> {
 
     Page<Vehicle> findByIsDeleted(int isDeleted, Pageable pageable);

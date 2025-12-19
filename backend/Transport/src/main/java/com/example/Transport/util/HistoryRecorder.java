@@ -4,10 +4,12 @@ import com.example.Transport.entity.ChangeHistory;
 import com.example.Transport.repository.ChangeHistoryRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.util.Date;
 
+@Profile("db")
 @Component
 @RequiredArgsConstructor
 public class HistoryRecorder {

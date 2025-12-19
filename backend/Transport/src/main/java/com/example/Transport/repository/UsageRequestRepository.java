@@ -6,11 +6,15 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 
+@Profile("db")
+@Repository
 public interface UsageRequestRepository extends JpaRepository<UsageRequest, Long> {
 
   /* ---- Paged finders ---- */

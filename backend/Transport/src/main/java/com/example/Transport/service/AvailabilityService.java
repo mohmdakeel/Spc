@@ -5,6 +5,7 @@ import com.example.Transport.dto.DriverAvailabilityDto;
 import com.example.Transport.dto.VehicleAvailabilityDto;
 import com.example.Transport.repository.UsageRequestAvailabilityRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -13,6 +14,7 @@ import java.time.LocalTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Profile("db")
 @Service
 @RequiredArgsConstructor
 public class AvailabilityService {

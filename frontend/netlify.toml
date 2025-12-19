@@ -3,6 +3,12 @@
   publish = "out"
 
 [[redirects]]
+  from = "/api/*"
+  to = "https://spc-56.onrender.com/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200

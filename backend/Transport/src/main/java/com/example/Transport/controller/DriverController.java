@@ -6,9 +6,11 @@ import com.example.Transport.entity.Driver;
 import com.example.Transport.service.DriverService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+@Profile("db")
 @RestController
 @RequestMapping("/api/drivers")
 public class DriverController {

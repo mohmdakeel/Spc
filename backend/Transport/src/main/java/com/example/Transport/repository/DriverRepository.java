@@ -5,7 +5,11 @@ import org.springframework.data.domain.*;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Repository;
 
+@Profile("db")
+@Repository
 public interface DriverRepository extends JpaRepository<Driver, String> {
     Page<Driver> findByIsDeleted(int isDeleted, Pageable pageable);
     Page<Driver> findByIsDeletedAndNameContainingIgnoreCase(int isDeleted, String name, Pageable pageable);

@@ -4,10 +4,14 @@ import com.example.Transport.entity.FuelLog;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Repository;
 
 import java.util.Date;
 import java.util.List;
 
+@Profile("db")
+@Repository
 public interface FuelLogRepository extends JpaRepository<FuelLog, Long> {
 
     @Query("""

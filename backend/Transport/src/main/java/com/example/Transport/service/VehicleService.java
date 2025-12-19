@@ -7,6 +7,7 @@ import com.example.Transport.repository.ChangeHistoryRepository;
 import com.example.Transport.repository.VehicleRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +16,7 @@ import java.util.Date;
 import java.util.Objects;
 import java.util.Optional;
 
+@Profile("db")
 @Service
 @RequiredArgsConstructor
 public class VehicleService {

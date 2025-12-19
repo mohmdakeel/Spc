@@ -6,11 +6,13 @@ import com.example.Transport.entity.FuelLog;
 import com.example.Transport.service.FuelLogService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Profile("db")
 @RestController
 @RequestMapping("/api/fuel-logs")
 @RequiredArgsConstructor

@@ -24,8 +24,11 @@ export default function RequireRole({ roles, children, fallback }: RequireRolePr
       return;
     }
 
-    // Wait for roles to be present before deciding
-    if (!user.roles || user.roles.length === 0) return;
+    // Missing roles means we cannot validate access; send to login
+    if (!user.roles || user.roles.length === 0) {
+      router.replace('/login');
+      return;
+    }
 
     // Logged in but wrong role → show access denied screen
     if (!hasRole(roles)) {

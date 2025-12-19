@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, type CSSProperties } from 'react';
+import { useRouter } from 'next/navigation';
 import Topbar from '../../../components/Topbar';
 import Sidebar from '../../../components/Sidebar';
 import RequireRole from '../../../components/guards/RequireRole';
@@ -19,7 +20,8 @@ import {
 import { AuditLog, Registration, User as UserType } from '../../../types';
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
+  const router = useRouter();
 
   const cachedRegs = readCache<Registration[]>('cache:auth:employees') || [];
   const cachedUsers = readCache<UserType[]>('cache:auth:users') || [];
@@ -53,6 +55,12 @@ export default function Dashboard() {
   }, [user]);
 
   const toggleSidebar = () => setIsOpenSidebar(!isOpenSidebar);
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace('/login');
+    }
+  }, [loading, user, router]);
 
   // ========================
   // FETCH STATS (employees / users)
@@ -191,7 +199,7 @@ export default function Dashboard() {
   // ========================
   // RENDER
   // ========================
-  if (!user) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-50 to-orange-100 flex items-center justify-center">
         <div className="text-center">
@@ -201,6 +209,8 @@ export default function Dashboard() {
       </div>
     );
   }
+
+  if (!user) return null;
 
   return (
     <RequireRole roles={['ADMIN','AUTH_ADMIN','HRD','HOD','GM','CHAIRMAN','TRANSPORT_ADMIN','TRANSPORT','VEHICLE_INCHARGE']}>
